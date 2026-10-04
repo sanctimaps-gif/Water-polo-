@@ -21,3 +21,5 @@ jobs:
           node-version: '22'
       - name: Web build — human controls reach the simulation
         run: node tools/web-tests/human-actions.mjs
+      - name: Web build — game state rules (TOTAL, league, rewards, shop, events)
+        run: node tools/web-tests/state.mjs

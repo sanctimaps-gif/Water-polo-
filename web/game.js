@@ -1,7 +1,10 @@
 // WATER POLO 26 MOBILE — web build: match presentation (Three.js) + touch controls + HUD over the
 // deterministic JS simulation. Rendering modules live in web/render/.
 import * as THREE from './vendor/three.module.min.js';
-import { Match, HOME, AWAY, Ev, TACTICS } from './sim.js';
+import { Match, Ev, TACTICS } from './sim.js';
+import { GameState } from './state.js';
+import { App } from './ui/app.js';
+import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
 import { Water } from './render/water.js';
 import { Athlete } from './render/athlete.js';
@@ -30,13 +33,13 @@ async function loadLang(code) {
   } catch { tables[code] = {}; }
 }
 const L = (k, ...a) => {
-  let s = (tables[lang] && tables[lang][k]) || (tables.en && tables.en[k]) || k;
+  let s = (UI[lang] && UI[lang][k]) || (tables[lang] && tables[lang][k]) || UI.en[k] || (tables.en && tables.en[k]) || k;
   a.forEach((v, i) => (s = s.replace(`{${i}}`, v)));
   return s;
 };
 
 // ------------------------------------------------------------------ options (persisted per device)
-const DEFAULT_OPTS = { team: 0, difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
+const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
 let opts = { ...DEFAULT_OPTS };
 try { Object.assign(opts, JSON.parse(localStorage.getItem('wp26.opts') || '{}')); } catch { /* private mode */ }
 const saveOpts = () => { try { localStorage.setItem('wp26.opts', JSON.stringify(opts)); } catch { /* ignore */ } };
@@ -50,35 +53,6 @@ const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIV
 const cycle = (list, v) => list[(list.indexOf(v) + 1) % list.length];
 
 const $ = (id) => document.getElementById(id);
-
-function renderMenu() {
-  const home = HOME(), away = AWAY();
-  const rows = [
-    ['menu.team', (opts.team === 0 ? home : away).name, () => (opts.team = 1 - opts.team)],
-    ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), () => (opts.difficulty = (opts.difficulty + 1) % 3)],
-    ['menu.assist', L('assist.' + opts.assist.toLowerCase()), () => (opts.assist = cycle(ASSISTS, opts.assist))],
-    ['menu.duration', L('menu.minutes', opts.minutes), () => (opts.minutes = cycle(MINUTES, opts.minutes))],
-    ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, () => { opts.graphics = cycle(GRAPHICS, opts.graphics); applyQuality(opts.graphics === 'AUTO' ? autoTier : opts.graphics); }],
-    ['menu.camera', L('cam.' + opts.camera.toLowerCase()), () => (opts.camera = cycle(CAMERAS, opts.camera))],
-    ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), () => { opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); }],
-    ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), () => (opts.replays = !opts.replays)],
-    ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), () => (opts.timing = !opts.timing)],
-    ['menu.language', L('lang.name'), async () => { lang = cycle(LANGS, lang); await loadLang(lang); }],
-  ];
-  $('menu-title').textContent = L('app.title');
-  $('menu-sub').textContent = L('menu.quick_match');
-  $('menu-hint').textContent = L('menu.controls_hint');
-  $('play').textContent = L('menu.play');
-  const box = $('menu-rows');
-  box.innerHTML = '';
-  for (const [k, v, fn] of rows) {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `<span>${L(k)}</span><button>${v}</button>`;
-    row.querySelector('button').onclick = async () => { await fn(); saveOpts(); renderMenu(); };
-    box.appendChild(row);
-  }
-}
 
 // ------------------------------------------------------------------ renderer + world
 const detected = detectTier();
@@ -149,8 +123,9 @@ passRing.renderOrder = 5; scene.add(passRing);
 let hero = null;
 function buildHero() {
   if (hero) scene.remove(hero.root);
-  hero = new Athlete({ teamColor: 0x1e5bd8, capColor: 0x1e5bd8, trimColor: 0xffffff, number: 7, role: 'CENTER', isGK: false, seed: 7, preset });
-  hero.root.scale.multiplyScalar(1); scene.add(hero.root);
+  const c = state.data.club;
+  hero = new Athlete({ teamColor: c.color, capColor: state.equippedColor('cap') ?? c.color, trimColor: state.equippedColor('trim') ?? c.color2, number: 7, role: 'CENTER', isGK: false, seed: 7, preset });
+  scene.add(hero.root);
 }
 
 // ------------------------------------------------------------------ input
@@ -162,13 +137,13 @@ function btnState() { return { held: false, press: false, release: false, down: 
 // on iOS Safari, Android Chrome and desktop, and is immune to overlays stealing the event.
 const contacts = new Map(); // id -> { region, ox, oy, lx, ly }
 const STICK_R = 70;
-function hudActive() { return match && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
+function hudActive() { return match && !paused && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
 function regionAt(x, y) {
   for (const id of ['btnA', 'btnB', 'btnS']) {
     const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (Math.hypot(x - cx, y - cy) <= (r.width / 2) * 1.25) return id;
   }
-  for (const id of ['tactic', 'camBtn', 'soundBtn']) {
+  for (const id of ['tactic', 'camBtn', 'soundBtn', 'pauseBtn']) {
     const t = $(id).getBoundingClientRect();
     if (x >= t.left - 6 && x <= t.right + 6 && y >= t.top - 6 && y <= t.bottom + 6) return id;
   }
@@ -215,6 +190,8 @@ function contactEnd(id) {
     cycleTactic();
   } else if (c.region === 'camBtn') {
     opts.camera = cycle(CAMERAS, opts.camera); saveOpts(); refreshChips();
+  } else if (c.region === 'pauseBtn') {
+    openPause();
   } else if (c.region === 'soundBtn') {
     opts.sound = !opts.sound; audio.setEnabled(opts.sound); saveOpts(); refreshChips();
   } else if (c.region === 'right' && c.moved < 12) {
@@ -298,8 +275,8 @@ let currentMove = { x: 0, y: 0, z: 0 };
 
 // ------------------------------------------------------------------ actors
 let athletes = [];
-const capColorFor = (m, p) => (p.isGK ? 0xd81a1f : p.team === 0 ? m.teams[0].def.color : 0xf2f4f7);
-const trimFor = (m, p) => (p.team === 0 ? 0xffffff : m.teams[1].def.color);
+const capColorFor = (m, p) => (p.isGK ? 0xd81a1f : p.team === 0 ? (state.equippedColor('cap') ?? m.teams[0].def.color) : 0xf2f4f7);
+const trimFor = (m, p) => (p.team === 0 ? (state.equippedColor('trim') ?? state.data.club.color2) : m.teams[1].def.color);
 function buildActors(m) {
   for (const a of athletes) scene.remove(a.root);
   athletes = m.players.map((p) => {
@@ -351,14 +328,17 @@ let toastT = 0, timingT = 0, tacticIdx = 0;
 const camState = { focus: new THREE.Vector3(), goalT: 0, goalPoint: new THREE.Vector3(), goalSide: 1, shotT: 0, shotGoalX: 0 };
 let replay = null, pendingReplay = null;
 
-function startMatch() {
-  const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: opts.team, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing };
-  match = new Match(cfg, HOME(), AWAY());
+let matchCtx = null, paused = false;
+function startMatch(ctx) {
+  matchCtx = ctx; paused = false;
+  const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: 0, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing };
+  match = new Match(cfg, state.userTeamDef(), state.opponentTeamDef(ctx.opponent, ctx.rating));
+  tacticIdx = Math.max(0, TACTICS.indexOf(state.data.club.tactic));
   match.start();
   tape.length = 0; record(match, []); record(match, []);
   buildActors(match);
-  tacticIdx = 0; replay = null; pendingReplay = null; camState.goalT = 0;
-  $('menu').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden');
+  replay = null; pendingReplay = null; camState.goalT = 0;
+  $('hud').classList.remove('hidden');
   $('home-name').textContent = match.teams[0].def.short; $('away-name').textContent = match.teams[1].def.short;
   $('home-chip').style.background = hex(match.teams[0].def.color); $('away-chip').style.background = hex(match.teams[1].def.color);
   refreshTactic(); refreshChips();
@@ -385,7 +365,7 @@ function react(e) {
     case Ev.GOAL: {
       arena.netHit(e.pos.x, e.pos.z, e.pos.y, 1.6); vfx.burst(e.pos.x, e.pos.z, 2.6); audio.netHit(); audio.roar(1.2);
       arena.cheer(-1, 1.5);
-      if (a) a.playCelebrate(e.player % 2 ? 'splash' : 'arms');
+      if (a) a.playCelebrate(e.team === 0 ? state.celebration() : 'arms');
       break;
     }
   }
@@ -420,7 +400,7 @@ function onEvent(e) {
   if (e.type === Ev.SHOT && e.team === human && e.timing && e.timing !== 'NONE') {
     const el = $('timing'); el.textContent = L('hud.timing.' + e.timing.toLowerCase()); el.className = 't-' + e.timing.toLowerCase(); timingT = 1.2;
   }
-  if (e.type === Ev.END) { audio.whistle(true); audio.roar(1); arena.cheer(-1, 1.2); showEnd(e.team, human); }
+  if (e.type === Ev.END) { audio.whistle(true); audio.roar(1); arena.cheer(-1, 1.2); setTimeout(() => finishMatch(false), 2200); }
 }
 function toast(t, s) { $('toast').textContent = t; toastT = s; }
 
@@ -529,20 +509,32 @@ function updateWorld(dt, v) {
   arena.focusShadows(camState.focus.x, camState.focus.z);
 }
 
-function showEnd(winner, human) {
-  const m = match, a = m.stats.teams[0], b = m.stats.teams[1];
-  const title = winner < 0 ? 'result.draw' : winner === human ? 'result.win' : 'result.loss';
-  $('end-title').textContent = `${L(title)}  ${m.teams[0].score} - ${m.teams[1].score}`;
-  const pct = (x, y) => (y ? Math.round((100 * x) / y) : 0) + '%';
-  const tot = a.possession + b.possession || 1;
-  const rows = [[a.shots, 'stats.shots', b.shots], [a.saves, 'stats.saves', b.saves], [pct(a.passesOk, a.passes), 'stats.passes', pct(b.passesOk, b.passes)],
-    [Math.round((100 * a.possession) / tot) + '%', 'stats.possession', Math.round((100 * b.possession) / tot) + '%'], [a.steals + a.interceptions, 'stats.steals', b.steals + b.interceptions]];
-  $('end-stats').innerHTML = `<div class="sr head"><b>${m.teams[0].def.short}</b><span></span><b>${m.teams[1].def.short}</b></div>` +
-    rows.map(([x, k, y]) => `<div class="sr"><b>${x}</b><span>${L(k)}</span><b>${y}</b></div>`).join('');
-  $('again').textContent = L('btn.restart');
-  toastT = 0; $('toast').style.opacity = 0;
-  $('end').classList.remove('hidden');
+/** Applies the result to the save (coins, XP, objectives, league / event) and shows the results screen. */
+function finishMatch(forfeit) {
+  if (!match) return;
+  const m = match, ctx = matchCtx;
+  let hs = m.teams[0].score, as = m.teams[1].score;
+  const stats = { ...m.stats.teams[0] }, statsOpp = { ...m.stats.teams[1] };
+  if (forfeit) { hs = 0; as = 5; }
+  const summary = ctx.mode === 'quick' && forfeit ? null : state.applyResult(ctx, { hs, as, stats });
+  leaveMatch();
+  if (summary) { audio.whistle(false); app.show('results', { summary, hs, as, stats, statsOpp, opponent: m.teams[1].def.short }, false); }
+  else app.home();
 }
+function leaveMatch() {
+  match = null; paused = false; endReplay();
+  for (const a of athletes) scene.remove(a.root);
+  athletes = [];
+  $('hud').classList.add('hidden'); $('pause').classList.add('hidden');
+  buildHero();
+}
+function openPause() {
+  if (!match || match.finished) return;
+  paused = true; $('pause').classList.remove('hidden');
+  $('pause-title').textContent = L('ui.pause'); $('pause-resume').textContent = L('ui.resume'); $('pause-quit').textContent = L('ui.quit');
+  $('pause-note').textContent = matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn');
+}
+function closePause() { paused = false; $('pause').classList.add('hidden'); }
 
 function cycleTactic() { if (!match || !match.human) return; tacticIdx = (tacticIdx + 1) % TACTICS.length; match.setTactic(match.human.team, TACTICS[tacticIdx]); refreshTactic(); }
 function refreshTactic() { if (match) $('tactic').textContent = `${L('btn.tactic')}: ${L(TACTIC_KEYS[TACTICS[tacticIdx]])}`; }
@@ -586,7 +578,7 @@ function frame(now) {
       v = buildView(replay.frames[i], replay.frames[i + 1], replay.t - i);
       if (replay.t >= replay.frames.length - 1) endReplay();
     } else {
-      if (!match.finished) {
+      if (!match.finished && !paused) {
         pollInput(match);
         if (pendingReplay) { pendingReplay.at -= fdt; if (pendingReplay.at <= 0) { pendingReplay = null; startReplay(); } }
         if (!replay) {
@@ -615,13 +607,14 @@ function frame(now) {
   } else {
     // Menu: the hero treads water in front of a slow orbit of the arena.
     if (!hero) buildHero();
-    hero.root.visible = true;
+    hero.root.visible = heroVisible;
     hero.update(fdt, { x: 0, z: -6, fx: Math.sin(time * 0.3) * 0.3, fz: -1, vx: 0, vz: 0, hasBall: true, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 1, -12), receive: false });
     hero.handWorld(ballMesh.position);
-    const ang = Math.sin(time * 0.15) * 0.5;
-    camera.position.set(Math.sin(ang) * 3.2, 1.0, -6 - Math.cos(ang) * 3.2);
-    camera.lookAt(0, 0.5, -6);
-    setFov(42, fdt, 10);
+    // Hero framed in the centre-left gap of the home screen; slow parallax sway.
+    const ang = Math.sin(time * 0.15) * 0.15;
+    camera.position.set(Math.sin(ang) * 5.2 - 1.4, 0.9, -6 - Math.cos(ang) * 5.2);
+    camera.lookAt(-1.4 - 0.25, 0.75, -6);
+    setFov(40, fdt, 10);
     water.setWakes([{ x: 0, z: -6, vx: 0, vz: 0 }]);
     selRing.visible = selArrow.visible = passRing.visible = false; ballShadow.material.opacity = 0;
   }
@@ -659,6 +652,51 @@ function resize() {
   vfx.setScale(h * Math.min(devicePixelRatio, preset.pixelRatio));
 }
 
+// ------------------------------------------------------------------ game state + front-end
+const state = new GameState();
+let heroVisible = true;
+const settingsDef = () => [
+  ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, 'graphics'],
+  ['menu.camera', L('cam.' + opts.camera.toLowerCase()), 'camera'],
+  ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience'],
+  ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), 'replays'],
+  ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty'],
+  ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist'],
+  ['menu.duration', L('menu.minutes', opts.minutes), 'minutes'],
+  ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), 'timing'],
+  ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound'],
+  ['menu.language', L('lang.name'), 'lang'],
+];
+const app = new App($('app'), {
+  L, state,
+  setHero: (v) => { heroVisible = v; },
+  refreshHero: () => buildHero(),
+  startMatch: (ctx) => {
+    const el = document.documentElement;
+    if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
+    lockLandscape(); audio.start(); startMatch(ctx);
+  },
+  settingsRows: () => settingsDef().map(([k, v, key]) => [L(k), v, key]),
+  changeSetting: async (key) => {
+    switch (key) {
+      case 'graphics': opts.graphics = cycle(GRAPHICS, opts.graphics); applyQuality(opts.graphics === 'AUTO' ? autoTier : opts.graphics); break;
+      case 'camera': opts.camera = cycle(CAMERAS, opts.camera); break;
+      case 'ambience': opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); break;
+      case 'replays': opts.replays = !opts.replays; break;
+      case 'difficulty': opts.difficulty = (opts.difficulty + 1) % 3; break;
+      case 'assist': opts.assist = cycle(ASSISTS, opts.assist); break;
+      case 'minutes': opts.minutes = cycle(MINUTES, opts.minutes); break;
+      case 'timing': opts.timing = !opts.timing; break;
+      case 'sound': opts.sound = !opts.sound; audio.setEnabled(opts.sound); break;
+      case 'lang': lang = cycle(LANGS, lang); await loadLang(lang); break;
+    }
+    saveOpts();
+  },
+  haptic: (p) => { if (navigator.vibrate) navigator.vibrate(p); },
+  uiSound: () => { audio.start(); audio.tone(880, 0.05, 0.05, 'sine'); },
+  rewardSound: () => { audio.tone(660, 0.12, 0.12, 'triangle'); setTimeout(() => audio.tone(990, 0.2, 0.12, 'triangle'), 110); },
+});
+
 // ------------------------------------------------------------------ showcase (?showcase): close-up check of models & animations
 let showcase = null;
 function buildShowcase() {
@@ -674,29 +712,18 @@ function buildShowcase() {
     };
     scene.add(a.root); return a;
   });
-  $('menu').classList.add('hidden');
+  app.hide();
 }
 
 // ------------------------------------------------------------------ boot
 (async () => {
   await Promise.all([loadLang('en'), loadLang(lang)]);
   applyQuality(tier);
-  renderMenu();
   setupInput();
-  $('play').onclick = async () => {
-    // Fullscreen first: browsers only allow the orientation lock in fullscreen.
-    const el = document.documentElement;
-    if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches) { try { await el.requestFullscreen(); } catch {} }
-    lockLandscape();
-    startMatch();
-  };
-  addEventListener('pointerdown', lockLandscape, { once: true });
-  $('again').onclick = () => {
-    match = null; endReplay();
-    for (const a of athletes) scene.remove(a.root);
-    athletes = [];
-    $('end').classList.add('hidden'); $('hud').classList.add('hidden'); $('menu').classList.remove('hidden'); renderMenu();
-  };
+  addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });
+  $('pause-resume').onclick = closePause;
+  $('pause-quit').onclick = () => { closePause(); finishMatch(matchCtx.mode !== 'quick'); };
+  app.home();
   $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); };
   if (new URLSearchParams(location.search).has('showcase')) buildShowcase();
   requestAnimationFrame(frame);

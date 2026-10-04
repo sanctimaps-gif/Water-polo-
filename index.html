@@ -9,21 +9,13 @@
 <title>Water Polo 26 Mobile</title>
 <link rel="manifest" href="web/manifest.webmanifest">
 <link rel="stylesheet" href="web/style.css">
+<link rel="stylesheet" href="web/ui/ui.css">
 </head>
 <body>
 <div id="view"></div>
 
-<!-- QUICK MATCH -->
-<div id="menu">
-  <div class="menu-card">
-    <h1 id="menu-title">WATER POLO 26 MOBILE</h1>
-    <h2 id="menu-sub">MATCH RAPIDE</h2>
-    <div id="menu-rows"></div>
-    <button id="play">JOUER</button>
-    <p id="menu-hint"></p>
-    <p class="proto">PROTOTYPE web · <a href="https://github.com/sanctimaps-gif/Water-polo-/tree/claude/water-polo-26-mobile-jfjpeh">code source</a></p>
-  </div>
-</div>
+<!-- FRONT-END (home, team, events, shop...) -->
+<div id="app" class="app hidden"></div>
 
 <!-- MATCH HUD -->
 <div id="hud" class="hidden">
@@ -41,6 +33,7 @@
   <button id="tactic">TACTIQUE</button>
   <button id="camBtn" class="hud-chip">CAM</button>
   <button id="soundBtn" class="hud-chip">🔊</button>
+  <button id="pauseBtn" class="hud-chip">II</button>
   <div id="replay" class="hidden"><b id="replay-title">REPLAY</b><span id="replay-skip"></span></div>
   <div id="info"></div>
 
@@ -56,11 +49,12 @@
   <button id="btnA" class="action">TIR</button>
 </div>
 
-<div id="end" class="hidden">
+<div id="pause" class="hidden">
   <div class="menu-card">
-    <h1 id="end-title"></h1>
-    <div id="end-stats"></div>
-    <button id="again">REJOUER</button>
+    <h1 id="pause-title">PAUSE</h1>
+    <p id="pause-note"></p>
+    <button id="pause-resume">REPRENDRE</button>
+    <button id="pause-quit">QUITTER</button>
   </div>
 </div>
 

@@ -133,3 +133,12 @@ body.replaying #stick-zone, body.replaying .action, body.replaying #bars { opaci
 @font-face { font-family: "Barlow Condensed"; font-weight: 600; src: url(assets/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2"); font-display: swap; }
 @font-face { font-family: "Barlow Condensed"; font-weight: 800; src: url(assets/fonts/barlow-condensed-latin-800-normal.woff2) format("woff2"); font-display: swap; }
 #board, .action, #toast, #tactic, .hud-chip, #timing, .menu-card h1, #play, #again { font-family: "Barlow Condensed", -apple-system, sans-serif; }
+
+#pauseBtn { right: calc(62px + var(--safe-r)); width: 44px; }
+#camBtn { right: calc(114px + var(--safe-r)); }
+#pause { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(3,9,20,.8); }
+#pause .menu-card { display: flex; flex-direction: column; gap: 10px; align-items: center; width: min(420px, 90%); }
+#pause p { color: var(--muted); font-size: 14px; margin: 0 0 6px; }
+#pause button { width: 100%; min-height: 50px; font-family: "Barlow Condensed", sans-serif; font-weight: 800; font-size: 20px; letter-spacing: .06em; }
+#pause-resume { background: var(--accent); } #pause-quit { background: #3a4558; }
+@media (orientation: portrait) { #app, #pause { visibility: hidden; } }

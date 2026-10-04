@@ -96,6 +96,38 @@ Décisions toutes les 0,4 → 0,15 s (INTELLIGENCE × difficulté CPU), pilotage
   tentatives de vol (agressivité × tactique).
 * **Ballon libre** : les 2 joueurs les plus proches de chaque équipe le disputent en sprint.
 
+### Comportements calibrés sur des analyses de matchs réels (version web)
+
+Pas de vidéo analysée image par image (les sites vidéo ne sont pas accessibles depuis l'environnement
+de développement) : les règles et comportements sont calibrés sur des analyses notationnelles publiées
+de matchs internationaux masculins (synthèses consultées via la recherche web) :
+
+| Indicateur réel | Valeur réelle | Jeu (30 matchs IA, 4 × 2 min) |
+|---|---|---|
+| Exclusions par match (2 équipes, 32 min) | ~11,5 ⇒ 1,44 par équipe pour 8 min | 1,40 |
+| Supériorités numériques converties | ~47,5 % | 51 % |
+| Tirs du pivot (attaque placée) | ~22 % | 27 % |
+| Buts en contre-attaque | 10 à 33 % selon les équipes | 8,5 % |
+
+Ce qui a été ajouté pour y arriver :
+* **Exclusions de 20 s** : une faute peut être une exclusion — plus probable près du but, sur le
+  pivot et quand le défenseur est battu (faute par derrière). Le joueur va dans la zone de
+  réintégration (coin, ligne de but de son camp) et revient après 20 s, quand son équipe récupère le
+  ballon ou après un but. Horloge des tirs remise à 20 s. HUD : « EXCLUSION · #5 · 20 s » et
+  « 6 CONTRE 5 · 14 s ».
+* **Supériorité numérique** : attaque en « 4-2 » (2 joueurs aux poteaux à 2 m, 4 sur la ligne des
+  5 m), circulation rapide de balle, tir du joueur libre à 5 m ou au poteau. **Infériorité** : zone à
+  5 resserrée devant le but, bras levés sur les tireurs.
+* **Tir après passe transversale** : le gardien encore en déplacement a moins d'allonge (les tirs
+  rapides font partie des indicateurs qui distinguent les vainqueurs).
+* **Pivot** : le défenseur à 2 m le **prend par devant** quand le ballon est à la périphérie ; la passe
+  au pivot est recherchée s'il n'est pas pris par devant ; quand le pivot a le ballon, les défenseurs
+  de périphérie **se replient** pour aider.
+* **Contre-attaque** : après une récupération loin du but, l'équipe qui perd le ballon réagit avec un
+  temps de retard (selon la RÉACTION) et toute l'équipe qui attaque sprinte vers l'avant.
+
+Mesures vérifiées en CI (`tools/web-tests/positioning.mjs`, seuils).
+
 ### Version web (`web/sim.js`) — placement retravaillé (pas encore reporté dans le C#)
 
 * **Chaque joueur a un poste** (affiché dans le HUD pour le joueur contrôlé) : 1 ailier droit (2 m),

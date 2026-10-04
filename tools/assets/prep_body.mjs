@@ -7,6 +7,7 @@ const MALE = [['african-male-young', 1 / 3], ['asian-male-young', 1 / 3], ['cauc
 const VARIANTS = {
   lean: [...MALE, ['universal-male-young-maxmuscle-minweight', 1.0], ['universal-male-young-maxmuscle-averageweight', 0.25]],
   athletic: [...MALE, ['universal-male-young-maxmuscle-averageweight', 1.4]],
+  power: [...MALE, ['universal-male-young-maxmuscle-averageweight', 1.5], ['universal-male-young-maxmuscle-maxweight', 0.2]],
   massive: [...MALE, ['universal-male-young-maxmuscle-maxweight', 0.6], ['universal-male-young-maxmuscle-averageweight', 0.85]],
 };
 
@@ -84,14 +85,33 @@ for (let k = 0; k < nv; k++) {
   const hy = J['l-upper-leg'][1], waist = hy + 0.75 - (front ? 0.15 : 0) - 0.12 * ss(0.4, 1.6, ax), leg = hy - 1.15 + 0.85 * ss(0.25, 1.55, ax) + (p[2] < -0.3 ? -0.25 : 0);
   suit[k] = p[1] < waist && p[1] > leg && ax < 2.0 ? (p[1] > waist - 0.14 || p[1] < leg + 0.12 ? 200 : 255) : 0;   // 200 = trim bands
 }
+// --- muscle definition (unsharp mask on the surface) + baked cavity occlusion
+const adj = Array.from({ length: nv }, () => new Set());
+for (let t = 0; t < idx.length; t += 3) { const a = idx[t], b = idx[t + 1], c2 = idx[t + 2]; adj[a].add(b).add(c2); adj[b].add(a).add(c2); adj[c2].add(a).add(b); }
+const smooth = (P, it) => { let cur = P.map((p) => p.slice()); for (let k = 0; k < it; k++) { const nx = cur.map((p, i) => { const s3 = [0, 0, 0]; for (const j of adj[i]) for (let d = 0; d < 3; d++) s3[d] += cur[j][d]; const n = adj[i].size || 1; return s3.map((x, d) => x / n * 0.5 + p[d] * 0.5); }); cur = nx; } return cur; };
+const vnorm = (P) => { const N = P.map(() => [0, 0, 0]); for (let t = 0; t < idx.length; t += 3) { const [a, b, c2] = [idx[t], idx[t + 1], idx[t + 2]]; const e1 = sub(P[b], P[a]), e2 = sub(P[c2], P[a]); const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]; for (const v of [a, b, c2]) for (let d = 0; d < 3; d++) N[v][d] += n[d]; } return N.map(nrm); };
+const DEF = {}, AO = new Uint8Array(nv);
+for (const [name, V] of Object.entries(meshes)) {
+  const P = verts.map((vi) => V[vi].slice()), S4 = smooth(P, 4);
+  // sharpen the mid-frequency shape (muscle bellies, grooves) on torso, arms and legs; not hands, feet, neck
+  const out = P.map((p, i) => { const w = (p[1] < J.neck[1] - 0.2 && p[1] > J['l-ankle'][1] + 0.6 && Math.abs(p[0]) < Math.abs(J['l-hand'][0]) - 0.3) ? 0.9 : 0; return p.map((x, d) => x + (x - S4[i][d]) * w); });
+  DEF[name] = out;
+  if (name === 'athletic') {
+    const N = vnorm(P), S1 = smooth(P, 2), S8 = smooth(P, 10);
+    for (let i = 0; i < nv; i++) {
+      const c1 = dot(sub(S1[i], P[i]), N[i]), c8 = dot(sub(S8[i], P[i]), N[i]);   // > 0: vertex below its surroundings (cavity)
+      AO[i] = Math.round(255 * Math.max(0.45, Math.min(1, 1 - c1 * 3.0 - c8 * 0.9)));
+    }
+  }
+}
 // --- output
 const jointsOut = {};
 for (const [name, V] of Object.entries(meshes)) { const Jv = joints(o, V); jointsOut[name] = Object.fromEntries(['neck', 'head', 'l-shoulder', 'l-elbow', 'l-hand', 'r-shoulder', 'r-elbow', 'r-hand', 'l-upper-leg', 'l-knee', 'l-ankle', 'r-upper-leg', 'r-knee', 'r-ankle', 'l-finger-3-1', 'r-finger-3-1'].map((k) => [k, M(Jv[k]).map((x) => +x.toFixed(5))])); }
-const posBufs = Object.values(meshes).map((V) => { const a = new Float32Array(nv * 3); verts.forEach((vi, k) => a.set(M(V[vi]), k * 3)); return Buffer.from(a.buffer); });
+const posBufs = Object.keys(meshes).map((name) => { const a = new Float32Array(nv * 3); DEF[name].forEach((p, k) => a.set(M(p), k * 3)); return Buffer.from(a.buffer); });
 for (const [name, V] of Object.entries(meshes)) { const Jv = joints(o, V), e = M(Jv['l-eye']); jointsOut[name].headBone = [0, +(e[1] - 0.09).toFixed(5), +(e[2] - 0.091).toFixed(5)]; }
 const hyM = (J['l-upper-leg'][1] - OY) * S;
 const header = { suitRef: { hipY: +hyM.toFixed(5), S, OZ }, nv, ni: idx.length, variants: Object.keys(meshes), bones: BONES, joints: jointsOut, source: 'MakeHuman base mesh hm08 + macro targets, CC0 1.0' };
 fs.writeFileSync('./web/assets/body/body.json', JSON.stringify(header));
-fs.writeFileSync('./web/assets/body/body.bin', Buffer.concat([Buffer.from(idx.buffer), ...posBufs, Buffer.from(B4.buffer), Buffer.from(W4.buffer), Buffer.from(suit.buffer)]));
+fs.writeFileSync('./web/assets/body/body.bin', Buffer.concat([Buffer.from(idx.buffer), ...posBufs, Buffer.from(B4.buffer), Buffer.from(W4.buffer), Buffer.from(suit.buffer), Buffer.from(AO.buffer)]));
 console.log('verts', nv, 'tris', idx.length / 3, 'bytes', fs.statSync('./web/assets/body/body.bin').size);
 console.log('suit', suit.filter(Boolean).length);

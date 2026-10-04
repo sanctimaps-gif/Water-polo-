@@ -53,12 +53,31 @@ function athleteMaterial(waterTint, rich) {
     sh.uniforms.uUwTint = { value: waterTint };
     sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.32) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aRough;\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;')
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvec4 wpA = modelMatrix * vec4(transformed, 1.0);\nvUwY = wpA.y;\nvWp = wpA.xyz;');
+      .replace('#include <common>', '#include <common>\nattribute float aRough;\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;\nvarying vec3 vBind;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvBind = position;\nvec4 wpA = modelMatrix * vec4(transformed, 1.0);\nvUwY = wpA.y;\nvWp = wpA.xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;\nuniform vec3 uUwTint;\nuniform vec3 uRim;\n')
-      // skin micro detail: pores / water film break the highlight a little (cheap value noise)
-      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = clamp(vRough + sin(vWp.x * 311.0) * sin(vWp.y * 287.0) * sin(vWp.z * 333.0) * 0.06 + (sin(vWp.x * 41.0 + vWp.y * 37.0) * sin(vWp.z * 43.0 - vWp.y * 29.0)) * 0.05, 0.05, 1.0);')
+      .replace('#include <common>', `#include <common>
+        varying float vRough; varying float vUwY; varying vec3 vWp; varying vec3 vBind; uniform vec3 uUwTint; uniform vec3 uRim;
+        float hash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+        float vnoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x), mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
+                     mix(mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x), mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+        vec3 bumpN(vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDir) {
+          vec3 vSigmaX = dFdx(surf_pos.xyz), vSigmaY = dFdy(surf_pos.xyz), vN = surf_norm;
+          vec3 R1 = cross(vSigmaY, vN), R2 = cross(vN, vSigmaX); float fDet = dot(vSigmaX, R1) * faceDir;
+          vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2); return normalize(abs(fDet) * surf_norm - vGrad); }`)
+      // Skin detail on the bind pose (it does not swim with the animation): pores, fine relief and
+      // water droplets (raised, glossy), only on skin (the cap and the suit have other roughness values).
+      .replace('#include <roughnessmap_fragment>', `float skinK = 1.0 - step(0.345, vRough);
+        // fade each detail layer out when it gets smaller than a pixel (no shimmer at match distance)
+        float px = length(fwidth(vBind));
+        float aP = 1.0 - smoothstep(0.15, 0.5, px * 300.0), aD = 1.0 - smoothstep(0.2, 0.6, px * 60.0);
+        float hPore = (vnoise(vBind * 300.0) - 0.5) * aP;
+        float dn = vnoise(vBind * 45.0 + 7.3), drop = smoothstep(0.9, 0.97, dn) * step(0.0, vUwY) * aD;
+        float hSkin = (hPore * 0.5 + drop * 0.9) * skinK;
+        float roughnessFactor = clamp(vRough + hPore * 0.08 * skinK - drop * 0.22 * skinK, 0.04, 1.0);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        normal = bumpN(-vViewPosition, normal, vec2(dFdx(hSkin), dFdy(hSkin)) * 0.0011, faceDirection);`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
         gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);   // rim light: detaches the athlete from the background
@@ -106,11 +125,11 @@ export async function loadScanBody(base = 'web/assets/body/') {
     pos.push(g.attributes.position); nor.push(g.attributes.normal);
   }
   const b4 = new Uint8Array(buf, o, nv * 4); o += nv * 4;
-  const w4 = new Float32Array(buf.slice(o, o + nv * 16)); o += nv * 16; const suit = new Uint8Array(buf, o, nv);
-  BODY = { ...hdr, index, pos, nor, b4, w4, suit };
+  const w4 = new Float32Array(buf.slice(o, o + nv * 16)); o += nv * 16; const suit = new Uint8Array(buf, o, nv); o += nv; const ao = new Uint8Array(buf, o, nv);
+  BODY = { ...hdr, index, pos, nor, b4, w4, suit, ao };
   return BODY;
 }
-const BUILD = { SMALL_FAST: 'lean', SLIM: 'lean', ATHLETIC: 'athletic', TALL_POWER: 'athletic', MASSIVE: 'massive' };
+const BUILD = { SMALL_FAST: 'lean', SLIM: 'lean', ATHLETIC: 'athletic', TALL_POWER: 'power', MASSIVE: 'massive' };
 const TILT_C = Math.cos(0.18), TILT_S = Math.sin(0.18), EYE_U = [0.447, 0.568], EYE_V = 0.711;
 const SCAN_REF = new THREE.Color(0.51, 0.294, 0.248);   // average skin colour of the scan texture (linear)
 function headMaterial(waterTint, rich) {
@@ -624,6 +643,7 @@ export class Athlete {
           const h = Math.sin(k * 12.9898) * 43758.5453; cc.copy(skin).multiplyScalar(1 + (h - Math.floor(h) - 0.5) * 0.04);   // tone variation
           rg[k] = W;
         }
+        cc.multiplyScalar(0.35 + 0.65 * Bd.ao[k] / 255);   // baked cavity occlusion (armpits, under the pecs, between muscles)
         col[k * 3] = cc.r; col[k * 3 + 1] = cc.g; col[k * 3 + 2] = cc.b;
       }
       const bg = new THREE.BufferGeometry();

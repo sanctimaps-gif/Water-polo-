@@ -23,6 +23,12 @@ Unity/URP est à faire.
   ligne (4 os par sommet), os « demi-épaule » qui suit la moitié de la rotation du bras (pas d'aisselle
   écrasée bras levé, pas de saut pendant le crawl). Maillot peint sur le corps (couleur d'équipe,
   ceinture et bandes de jambes, panneaux, chevron).
+* **Corps amélioré** : 4 gabarits (fin, athlétique, puissant, massif) ; définition musculaire
+  renforcée (accentuation des formes moyennes du maillage : ventres musculaires, sillons) ; occlusion
+  des creux précalculée par sommet (aisselles, sous les pectoraux, entre les abdominaux, plis) ; peau
+  avec pores et relief fin (bruit 3D sur la pose de référence, il ne « glisse » pas pendant
+  l'animation) et gouttes d'eau en relief et brillantes au-dessus de l'eau ; ces détails s'effacent
+  quand ils deviennent plus petits qu'un pixel (pas de scintillement à distance).
 * Préparation des données : `tools/assets/` (sources, licences, scripts). Crédits dans
   Paramètres > Autres et `web/assets/*/LICENSE.txt`.
 * Coût mesuré (ULTRA, match) : 114 draw calls, 607 k triangles (avant : 86 / 425 k). LOW et MEDIUM

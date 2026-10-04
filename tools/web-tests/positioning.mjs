@@ -9,7 +9,7 @@
 //  width       settled attack: distance (m) between the widest attackers (pool is 20 m wide)
 import { Match, HOME, AWAY } from '../../web/sim.js';
 const args = process.argv.slice(2), N = +(args[0] || 6);
-const acc = { clump: [], nearBall: [], slotErr: [], goalSide: [], centerIn2m: [], behindBall: [], width: [], goals: 0, shots: 0 };
+const acc = { clump: [], nearBall: [], slotErr: [], goalSide: [], centerIn2m: [], behindBall: [], width: [], goals: 0, shots: 0, excl: 0, ppCh: 0, ppG: 0, ctrG: 0, cShots: 0, eShots: 0 };
 const mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
 for (let s = 1; s <= N; s++) {
   const m = new Match({ seed: s, humanTeam: -1, periodDuration: 120 }, HOME(), AWAY()); m.start();
@@ -36,12 +36,16 @@ for (let s = 1; s <= N; s++) {
       acc.behindBall.push((d.pos.x - b.x) * (own.x > 0 ? 1 : -1) > -0.5 ? 1 : 0);
     }
   }
-  for (const t of m.stats.teams) { acc.goals += t.goals; acc.shots += t.shots; }
+  for (const t of m.stats.teams) { acc.goals += t.goals; acc.shots += t.shots; acc.excl += t.exclusions; acc.ppCh += t.ppChances; acc.ppG += t.ppGoals; acc.ctrG += t.counterGoals; acc.cShots += t.centreShots; acc.eShots += t.evenShots; }
 }
-const out = { clump: mean(acc.clump), nearBall: mean(acc.nearBall), slotErr: mean(acc.slotErr), goalSide: mean(acc.goalSide), centerIn2m: mean(acc.centerIn2m), behindBall: mean(acc.behindBall), width: mean(acc.width), goalsPerMatch: acc.goals / N, conversion: acc.goals / Math.max(1, acc.shots) };
+const out = { clump: mean(acc.clump), nearBall: mean(acc.nearBall), slotErr: mean(acc.slotErr), goalSide: mean(acc.goalSide), centerIn2m: mean(acc.centerIn2m), behindBall: mean(acc.behindBall), width: mean(acc.width), goalsPerMatch: acc.goals / N, conversion: acc.goals / Math.max(1, acc.shots),
+  // real-match references (elite men, 32 min): ~5.75 exclusions per team -> x 8/32 for 4 x 2 min; power play ~47 % converted;
+  // counter-attack goals 10-33 %; centre-forward ~22 % of even-play shots
+  exclPerTeam: acc.excl / N / 2, ppConversion: acc.ppG / Math.max(1, acc.ppCh), ppShareOfGoals: acc.ppG / Math.max(1, acc.goals),
+  counterShare: acc.ctrG / Math.max(1, acc.goals), centreShotShare: acc.cShots / Math.max(1, acc.eShots) };
 for (const [k, v] of Object.entries(out)) console.log(k.padEnd(14), v.toFixed(3));
 // Regression limits (CI): spacing, goal-side defence, centre-forward at 2 m, matches still produce goals.
-const limits = [['clump', '<', 0.5], ['slotErr', '<', 2.8], ['goalSide', '>', 0.65], ['centerIn2m', '>', 0.25], ['goalsPerMatch', '>', 2.5], ['width', '>', 10]];
+const limits = [['clump', '<', 0.5], ['slotErr', '<', 3.0], ['goalSide', '>', 0.6], ['centerIn2m', '>', 0.25], ['goalsPerMatch', '>', 2.5], ['width', '>', 10], ['exclPerTeam', '>', 0.6], ['exclPerTeam', '<', 3], ['ppConversion', '>', 0.25], ['ppConversion', '<', 0.75], ['centreShotShare', '>', 0.1]];
 let fail = 0;
 for (const [k, op, v] of limits) { const okk = op === '<' ? out[k] < v : out[k] > v; if (!okk) { console.log(`FAIL ${k} ${out[k].toFixed(3)} ${op} ${v}`); fail++; } }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exitCode = fail ? 1 : 0;

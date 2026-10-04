@@ -398,6 +398,8 @@ function onEvent(e) {
   const toastMap = { [Ev.SAVE]: 'hud.save', [Ev.BLOCK]: 'hud.blocked', [Ev.FRAME]: 'hud.frame', [Ev.INTERCEPT]: 'hud.intercepted', [Ev.STEAL]: 'hud.steal', [Ev.FOUL]: 'hud.foul', [Ev.OUT]: 'hud.out', [Ev.SHOT_CLOCK]: 'hud.shotclock_violation', [Ev.SWIM_OFF]: 'hud.swimoff' };
   if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
   if ([Ev.FOUL, Ev.OUT, Ev.SHOT_CLOCK].includes(e.type)) audio.whistle(false);
+  if (e.type === Ev.EXCLUSION) { const p = match && match.players[e.player]; toast(L('hud.exclusion', p ? p.number : ''), 2.2); audio.whistle(true); if (navigator.vibrate) navigator.vibrate(40); }
+  if (e.type === Ev.REENTRY && match && match.players[e.player] && match.players[e.player].team === 0) toast(L('hud.reentry'), 1);
   if (e.type === Ev.PERIOD_START) audio.whistle(true);
   if (e.type === Ev.GOAL) {
     toast(L('hud.goal'), 2.5);
@@ -681,6 +683,10 @@ function updateHud(dt) {
   const t = Math.max(0, m.periodLeft);
   $('clock').textContent = `${L('hud.period', m.period)}  ${String((t / 60) | 0).padStart(2, '0')}:${String((t | 0) % 60).padStart(2, '0')}`;
   $('shotclock').textContent = Math.ceil(Math.max(0, m.shotClockLeft));
+  // Power play indicator: "6 v 5 · 14 s" while a player is excluded
+  const ex = m.players.find((p) => p.excluded > 0), mu = $('manup');
+  if (ex) { const n = (t) => 6 - m.teams[t].field.filter((p) => p.excluded > 0).length; mu.textContent = L('hud.manup', n(1 - ex.team), n(ex.team), Math.ceil(ex.excluded)); mu.className = ex.team === 0 ? 'down' : 'up'; mu.hidden = false; }
+  else mu.hidden = true;
   const me = m.human;
   if (me) {
     if (me !== lastWho) {   // controlled player + his poste

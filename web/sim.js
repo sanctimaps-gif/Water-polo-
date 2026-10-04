@@ -107,14 +107,14 @@ export const Ev = {
   PERIOD_START: 'PeriodStart', SWIM_OFF: 'SwimOff', POSSESSION: 'PossessionWon', PASS: 'PassMade', PASS_OK: 'PassCompleted',
   INTERCEPT: 'PassIntercepted', SHOT: 'ShotTaken', SAVE: 'ShotSaved', BLOCK: 'ShotBlocked', OFF: 'ShotOffFrame', FRAME: 'ShotHitFrame',
   GOAL: 'Goal', STEAL: 'Steal', FOUL: 'Foul', OUT: 'BallOut', SHOT_CLOCK: 'ShotClockViolation', RESTART: 'Restart',
-  PERIOD_END: 'PeriodEnd', END: 'MatchEnd', SWITCH: 'HumanPlayerSwitched',
+  PERIOD_END: 'PeriodEnd', END: 'MatchEnd', SWITCH: 'HumanPlayerSwitched', EXCLUSION: 'Exclusion', REENTRY: 'ReEntry',
 };
 
 // ---------------------------------------------------------------- simulation
 export class Match {
   constructor(cfg, home, away) {
     this.cfg = Object.assign({
-      length: 25, width: 20, goalW: 3, goalH: 0.9, goalDepth: 0.4, periodDuration: 120, periods: 4, shotClock: 30, shotClockRebound: 20,
+      length: 25, width: 20, goalW: 3, goalH: 0.9, goalDepth: 0.4, periodDuration: 120, periods: 4, shotClock: 30, shotClockRebound: 20, exclusion: 20, exclusionRate: 1,
       goalPause: 3, deadPause: 1.2, periodBreak: 3, dt: 1 / 50, seed: 12345, humanTeam: 0, autoSwitch: true, assist: 'STANDARD', timing: true, cpu: 1,
     }, cfg);
     const c = this.cfg; c.hl = c.length / 2; c.hw = c.width / 2;
@@ -128,7 +128,7 @@ export class Match {
           id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, look: pd.look || null, pid: pd.playerId || null, isGK: pd.role === Role.GK,
           prof: PERSONALITY[pd.personality], stats: pd.stats, slot: pd.role === Role.GK ? -1 : pd.slot,
           pos: V(), vel: V(), facing: V(1, 0, 0), stamina: 1, sprinting: false, sprintLocked: false, human: false, cmd: {},
-          charge: 0, charging: false, heldAtMax: 0, actionCd: 0, stealCd: 0, stun: 0, block: 0, possTime: 0, nextDecision: 0, wantSprint: false, aiCharge: -1,
+          excluded: 0, charge: 0, charging: false, heldAtMax: 0, actionCd: 0, stealCd: 0, stun: 0, block: 0, possTime: 0, nextDecision: 0, wantSprint: false, aiCharge: -1,
         };
         this.players.push(p); team.players.push(p);
         if (p.isGK) team.gk = p; else team.field.push(p);
@@ -136,9 +136,10 @@ export class Match {
       this.teams.push(team);
     });
     this.ball = { pos: V(0, BALL_R, 0), vel: V(), state: 'FREE', owner: null, lastTouch: null, passer: null, receiver: null, shooter: null, possTeam: -1, stateTime: 0, saveDone: false, tried: new Set() };
-    this.stats = { teams: [0, 1].map(() => ({ goals: 0, shots: 0, onTarget: 0, passes: 0, passesOk: 0, saves: 0, interceptions: 0, steals: 0, blocks: 0, fouls: 0, possession: 0 })) };
+    this.stats = { teams: [0, 1].map(() => ({ goals: 0, shots: 0, onTarget: 0, passes: 0, passesOk: 0, saves: 0, interceptions: 0, steals: 0, blocks: 0, fouls: 0, possession: 0, exclusions: 0, ppChances: 0, ppGoals: 0, counterGoals: 0, centreShots: 0, evenShots: 0 })) };
     this.phase = 'NOT_STARTED'; this.period = 0; this.periodLeft = 0; this.shotClockLeft = 0; this.phaseTimer = 0;
     this.pstats = this.players.map(() => ({ goals: 0, assists: 0, shots: 0, steals: 0, saves: 0, passes: 0 }));
+    this.possStart = 0; this.possFar = false;
     this.restart = null; this.humanCmd = {}; this.human = null; this.assistCand = [null, null];
     if (c.humanTeam === 0 || c.humanTeam === 1) this.setHuman(this.slot(c.humanTeam, 2), false);
   }
@@ -218,6 +219,7 @@ export class Match {
     if (this.ball.owner && this.ball.owner.team === team.index) { if (!this.ball.owner.isGK) this.setHuman(this.ball.owner, true); return; }
     let best = null, bs = 1e9; const og = this.ownGoal(team.index);
     for (const p of team.field) {
+      if (p.excluded > 0) continue;
       if (p === this.human) continue;
       const s = fdist(p.pos, this.ball.pos) + (fdist(p.pos, og) < fdist(this.ball.pos, og) ? 0 : 1.5);
       if (s < bs) { bs = s; best = p; }
@@ -238,7 +240,7 @@ export class Match {
     const target = !b.owner && b.state === 'PASSED' && b.receiver ? b.receiver.pos : b.pos, og = this.ownGoal(h.team);
     const score = (p) => fdist(p.pos, target) + (fdist(p.pos, og) <= fdist(target, og) + 0.5 ? 0 : 2);
     let best = null, bs = 1e9;
-    for (const p of team.field) { const s = score(p); if (s < bs) { bs = s; best = p; } }
+    for (const p of team.field) { if (p.excluded > 0) continue; const s = score(p); if (s < bs) { bs = s; best = p; } }
     if (best && best !== h && bs < score(h) - 1.5) { this.setHuman(best, true); this.lastSwitch = this.time; }
   }
   setTactic(team, style) { this.teams[team].tactic = style; this.teams[team].tp = tacticParams(style); }
@@ -266,15 +268,17 @@ export class Match {
       this.consumeOneShots();
       return;
     }
+    this.exclusionTick(dt);
     this.autoSwitch();
     for (const p of this.players) {
       // Copy (C# PlayerCommand is a struct): consumeOneShots() below must not wipe this tick's actions.
+      if (p.excluded > 0) { p.cmd = {}; continue; }
       if (p.human) p.cmd = { ...this.humanCmd };
       else if (p.isGK) this.thinkGK(p);
       else this.thinkField(p);
     }
     this.consumeOneShots();
-    for (const p of this.players) { this.apply(p, dt); if (this.phase !== 'LIVE') return; }
+    for (const p of this.players) { if (p.excluded > 0) continue; this.apply(p, dt); if (this.phase !== 'LIVE') return; }
     this.spacing();
     const b = this.ball;
     if (b.owner) { this.snap(); b.owner.possTime += dt; }
@@ -317,7 +321,7 @@ export class Match {
     this.periodLeft = c.periodDuration; this.shotClockLeft = c.shotClock;
     for (const t of this.teams) for (const p of t.players) {
       p.pos = V(this.ownGoal(t.index).x + this.sign(t.index) * 0.6, 0, p.slot < 0 ? 0 : -5 + p.slot * 2);
-      p.vel = V(); p.facing = V(this.sign(t.index), 0, 0); this.resetAction(p);
+      p.vel = V(); p.facing = V(this.sign(t.index), 0, 0); this.resetAction(p); p.excluded = 0;
     }
     const b = this.ball;
     Object.assign(b, { owner: null, lastTouch: null, possTeam: -1, pos: V(0, BALL_R, 0), vel: V() });
@@ -338,6 +342,10 @@ export class Match {
   }
   onGoal(team) {
     this.teams[team].score++;
+    const st = this.stats.teams[team];
+    if (this.shortHanded(1 - team)) st.ppGoals++;
+    if (this.time - this.possStart < 7 && this.possFar) st.counterGoals++;   // fast break
+    for (const p of this.players) this.endExclusion(p);
     this.phase = 'GOAL_PAUSE'; this.phaseTimer = this.cfg.goalPause;
     this.restart = { team: 1 - team, pos: V(), afterGoal: true };
   }
@@ -354,6 +362,27 @@ export class Match {
     this.deadBall();
   }
   onFoul(fouled) { this.restart = { team: fouled.team, pos: { ...fouled.pos }, taker: fouled }; this.phase = 'DEAD'; this.phaseTimer = 0.5; }
+  // ---- exclusions (20 s) and power play (6 v 5)
+  // Real-match calibration (notational analyses of elite men's matches): ~11.5 exclusions per 32-min
+  // match (both teams), ~47 % of power plays converted, most exclusions drawn near goal / by the centre.
+  shortHanded(t) { return this.teams[t].field.some((q) => q.excluded > 0); }
+  /** Re-entry area: own goal line, corner on the side of the player. */
+  reentrySpot(p) { const c = this.cfg; return V(this.ownGoal(p.team).x + this.sign(p.team) * 0.4, 0, (p.pos.z >= 0 ? 1 : -1) * (c.hw - 0.6)); }
+  exclude(p, fouled) {
+    p.excluded = this.cfg.exclusion; p.charging = false; p.block = 0; p.pos = this.reentrySpot(p); p.vel = V();
+    this.stats.teams[p.team].exclusions++; this.stats.teams[1 - p.team].ppChances++;
+    this.shotClockLeft = Math.max(this.shotClockLeft, this.cfg.shotClockRebound);
+    this.emit(Ev.EXCLUSION, p.team, p.id, fouled ? fouled.id : -1, p.pos, this.cfg.exclusion);
+    if (p.human) { const q = this.teams[p.team].field.find((x) => x !== p && x.excluded <= 0); if (q) this.setHuman(q, true); }
+  }
+  endExclusion(p) { if (p.excluded <= 0) return; p.excluded = 0; this.emit(Ev.REENTRY, p.team, p.id, -1, p.pos); }
+  exclusionTick(dt) {
+    for (const p of this.players) {
+      if (p.excluded <= 0) continue;
+      p.excluded -= dt; p.vel = V(); p.pos = this.reentrySpot(p);
+      if (p.excluded <= 0) { p.excluded = 1e-6; this.endExclusion(p); }
+    }
+  }
   deadBall() {
     const b = this.ball;
     if (b.owner) { b.lastTouch = b.owner; b.owner = null; }
@@ -492,6 +521,10 @@ export class Match {
         this.stats.teams[p.team].fouls++; p.stun = 0.6;
         p.pos = add(p.pos, mul(norm(flat(sub(this.ownGoal(p.team), p.pos))), 0.5));
         this.emit(Ev.FOUL, p.team, p.id, c.id, c.pos); this.onFoul(c);
+        // Exclusion foul: likelier near goal, on the centre-forward and from behind (not goal side).
+        const og = this.ownGoal(p.team), dg = fdist(c.pos, og), behind = fdist(p.pos, og) > dg + 0.2;
+        let pEx = 0.085 * (dg < 5 ? 2.2 : dg < 8 ? 1.2 : 0.4) * (c.slot === 5 ? 1.6 : 1) * (behind ? 1.6 : 1) * this.cfg.exclusionRate;
+        if (!this.shortHanded(p.team) && this.rng.chance(clamp(pEx, 0, 0.8))) this.exclude(p, c);
       }
       return;
     }
@@ -500,7 +533,7 @@ export class Match {
 
   // =============================================================== passes
   evaluate(passer, t, pref, assist, risk, centerBonus) {
-    if (t === passer || t.team !== passer.team) return -Infinity;
+    if (t === passer || t.team !== passer.team || t.excluded > 0) return -Infinity;
     const to = flat(sub(t.pos, passer.pos)), d = len(to);
     if (d < 1.5) return -Infinity;
     const s = this.sign(passer.team), goal = this.targetGoal(passer.team);
@@ -514,7 +547,11 @@ export class Match {
     }
     risk = Math.max(0.3, risk);
     let score = 0.6 * advance + 0.5 * prox - lane * (1.2 / risk) - rp * (0.7 / risk) - Math.max(0, d - 9) / 10;
-    if (t.slot === 5 && !t.isGK) score += centerBonus * (1 - rp * 0.5);
+    if (t.slot === 5 && !t.isGK) {
+      // Entry pass to the centre-forward (22 % of even-play shots in real matches), unless he is fronted.
+      const fronted = this.teams[1 - passer.team].field.some((o) => { const r = distToSegment(o.pos, passer.pos, t.pos); return r.t > 0.7 && r.t < 1 && r.d < 0.7; });
+      score += (centerBonus + (fronted ? -0.2 : 0.25)) * (1 - rp * 0.5);
+    }
     if (t.isGK) score -= 0.8;
     if (pref && len(pref) > 0.1) {
       const align = dot(mul(to, 1 / d), norm(flat(pref)));
@@ -587,8 +624,11 @@ export class Match {
     let speed = lerp(10.5, 17, Math.pow(clamp01(charge), 0.8)) * lerp(0.82, 1.18, this.effPower(p));
     if (cmd.lobShot) { speed = 7; target.y = clamp(target.y, 0.55, c.goalH - 0.12); }
     const vel = ballistic(from, add(target, V(this.sign(p.team) * 0.4, 0, 0)), speed);
+    // Catch-and-shoot after a cross pass: the keeper is still moving across (quick shots are a key indicator in real matches).
+    b.quick = this.time - (p.caughtAt ?? -9) < 1.3 && (p.passShift ?? 0) > 2.5;
     b.shooter = p; b.receiver = null; this.release('SHOT', vel); p.actionCd = 0.5;
     this.stats.teams[p.team].shots++;
+    if (!this.shortHanded(1 - p.team) && !this.shortHanded(p.team)) { this.stats.teams[p.team].evenShots++; if (p.slot === 5) this.stats.teams[p.team].centreShots++; }
     this.emit(Ev.SHOT, p.team, p.id, -1, p.pos, len(vel)); Object.assign(this.events[this.events.length - 1], { timing, lob: !!cmd.lobShot, power: charge > 0.85 });
   }
 
@@ -600,7 +640,10 @@ export class Match {
     const b = this.ball, prev = b.possTeam;
     b.shooter = null; b.owner = p; b.lastTouch = p; b.possTeam = p.team; b.receiver = null; b.vel = V(); this.setBall('POSSESSED'); this.snap();
     p.possTime = 0; p.charging = false; p.charge = 0; p.aiCharge = -1; p.nextDecision = this.time + this.reactionTime(p);
-    if (prev !== p.team) { this.assistCand = [null, null]; this.shotClockLeft = this.cfg.shotClock; if (fromPlay) this.emit(Ev.POSSESSION, p.team, p.id, -1, p.pos); }
+    if (prev !== p.team) {
+      for (const q of this.teams[p.team].field) this.endExclusion(q);   // excluded player re-enters when his team gets the ball
+      this.possStart = this.time; this.possFar = fdist(p.pos, this.targetGoal(p.team)) > 12;
+      this.assistCand = [null, null]; this.shotClockLeft = this.cfg.shotClock; if (fromPlay) this.emit(Ev.POSSESSION, p.team, p.id, -1, p.pos); }
     if (this.human && p.team === this.human.team && p !== this.human && !p.isGK) this.setHuman(p, true);
   }
   integrate(dt) {
@@ -678,7 +721,7 @@ export class Match {
     const at = this.predictCrossing(goal.x);
     if (!at || Math.abs(at.z - goal.z) > c.goalW / 2 + 0.25 || at.y > c.goalH + 0.25) return 'NONE';
     const sk = this.skill(gk.team), avail = Math.max(0, b.stateTime - this.gkReaction(gk, sk));
-    const reach = 0.6 + Math.min(avail * lerp(1.8, 3.4, this.gkNorm(gk)) * sk, lerp(0.7, 1.3, this.gkNorm(gk)));
+    const reach = (0.6 + Math.min(avail * lerp(1.8, 3.4, this.gkNorm(gk)) * sk, lerp(0.7, 1.3, this.gkNorm(gk)))) * (b.quick ? 0.82 : 1);
     const dz = b.pos.z - gk.pos.z, dy = Math.max(0, b.pos.y - 0.45) * 1.25, gap = Math.hypot(dz, dy);
     if (gap > reach) return 'MISSED';
     const speed = len(b.vel), ratio = gap / reach;
@@ -718,7 +761,7 @@ export class Match {
     }
     const passer = b.passer;
     if (passer && passer.team === m.team) {
-      this.stats.teams[m.team].passesOk++; this.assistCand[m.team] = passer;
+      this.stats.teams[m.team].passesOk++; this.assistCand[m.team] = passer; m.caughtAt = this.time; m.passShift = Math.abs(passer.pos.z - m.pos.z);
       this.emit(Ev.PASS_OK, m.team, passer.id, m.id, b.pos);
     }
     this.give(m, true); return true;
@@ -810,6 +853,9 @@ export class Match {
     const dg = fdist(p.pos, goal), pr = this.pressure(p);
     if (decide && p.actionCd <= 0) {
       let th = 0.5 + tp.shoot + p.prof.shoot;
+      const pp = this.shortHanded(1 - p.team);
+      // extra man: move the ball (cross passes) until the open man at 5 m or on a post shoots
+      if (pp) th += dg < 6.2 ? -0.22 : 0.35;
       if (this.shotClockLeft < 5) th -= 0.3;
       const diff = this.teams[p.team].score - this.teams[1 - p.team].score;
       const late = this.period >= c.periods && this.periodLeft < c.periodDuration * 0.35;
@@ -818,7 +864,7 @@ export class Match {
         p.aiCharge = clamp(lerp(EXC_MIN, EXC_MAX, this.rng.f()) + (1 - intel) * 0.25 * this.rng.bell(), 0.35, 1);
         cmd.shootHeld = true; return;
       }
-      const hold = lerp(1, 2.2, this.rng.f()) * tp.tempo * p.prof.patience;
+      const hold = lerp(1, 2.2, this.rng.f()) * tp.tempo * p.prof.patience * (this.shortHanded(1 - p.team) ? 0.5 : 1);
       const must = p.possTime > hold || pr > 0.55 || this.shotClockLeft < 3;
       if (must || this.rng.chance(0.15 + p.prof.passPref)) {
         const t = this.chooseTarget(p, null, 'STANDARD', p.prof.risk, tp.center, (1 - intel) * 0.45);
@@ -830,12 +876,31 @@ export class Match {
     // Counter-attack: swim the ball up the own lane; settled: work from the own position, attack space.
     let dest = dg > 9 ? V(goal.x, 0, clamp(p.pos.z, -4, 4)) : this.attackSpot(p.team, p.slot, tp);
     if (dg < 7 && pr < 0.3) dest = goal;
+    if (this.shortHanded(1 - p.team) && dg < 11) dest = this.ppSpot(p.team, p.slot);
     cmd.move = this.steer(p, dest, 1.2);
     cmd.sprint = dg > 9 && p.stamina > 0.4 && this.rng.chance(tp.trans);
+  }
+  /** Power play (6 v 5): "4-2" — two players on the posts at 2 m, four on the 5 m line. */
+  ppSpot(team, slot) {
+    const g = this.targetGoal(team), s = this.sign(team);
+    const S = { 5: [2.0, -1.4], 4: [2.0, 1.4], 0: [5.2, -4.2], 1: [5.4, -1.5], 2: [5.4, 1.5], 3: [5.2, 4.2] }[slot] || [5, 0];
+    return V(g.x - s * S[0], 0, S[1]);
+  }
+  /** Short-handed (5 v 6): zone in front of the goal, shifting toward the ball, arms up on shooters. */
+  zoneSpot(p) {
+    const og = this.ownGoal(p.team), s = this.sign(p.team), b = this.ball;
+    const mates = this.teams[p.team].field.filter((q) => q.excluded <= 0).sort((a, c) => a.slot - c.slot), i = mates.indexOf(p);
+    const Z = [[1.6, -1.4], [1.6, 1.4], [3.2, -3.0], [3.2, 3.0], [4.4, 0]][i] || [3, 0];   // collapsed: protects inside, concedes 5 m shots
+    return V(og.x + s * Z[0], 0, clamp(Z[1] + b.pos.z * 0.2, -this.cfg.hw + 1, this.cfg.hw - 1));
   }
   support(p, cmd, decide, tp) {
     const b = this.ball, goal = this.targetGoal(p.team);
     let spot;
+    if (this.shortHanded(1 - p.team) && fdist(b.pos, goal) < 11) {
+      spot = this.ppSpot(p.team, p.slot);
+      cmd.move = this.steer(p, spot, 0.3); cmd.sprint = fdist(p.pos, spot) > 3;
+      return;
+    }
     if (tp.safety > 0 && p.slot === 2) spot = V(this.sign(p.team) * -1.5, 0, 0);
     else {
       spot = this.attackSpot(p.team, p.slot, tp);
@@ -856,11 +921,21 @@ export class Match {
     }
     const d = fdist(p.pos, spot);
     cmd.move = this.steer(p, spot, 0.4);
+    // Fast break right after winning the ball deep: everybody sprints forward (counter-attack goals).
+    const breakOn = this.time - this.possStart < 5 && this.possFar;
+    if (breakOn && (spot.x - p.pos.x) * this.sign(p.team) > 2) { cmd.move = this.steer(p, add(spot, V(this.sign(p.team) * 2, 0, 0)), 0.4); cmd.sprint = p.stamina > 0.25; return; }
     if (decide) p.wantSprint = d > 4 && p.stamina > 0.35 && this.rng.chance(Math.max(tp.trans, 0.6));
     cmd.sprint = p.wantSprint && d > 2;
   }
   defend(p, cmd, decide, tp) {
     const b = this.ball, og = this.ownGoal(p.team);
+    if (this.shortHanded(p.team) && fdist(b.pos, og) < 12) {
+      const z = this.zoneSpot(p);
+      cmd.move = this.steer(p, z, 0.15); cmd.sprint = fdist(p.pos, z) > 2.5;
+      const sh = b.owner && b.owner.team !== p.team ? b.owner : null;
+      if (decide && sh && fdist(p.pos, sh.pos) < 2.5 && (sh.charging ? this.rng.chance(0.6) : this.rng.chance(0.12))) cmd.defend = true;   // arms up
+      return;
+    }
     const mark = this.teams[1 - p.team].field.find((o) => o.slot === p.slot) || this.closestOpp(p).p;
     if (!mark) { cmd.move = this.steer(p, og, 1); return; }
     const hasBall = b.owner === mark, md = tp.mark * (hasBall ? 0.75 : 1);
@@ -868,10 +943,13 @@ export class Match {
     const goalSide = add(mark.pos, mul(norm(toGoal), Math.min(md, tgl * 0.5)));
     // Beaten (the mark is closer to our goal than we are): recover goal-side first, at full speed.
     const beaten = fdist(p.pos, og) > tgl + 0.3;
+    // Turnover: the team that just lost the ball reacts late (the counter-attack window).
+    const surprised = this.time - this.possStart < lerp(0.9, 0.4, N(p.stats.reaction)) && this.possFar;
     let target;
     if (beaten) {
       target = add(mark.pos, mul(norm(toGoal), Math.min(1.6, tgl * 0.6)));
-      cmd.move = this.steer(p, target, 0.1); cmd.sprint = p.stamina > 0.15;
+      cmd.move = this.steer(p, target, 0.1); cmd.sprint = p.stamina > 0.15 && !surprised;
+      if (surprised) cmd.move = mul(cmd.move, 0.35);
     } else {
       const toBall = flat(sub(b.pos, mark.pos));
       const ballSide = add(mark.pos, mul(norm(toBall), Math.min(md, len(toBall) * 0.5)));
@@ -879,6 +957,18 @@ export class Match {
       const man = hasBall ? goalSide : vlerp(goalSide, ballSide, denial);
       const zone = add(og, mul(norm(flat(sub(mark.pos, og))), Math.min(4, tgl)));
       target = vlerp(man, zone, hasBall ? tp.zone * 0.3 : tp.zone);
+      const carrier = b.owner && b.owner.team !== p.team ? b.owner : null;
+      // 2 m defender: fronts the centre-forward (between him and the ball) while the ball is on the
+      // perimeter, plays behind him once the ball is close.
+      if (p.slot === 5 && !hasBall && carrier && fdist(carrier.pos, og) > 5 && fdist(mark.pos, og) < 4.5) {
+        const front = add(mark.pos, mul(norm(flat(sub(carrier.pos, mark.pos))), 0.7));
+        target = vlerp(target, front, clamp(0.35 + tp.press * 0.4, 0, 0.9));
+      }
+      // The centre-forward has the ball: perimeter defenders collapse ("drop") to help in front of goal.
+      if (p.slot !== 5 && carrier && carrier.slot === 5 && fdist(carrier.pos, og) < 4) {
+        const help = add(og, mul(norm(flat(sub(carrier.pos, og))), 3.2));
+        target = vlerp(target, help, 0.4 + tp.zone * 0.4);
+      }
       // Read the pass only when it is meant for my man.
       if (b.state === 'PASSED' && b.possTeam !== p.team && b.receiver === mark) {
         const ahead = add(flat(b.pos), mul(flat(b.vel), 0.3));

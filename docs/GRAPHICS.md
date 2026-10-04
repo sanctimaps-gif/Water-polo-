@@ -26,13 +26,44 @@ Unity/URP est à faire.
   deltoïdes, biceps / triceps, avant-bras effilés jusqu'au poignet aplati, quadriceps, mollets.
   Ombre peinte par sommet dans les creux (sous les pectoraux, entre les abdominaux). Normales
   soudées sur les coutures (pas de ligne visible).
-* Bonnet : coque en tissu, couture centrale et de bord, protège-oreilles rigides percés, jugulaire,
-  numéro au dos. Bonnet rouge pour les gardiens. Équipe à domicile en couleur, visiteurs en blanc.
-* Maillot de bain aux couleurs de l'équipe avec liseré. Peau mouillée (rugosité basse + reflets
-  de l'environnement). Les parties immergées prennent la teinte de l'eau selon la profondeur.
-* NON IMPLÉMENTÉ : cheveux longs visibles, textures de peau / tissu, modèles capturés ou faits par un artiste.
+* **Articulations** : les sommets proches de l'épaule, du coude, de la hanche et du genou sont
+  partagés entre deux os (skinning à 2 poids) ⇒ plis lisses au lieu de pièces de mannequin.
+* **Types de corps** (`BODY_TYPES`) : petit et rapide, grand et puissant, athlétique, massif, fin,
+  choisis selon le poste (pivot massif ou puissant, ailier petit / fin, gardien grand…). Ils
+  changent taille, épaules, carrure, hanches, **et l'animation** (cadence et amplitude de nage).
+* **Visages différenciés** : largeur du visage, mâchoire, menton, nez (longueur, largeur, narines),
+  arcade, lèvres, écartement et taille des yeux, oreilles (hélix + lobe autour des protège-oreilles),
+  teint (6 teintes, variation par sommet, rougeur des joues et du nez). Pilosité : barbe, barbe de
+  3 jours, moustache, bouc ou rasé de près. Coiffures : rasé, court, bouclé, ondulé, longs (mèches
+  mouillées sur un os à ressort amorti : elles pendent, balancent avec la vitesse et les virages).
+* **Apparence stable** : le visage, la coiffure et le corps dépendent de l'identifiant du joueur
+  de l'effectif ⇒ le même joueur sur sa carte, dans chaque match et d'un match à l'autre.
+* Bonnet : coque en tissu, couture centrale et de bord, protège-oreilles rigides percés, jugulaire
+  nouée sous le menton, numéro au dos. Bonnet rouge pour les gardiens.
+* **Maillot** : vraie coque autour des hanches (fessiers, avant), couleur d'équipe, ceinture et
+  bandes de jambes en couleur de liseré, panneaux latéraux, motif en chevron, coutures plus sombres,
+  cordon noué ; numéro sur la hanche en HIGH / ULTRA. Tissu mouillé (rugosité basse).
+* **Peau mouillée** : rugosité basse avec micro-variation (pores, film d'eau qui casse le reflet),
+  vernis transparent (*clearcoat*) en HIGH / ULTRA = film d'eau sur la peau et le maillot, lumière
+  de contour (rim) qui détache le joueur du fond. Les parties immergées prennent la teinte de l'eau.
+* **Gouttes** : de l'eau tombe du corps quand le joueur sort de l'eau, tire, plonge, célèbre ou
+  nage vite.
+* **Ballon dans la main** : le point de prise est à un rayon de ballon devant la paume ⇒ le ballon
+  repose sur la main sans la traverser.
+* **Cartes joueurs** : portrait 3D réel (le même modèle, rendu hors écran en buste puis mis en cache).
+* NON IMPLÉMENTÉ : textures de peau / tissu peintes, doigts articulés autour du ballon, modèles
+  scannés ou faits par un artiste. Le rendu reste procédural : il n'atteint pas un personnage de
+  jeu console modélisé et texturé à la main. Pour ce niveau, il faudrait des modèles glTF d'artiste
+  (même squelette), que ce système d'animation pourrait piloter.
 
 ## Animations — IMPLÉMENTÉ (procédural, mélangé)
+
+Ajouts : sprint (corps plus plat, tête basse), accélération (penché en avant), freinage (buste
+redressé, jambes devant), virage (inclinaison, la tête mène), passe / tir / **tir puissant**
+(rotation du buste plus forte, sortie de l'eau) / **lob** (bras haut, geste doux), **interception
+et vol** (fente, un bras vers le ballon, côté du ballon), **parade** du gardien (deux mains hautes),
+fatigue (tête qui tombe, bras plus bas). **Regard** : la tête suit le ballon, le but pendant
+l'armé du tir, le coéquipier ciblé pendant la passe (rotation + inclinaison, le buste suit un peu).
 
 Nage crawl tête haute (cycle de bras, roulis, battements), eggbeater au repos, ballon tenu au-dessus
 de la tête, armé du tir (bras armé, torsion, élévation selon la charge), lâcher de tir et de passe,
@@ -105,10 +136,10 @@ pendant 4 s. LOW et MEDIUM visent 30 FPS en n'affichant qu'une image sur deux.
 
 | | LOW | MEDIUM | ULTRA |
 |---|---|---|---|
-| Draw calls | 57 | 71 | 72 |
-| Triangles | 122 k | 229 k | 400 k |
+| Draw calls | 57 | 71 | 86 |
+| Triangles | 136 k | 250 k | 425 k |
 
-Triangles avant les joueurs sculptés : 104 k / 169 k / 299 k (la densité de la tête et du buste suit
+ULTRA : +14 draw calls pour les numéros sur les maillots. Triangles avant les joueurs sculptés : 104 k / 169 k / 299 k (la densité de la tête et du buste suit
 la qualité ; en LOW la tête n'a pas de détails du visage).
 Avant optimisation : 237–243 draw calls (skinning des joueurs et fusion de l'arène = ÷4).
 **Non mesuré : le FPS réel sur téléphone.** Les FPS affichés dans ce test viennent d'un rendu

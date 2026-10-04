@@ -8,11 +8,16 @@
 <meta name="theme-color" content="#0b1220">
 <title>Water Polo 26 Mobile</title>
 <link rel="manifest" href="web/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="web/assets/icon-192.png">
+<link rel="apple-touch-icon" href="web/assets/icon-192.png">
 <link rel="stylesheet" href="web/style.css">
 <link rel="stylesheet" href="web/ui/ui.css">
 </head>
 <body>
 <div id="view"></div>
+
+<!-- BOOT SPLASH: the game logo while the 3D scene loads -->
+<div id="splash"><img src="web/assets/logo.webp" alt="Water Polo 26 Mobile" width="512" height="512"><i></i></div>
 
 <!-- FRONT-END (home, team, events, shop...) -->
 <div id="app" class="app hidden"></div>
@@ -61,6 +66,7 @@
 
 <!-- LANDSCAPE ONLY: shown (and the game paused) whenever the device is held vertically -->
 <div id="rotate" class="hidden">
+  <img class="rot-logo" src="web/assets/icon-192.png" alt="" width="96" height="96">
   <div class="phone"><div class="screen"></div></div>
   <h1 id="rotate-title">TOURNEZ VOTRE APPAREIL</h1>
   <p id="rotate-hint">Water Polo 26 se joue uniquement à l'horizontale</p>

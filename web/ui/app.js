@@ -55,6 +55,7 @@ export class App {
     const d = this.st.data, t = this.st.teamTotal().total, pr = d.profile, need = this.st.xpForLevel(pr.level);
     return `<header class="topbar">
       <button class="icon-btn" data-act="nav" data-arg="settings" aria-label="settings">${icon('gear', 26)}</button>
+      <button class="brand" data-act="home" aria-label="Water Polo 26 Mobile"><img src="web/assets/icon-192.png" alt="" width="44" height="44"></button>
       <button class="club-chip" data-act="nav" data-arg="profile">${logoSvg(d.club.logo, d.club.color, d.club.color2, 38)}
         <span><b>${esc(d.club.name)}</b><small>${this.L('ui.total')} <em id="hdr-total">${t}</em></small></span></button>
       <div class="lvl"><span>${this.L('ui.level')} <b>${pr.level}</b></span><i><u style="width:${Math.round((pr.xp / need) * 100)}%"></u></i></div>
@@ -72,6 +73,8 @@ export class App {
   timer(until, fmt) { return `<span data-until="${until}" data-fmt="${fmt}">${this.L(fmt, formatDuration(until - Date.now()))}</span>`; }
   reward(r) { return [r.coins ? `${icon('coin', 16)}${r.coins}` : '', r.gems ? `${icon('gem', 16)}${r.gems}` : ''].join(' '); }
   portrait(p, capColor) {
+    const url = this.api.portrait && this.api.portrait(p, capColor);
+    if (url) return `<img class="portrait p3d" src="${url}" alt="" draggable="false">`;
     const n = [...p.id].reduce((a, c) => a + c.charCodeAt(0), 0), skin = SKINS[n % SKINS.length], cap = p.role === 'GOALKEEPER' ? '#d81a1f' : hex(capColor);
     return `<svg class="portrait" viewBox="0 0 64 64" aria-hidden="true">
       <path d="M8 64 Q10 46 32 44 Q54 46 56 64Z" fill="${skin}"/><path d="M8 64 Q10 52 32 50 Q54 52 56 64Z" fill="${skin}" opacity=".7"/>
@@ -87,10 +90,10 @@ export class App {
       : [['TIR', p.stats.shooting], ['PAS', p.stats.passing], ['DÉF', p.stats.defense]];
     const fit = slot === undefined ? '' : bonus > 0 ? `<i class="fit good">+${bonus}</i>` : bonus < 0 ? `<i class="fit bad">${bonus}</i>` : '';
     return `<button class="pcard r-${rar} ${opts.small ? 'small' : ''} ${this.sel === p.id ? 'sel' : ''}" data-act="card" data-arg="${p.id}" style="${opts.style || ''}">
-      <span class="ovr">${ovr}</span><span class="role">${ROLE_ABBR[p.role]}</span>${fit}
+      <span class="ovr">${ovr}</span><span class="role">${ROLE_ABBR[p.role]}</span><span class="num">#${p.number}</span>${fit}
       ${this.portrait(p, this.st.equippedColor('cap') ?? this.st.data.club.color)}
       <span class="nm">${esc(p.firstName[0])}. ${esc(p.lastName)}</span>
-      <span class="ct">${flag(p.nationality)} ${p.nationality}${opts.small ? '' : ` · Nv ${p.level}`}</span>
+      <span class="ct">${flag(p.nationality)} ${p.nationality} · ${esc(this.st.data.club.short || '')}${opts.small ? '' : ` · Nv ${p.level}`}</span>
       ${opts.small ? '' : `<span class="ks">${keyStats.map(([k, v]) => `<b>${v}</b><small>${k}</small>`).join('')}</span>`}
     </button>`;
   }

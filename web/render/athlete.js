@@ -42,22 +42,30 @@ export function mergeParts(parts) {
 }
 
 // ---------------------------------------------------------------- shared material
-let SHARED = null;
-function athleteMaterial(waterTint) {
-  if (SHARED) return SHARED;
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.1 });
+const SHARED = new Map();
+function athleteMaterial(waterTint, rich) {
+  const key = rich ? 'rich' : 'std';
+  if (SHARED.has(key)) return SHARED.get(key);
+  // HIGH / ULTRA: physical material with a thin clear coat = film of water on the skin and the wet suit.
+  const m = rich ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.2, clearcoat: 0.45, clearcoatRoughness: 0.22, sheen: 0 })
+    : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.15 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uUwTint = { value: waterTint };
+    sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.32) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aRough;\nvarying float vRough;\nvarying float vUwY;')
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvUwY = (modelMatrix * vec4(transformed, 1.0)).y;');
+      .replace('#include <common>', '#include <common>\nattribute float aRough;\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvec4 wpA = modelMatrix * vec4(transformed, 1.0);\nvUwY = wpA.y;\nvWp = wpA.xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vRough;\nvarying float vUwY;\nuniform vec3 uUwTint;')
-      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = vRough;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }');
+      .replace('#include <common>', '#include <common>\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;\nuniform vec3 uUwTint;\nuniform vec3 uRim;\n')
+      // skin micro detail: pores / water film break the highlight a little (cheap value noise)
+      .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = clamp(vRough + sin(vWp.x * 311.0) * sin(vWp.y * 287.0) * sin(vWp.z * 333.0) * 0.06 + (sin(vWp.x * 41.0 + vWp.y * 37.0) * sin(vWp.z * 43.0 - vWp.y * 29.0)) * 0.05, 0.05, 1.0);')
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+        float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
+        gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);   // rim light: detaches the athlete from the background
+        if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
   };
-  m.customProgramCacheKey = () => 'athlete';
-  SHARED = m;
+  m.customProgramCacheKey = () => 'athlete-' + key;
+  SHARED.set(key, m);
   return m;
 }
 
@@ -72,13 +80,27 @@ function rng(seed) {
   return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
 }
 
-/** Morphology from role + seed: height, shoulder width, bulk. */
+/** Body types: silhouette (height, shoulders, muscle bulk, waist) and animation (tempo, amplitude). */
+export const BODY_TYPES = {
+  SMALL_FAST: { height: 0.95, shoulders: 0.96, bulk: 0.92, waist: 0.95, tempo: 1.12, amp: 1.1 },
+  TALL_POWER: { height: 1.07, shoulders: 1.09, bulk: 1.07, waist: 1.0, tempo: 0.93, amp: 0.95 },
+  ATHLETIC: { height: 1.0, shoulders: 1.03, bulk: 1.0, waist: 0.97, tempo: 1.0, amp: 1.0 },
+  MASSIVE: { height: 1.02, shoulders: 1.13, bulk: 1.18, waist: 1.1, tempo: 0.88, amp: 0.9 },
+  SLIM: { height: 1.01, shoulders: 0.95, bulk: 0.88, waist: 0.92, tempo: 1.06, amp: 1.05 },
+};
+const ROLE_TYPES = { GOALKEEPER: ['TALL_POWER', 'ATHLETIC', 'TALL_POWER'], CENTER: ['MASSIVE', 'TALL_POWER', 'MASSIVE'], DEFENDER: ['TALL_POWER', 'MASSIVE', 'ATHLETIC'],
+  WINGER: ['SMALL_FAST', 'SLIM', 'ATHLETIC'], PLAYMAKER: ['ATHLETIC', 'SLIM', 'SMALL_FAST'], FINISHER: ['ATHLETIC', 'TALL_POWER', 'SLIM'], ALL_ROUNDER: ['ATHLETIC', 'SLIM', 'TALL_POWER'] };
+
+/** Morphology from role + seed: body type, height, shoulder width, bulk, waist, animation tempo. */
 export function morphology(role, seed) {
   const r = rng(seed * 7919 + 13);
-  const base = { GOALKEEPER: [1.06, 1.05, 1.0], CENTER: [1.04, 1.12, 1.14], DEFENDER: [1.02, 1.08, 1.08], WINGER: [0.96, 0.97, 0.94],
-    PLAYMAKER: [0.99, 1.0, 0.98], FINISHER: [1.01, 1.04, 1.04], ALL_ROUNDER: [1, 1, 1] }[role] || [1, 1, 1];
-  return { height: base[0] + (r() - 0.5) * 0.06, shoulders: base[1] + (r() - 0.5) * 0.06, bulk: base[2] + (r() - 0.5) * 0.08 };
+  const list = ROLE_TYPES[role] || ROLE_TYPES.ALL_ROUNDER, type = list[Math.floor(r() * list.length)], b = BODY_TYPES[type];
+  const gk = role === 'GOALKEEPER' ? 0.03 : 0;
+  return { type, height: b.height + gk + (r() - 0.5) * 0.05, shoulders: b.shoulders + (r() - 0.5) * 0.05, bulk: b.bulk + (r() - 0.5) * 0.06,
+    waist: b.waist + (r() - 0.5) * 0.04, tempo: b.tempo, amp: b.amp };
 }
+
+export const HAIR_STYLES = ['shaved', 'short', 'curly', 'wavy', 'long'];
 
 // ---------------------------------------------------------------- sculpting
 const gs = (d, w) => Math.exp(-(d / w) * (d / w));
@@ -128,30 +150,40 @@ function sculptLathe(keys, rows, segs, sculpt, shadeFn) {
 function sculptHead(ws, hs, P, skin, hair) {
   const g = new THREE.SphereGeometry(1, ws, hs);
   const a = g.attributes.position.array, cols = new Float32Array(a.length);
-  const lip = skin.clone().lerp(C(0x9c4a46), 0.45), socket = skin.clone().multiplyScalar(0.8), dark = skin.clone().multiplyScalar(0.72), c = new THREE.Color();
+  const flush = skin.clone().lerp(C(0xc0504a), 0.3), lip = skin.clone().lerp(C(0x9c4a46), 0.45), socket = skin.clone().multiplyScalar(0.8), dark = skin.clone().multiplyScalar(0.72), c = new THREE.Color();
   for (let i = 0; i < a.length; i += 3) {
     let x = a[i], y = a[i + 1], z = a[i + 2];
     const f = sstep(-0.2, 0.75, z);                                   // 0 back of the skull .. 1 face
     if (y < 0) y *= 1 + 0.3 * f;                                      // longer lower face
-    x *= 1 - (1 - P.jawW) * sstep(0.05, -0.9, y) * (0.4 + 0.6 * f);   // jaw width
+    x *= P.faceW * (1 - (1 - P.jawW) * sstep(0.05, -0.9, y) * (0.4 + 0.6 * f));   // face and jaw width
     if (z < 0) z *= 0.95;
     const top = 1 - 0.05 * sstep(0.4, 0.9, y); x *= top; y *= top; z *= top;   // stays under the cap
     const ax = Math.abs(x), sx = Math.sign(x);
-    const nose = P.nose * gs(x, 0.1) * (y > -0.12 ? sstep(0.32, -0.12, y) : gs(y + 0.12, 0.06));
+    const nose = P.nose * gs(x, P.noseW) * (y > -0.12 ? sstep(0.32, -0.12, y) : gs(y + 0.12, 0.06));
     const eye = gs(y - 0.15, 0.1) * gs(ax - 0.36, 0.13);
     const lips = gs(y + 0.42, 0.06) * gs(x, 0.2);
     z += f * (P.brow * gs(y - 0.33, 0.09) * gs(x, 0.5) - 0.07 * eye + 0.035 * gs(y + 0.05, 0.14) * gs(ax - 0.5, 0.14)
-      + nose + 0.03 * lips - 0.018 * gs(y + 0.56, 0.05) * gs(x, 0.16) + P.chin * gs(y + 0.86, 0.12) * gs(x, 0.26));
+      + nose + P.lips * lips - 0.018 * gs(y + 0.56, 0.05) * gs(x, 0.16) + P.chin * gs(y + 0.86, 0.12) * gs(x, 0.26));
     x += sx * (0.04 * gs(y + 0.05, 0.15) * gs(z - 0.5, 0.25) - 0.035 * gs(y + 0.42, 0.15) * gs(z - 0.45, 0.25));
     a[i] = x; a[i + 1] = y; a[i + 2] = z;
     // colour: sockets & under-chin shading (cheap ambient occlusion), lips, beard / stubble
-    c.copy(skin).lerp(socket, f * gs(y - 0.12, 0.1) * gs(ax - 0.3, 0.16) * 0.9).lerp(dark, sstep(-0.75, -1.1, y) * 0.6);
+    const hsh = Math.sin(i * 12.9898 + P.seed) * 43758.5453, nz = (hsh - Math.floor(hsh) - 0.5) * 0.05;   // tone variation
+    c.copy(skin).multiplyScalar(1 + nz).lerp(flush, f * (0.22 * gs(y + 0.12, 0.16) * gs(ax - 0.5, 0.2) + 0.25 * gs(y + 0.08, 0.1) * gs(x, 0.1))).lerp(socket, f * gs(y - 0.12, 0.1) * gs(ax - 0.3, 0.16) * 0.9).lerp(dark, sstep(-0.75, -1.1, y) * 0.6);
     c.lerp(lip, f * gs(y + 0.42, 0.045) * gs(x, 0.15) * 0.95);
     const beardZone = f * sstep(-0.22, -0.5, y) * (1 - gs(y + 0.42, 0.05) * gs(x, 0.17)) * sstep(0.95, 0.6, ax + 0.4 * (1 - f));
     c.lerp(hair, beardZone * P.beard);
+    c.lerp(hair, f * gs(y + 0.31, 0.045) * gs(x, 0.17) * P.moustache);                   // moustache
+    c.lerp(hair, f * gs(y + 0.8, 0.13) * gs(x, 0.14) * P.goatee);                         // goatee
     cols[i] = c.r; cols[i + 1] = c.g; cols[i + 2] = c.b;
   }
   return { geo: weldNormals(g), colors: cols };
+}
+
+/** Per-vertex colours from fn(position, colour). */
+function paint(geo, fn) {
+  const a = geo.attributes.position.array, out = new Float32Array(a.length), v = new THREE.Vector3(), c = new THREE.Color();
+  for (let i = 0; i < a.length; i += 3) { v.set(a[i], a[i + 1], a[i + 2]); fn(v, c); out[i] = c.r; out[i + 1] = c.g; out[i + 2] = c.b; }
+  return out;
 }
 
 /** z of the head surface (front) at (x, y), from the generated vertices: features sit ON the face. */
@@ -181,6 +213,7 @@ const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const THROW_DUR = { pass: 0.3, shot: 0.38, power: 0.42, lob: 0.5 };
 const JOINTS = ['pitch', 'roll', 'twist', 'neck', 'headX', 'headY', 'shRx', 'shRz', 'elR', 'shLx', 'shLz', 'elL', 'hipRx', 'hipRz', 'knR', 'knRy', 'hipLx', 'hipLz', 'knL', 'knLy', 'rise'];
 
 export class Athlete {
@@ -189,15 +222,20 @@ export class Athlete {
    */
   constructor(o) {
     const r = rng(o.seed * 104729 + 7);
-    const morph = morphology(o.role, o.seed);
+    const morph = morphology(o.bodyRole || o.role, o.seed);
     this.morph = morph;
     const seg = o.preset.limbSeg, face = o.preset.faceDetail;
     const skin = C(SKIN[Math.floor(r() * SKIN.length)]);
     const hair = C(HAIR[Math.floor(r() * HAIR.length)]);
     const cap = C(o.capColor), team = C(o.teamColor), trim = C(o.trimColor ?? 0xffffff);
-    const W = 0.32, S = 0.36, CAP = 0.7, SUIT = 0.55;   // roughness: wet skin, face, fabric cap, suit
-    const mat = athleteMaterial(o.waterTint || C(0x0b5d84));
-    const bulk = morph.bulk, sw = morph.shoulders;
+    const W = 0.3, S = 0.34, CAP = 0.62, SUIT = 0.38;   // roughness: wet skin, face, wet fabric cap, wet suit
+    const rich = o.preset.limbSeg >= 10;
+    const mat = athleteMaterial(o.waterTint || C(0x0b5d84), rich);
+    const bulk = morph.bulk, sw = morph.shoulders, waist = morph.waist;
+    // Appearance (all tied to the seed: a player always has the same face, hair and body).
+    const hairStyle = HAIR_STYLES[Math.floor(r() * HAIR_STYLES.length)];
+    const facial = r(), wetHair = hair.clone().multiplyScalar(0.72);
+    this.look = { hairStyle, body: morph.type, beard: facial < 0.3 ? 'beard' : facial < 0.42 ? 'moustache' : facial < 0.52 ? 'goatee' : facial < 0.75 ? 'stubble' : 'clean' };
 
     // Skeleton: every joint is a THREE.Bone; all body parts are merged into ONE skinned mesh
     // (rigid skinning, 1 bone per vertex) -> one draw call per athlete.
@@ -223,18 +261,31 @@ export class Athlete {
         v.z += fr * (0.045 * bulk * pecs(v.y, ax) + 0.014 * abs(v.y, ax) - 0.007 * gs(v.x, 0.012) * sstep(-0.45, -0.12, v.y))
           + bk * (0.009 * gs(v.x, 0.016) * sstep(-0.5, 0.0, v.y) - 0.014 * gs(v.y + 0.05, 0.06) * gs(ax - 0.075, 0.04));
         v.x += sx * 0.016 * bulk * gs(v.y + 0.13, 0.1) * gs(v.z + 0.02, 0.1);   // lats
+        const wk = 1 + (waist - 1) * sstep(-0.2, -0.45, v.y); v.x *= wk; v.z *= wk;         // waist / hips of the body type
       }, (v) => {
         const ax = Math.abs(v.x), fr = front(v), bk = back(v);
         return 1 - fr * (0.13 * gs(v.y + 0.122, 0.012) * gs(ax - 0.075, 0.05) + 0.09 * (1 - abs(v.y, ax)) * sstep(-0.44, -0.4, v.y) * sstep(-0.11, -0.16, v.y) * gs(ax, 0.07)
           + 0.12 * gs(v.x, 0.01) * sstep(-0.45, -0.1, v.y)) - bk * 0.12 * gs(v.x, 0.014) * sstep(-0.5, 0.0, v.y);
       });
-    const briefs = new THREE.LatheGeometry([[0.0, -0.66], [0.142, -0.645], [0.157, -0.55], [0.15, -0.47], [0.0, -0.46]].map(([x, y]) => new THREE.Vector2(x, y)), seg * 2 + 4, Math.PI);
-    const neck = sculptLathe([[0, 0.06], [0.074, 0.075], [0.064, 0.13], [0.058, 0.19], [0, 0.205]], 8, seg * 2 + 4,
+    // Suit: real garment shell over the hips (glutes, front, waistband), team colour with trim
+    // waistband, leg bands, side panels, diagonal motif and darker seams (vertex colours).
+    const briefs = sculptLathe([[0.0, -0.665], [0.142, -0.65], [0.152, -0.6], [0.157, -0.55], [0.15, -0.5], [0.147, -0.47], [0.0, -0.455]], 12, seg * 3 + 8,
+      (v) => { v.z -= 0.014 * gs(v.y + 0.58, 0.05) * gs(Math.abs(v.x) - 0.06, 0.05) * back(v); v.z += 0.008 * gs(v.y + 0.6, 0.04) * gs(v.x, 0.05) * front(v); });
+    const suitColors = paint(briefs, (v, c) => {
+      const ax = Math.abs(v.x), side = gs(v.z, 0.035) * sstep(0.1, 0.13, ax);
+      c.copy(team);
+      c.lerp(trim, 0.85 * front(v) * gs(ax * 1.3 - (v.y + 0.62), 0.012));                            // chevron motif
+      if (v.y > -0.485 || v.y < -0.64) c.copy(trim);                                                 // waistband, leg bands
+      c.lerp(trim, side * 0.9);                                                                       // side panels
+      c.multiplyScalar(1 - 0.35 * gs(v.x, 0.006) * sstep(-0.5, -0.58, v.y) - 0.25 * gs(Math.abs(v.y + 0.49) , 0.004));   // seams
+    });
+    const neck = sculptLathe([[0, 0.06], [0.074, 0.075], [0.064, 0.13], [0.057, 0.2], [0.05, 0.25], [0, 0.27]], 10, seg * 2 + 4,
       (v) => { v.x *= 1 + 0.12 * gs(v.y - 0.1, 0.04) * sstep(0.02, -0.04, v.z); });   // sternocleidomastoid / traps base
     mesh([
       { geo: torsoGeo, color: skin, rough: W, scale: V3(1.22 * sw, 1, 0.74 * bulk) },
-      { geo: briefs, color: team, rough: SUIT, scale: V3(1.24 * sw, 1, 0.78 * bulk) },
-      { geo: new THREE.BoxGeometry(0.24, 0.02, 0.01), color: trim, rough: SUIT, pos: V3(0, -0.5, 0.118 * bulk), scale: V3(sw, 1, 1) },
+      { geo: briefs, colors: suitColors, color: team, rough: SUIT, scale: V3(1.24 * sw * waist, 1, 0.78 * bulk * waist) },
+      { geo: new THREE.TorusGeometry(0.012, 0.004, 4, 8), color: trim, rough: SUIT, pos: V3(0.012, -0.49, 0.121 * bulk * waist), scale: V3(1, 0.6, 0.5) },   // drawstring bow
+      { geo: new THREE.TorusGeometry(0.012, 0.004, 4, 8), color: trim, rough: SUIT, pos: V3(-0.012, -0.49, 0.121 * bulk * waist), scale: V3(1, 0.6, 0.5) },
       { geo: neck, color: skin, rough: W },
       { geo: new THREE.SphereGeometry(0.06, seg, seg), color: skin, rough: W, pos: V3(0.09 * sw, 0.06, -0.01), scale: V3(1.3, 0.6, 1) },    // trapezius
       { geo: new THREE.SphereGeometry(0.06, seg, seg), color: skin, rough: W, pos: V3(-0.09 * sw, 0.06, -0.01), scale: V3(1.3, 0.6, 1) },
@@ -244,17 +295,19 @@ export class Athlete {
     // beard / stubble and shading in vertex colours), eyes with lids, cap, ear guards, chin strap
     this.head = bone(this.torso); this.head.position.set(0, 0.2, 0.005);
     const hs = 1 + (r() - 0.5) * 0.08, R = 0.112;
-    const beard = r() < 0.45 ? 0.85 : 0.1 + r() * 0.15;
-    const sculpt = sculptHead(face ? seg * 4 + 8 : 14, face ? seg * 3 + 6 : 10,
-      { jawW: 0.82 + r() * 0.14, nose: 0.13 + r() * 0.07, brow: 0.04 + r() * 0.03, chin: 0.04 + r() * 0.04, beard }, skin, hair);
+    const bk = this.look.beard;
+    const FP = { jawW: 0.8 + r() * 0.16, faceW: 0.92 + r() * 0.1, nose: 0.12 + r() * 0.08, noseW: 0.08 + r() * 0.05, brow: 0.035 + r() * 0.035, chin: 0.03 + r() * 0.05,
+      lips: 0.02 + r() * 0.025, seed: o.seed % 97, beard: bk === 'beard' ? 0.85 : bk === 'stubble' ? 0.3 : 0.08, moustache: bk === 'moustache' || bk === 'goatee' ? 0.85 : 0,
+      goatee: bk === 'goatee' ? 0.85 : 0, eyeX: 0.034 + r() * 0.007, eyeS: 0.9 + r() * 0.2 };
+    const sculpt = sculptHead(face ? seg * 4 + 8 : 14, face ? seg * 3 + 6 : 10, FP, skin, hair);
     sculpt.geo.applyMatrix4(new THREE.Matrix4().compose(V3(0, 0.1, 0), new THREE.Quaternion(), V3(0.92 * hs * R, 1.08 * R, 1.02 * R)));
     const headParts = [{ geo: sculpt.geo, colors: sculpt.colors, color: skin, rough: S }];
     if (face) {
-      const eyeY = 0.118, eyeX = 0.037 * hs;
+      const eyeY = 0.118, eyeX = FP.eyeX * hs * FP.faceW, es = FP.eyeS;
       const lidGeo = new THREE.SphereGeometry(0.0158, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.45);
       for (const sx of [-1, 1]) {
         const ez = surfaceZ(sculpt.geo, sx * eyeX, eyeY) - 0.003;
-        headParts.push({ geo: new THREE.SphereGeometry(0.0145, 10, 8), color: C(0xf4f1ea), rough: 0.15, pos: V3(sx * eyeX, eyeY, ez), scale: V3(1.15, 0.8, 0.7) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.0145, 10, 8), color: C(0xf4f1ea), rough: 0.15, pos: V3(sx * eyeX, eyeY, ez), scale: V3(1.15 * es, 0.8 * es, 0.7) });
         headParts.push({ geo: new THREE.SphereGeometry(0.0078, 8, 6), color: C(r() < 0.3 ? 0x3d6b8f : 0x2b1a10), rough: 0.08, pos: V3(sx * eyeX, eyeY - 0.001, ez + 0.0085), scale: V3(1, 1, 0.6) });
         headParts.push({ geo: lidGeo, color: skin.clone().multiplyScalar(0.92), rough: S, pos: V3(sx * eyeX, eyeY + 0.001, ez - 0.001), scale: V3(1.15, 0.75, 0.78), quat: Q(0.35, 0, 0) });   // upper lid
         const by = eyeY + 0.021;
@@ -264,7 +317,14 @@ export class Athlete {
       const my = 0.049;
       headParts.push({ geo: new THREE.CapsuleGeometry(0.0022, 0.026, 2, 6), color: C(0x5e2c28), rough: 0.5, pos: V3(0, my, surfaceZ(sculpt.geo, 0, my) - 0.0005), quat: Q(0, 0, Math.PI / 2) });  // mouth line
       const ny = 0.083;
-      headParts.push({ geo: new THREE.SphereGeometry(0.0125, 8, 6), color: skin, rough: S, pos: V3(0, ny, surfaceZ(sculpt.geo, 0, ny) - 0.006), scale: V3(1.25, 0.85, 1) });   // nose tip / nostrils
+      headParts.push({ geo: new THREE.SphereGeometry(0.0125, 8, 6), color: skin, rough: S, pos: V3(0, ny, surfaceZ(sculpt.geo, 0, ny) - 0.006), scale: V3(1.25 * FP.noseW / 0.1, 0.85, 1) });   // nose tip / nostrils
+      for (const sx of [-1, 1]) headParts.push({ geo: new THREE.SphereGeometry(0.004, 6, 4), color: skin.clone().multiplyScalar(0.45), rough: 0.6, pos: V3(sx * 0.008, ny - 0.009, surfaceZ(sculpt.geo, sx * 0.008, ny - 0.009) + 0.001) });   // nostrils
+      if (FP.moustache > 0) headParts.push({ geo: new THREE.CapsuleGeometry(0.005, 0.03, 2, 6), color: wetHair, rough: 0.5, pos: V3(0, 0.062, surfaceZ(sculpt.geo, 0, 0.062) + 0.002), quat: Q(0, 0, Math.PI / 2), scale: V3(1, 1, 0.7) });
+      // Ears: helix + lobe, mostly hidden by the ear guards (the lobe and the rim show around them).
+      for (const sx of [-1, 1]) {
+        headParts.push({ geo: new THREE.TorusGeometry(0.026, 0.007, 5, 10, Math.PI * 1.3), color: skin.clone().lerp(C(0xc0504a), 0.15), rough: S, pos: V3(sx * 0.094 * hs * FP.faceW, 0.085, 0.0), quat: Q(0, sx * Math.PI / 2, -Math.PI * 0.62), scale: V3(1, 1.3, 1) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.0095, 6, 5), color: skin.clone().lerp(C(0xc0504a), 0.15), rough: S, pos: V3(sx * 0.097 * hs * FP.faceW, 0.039, 0.012), scale: V3(0.6, 1, 0.9) });
+      }
     }
     // Cap: fabric shell covering the skull and the back of the head, slightly tilted back.
     headParts.push({ geo: new THREE.SphereGeometry(0.117, seg * 2, seg + 2, 0, Math.PI * 2, 0, Math.PI * 0.52), color: cap, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(-0.62, 0, 0), scale: V3(0.95 * hs, 1.06, 1.05) });
@@ -280,12 +340,34 @@ export class Athlete {
       }
     }
     headParts.push({ geo: new THREE.TorusGeometry(0.09, 0.005, 4, seg * 2, Math.PI), color: cap, rough: CAP, pos: V3(0, 0.065, 0.012), quat: Q(0, Math.PI / 2, Math.PI) }); // chin strap
-    headParts.push({ geo: new THREE.SphereGeometry(0.05, seg, seg), color: hair, rough: 0.9, pos: V3(0, 0.045, -0.072), scale: V3(1.4, 0.5, 0.6) }); // nape hair
+    headParts.push({ geo: new THREE.SphereGeometry(0.009, 6, 5), color: cap, rough: CAP, pos: V3(0, -0.026, 0.018), scale: V3(1.4, 0.8, 1) });                               // strap knot
+    for (const sx of [-1, 1]) headParts.push({ geo: new THREE.CapsuleGeometry(0.003, 0.03, 2, 4), color: cap, rough: CAP, pos: V3(sx * 0.008, -0.04, 0.02), quat: Q(0.2, 0, sx * 0.4) }); // strap ends
+    // Hair (wet: darker, glossy). Shaved: nothing shows under the cap.
+    const HR = 0.42;
+    if (hairStyle === 'short' || hairStyle === 'wavy') {
+      headParts.push({ geo: new THREE.SphereGeometry(0.05, seg, seg), color: wetHair, rough: HR, pos: V3(0, 0.045, -0.072), scale: V3(1.4, hairStyle === 'wavy' ? 0.75 : 0.5, 0.6) });
+      if (hairStyle === 'wavy') for (let k = 0; k < 5; k++) headParts.push({ geo: new THREE.SphereGeometry(0.016, 6, 5), color: wetHair, rough: HR, pos: V3((k - 2) * 0.025, 0.02 + Math.abs(k - 2) * 0.008, -0.08 + Math.abs(k - 2) * 0.006), scale: V3(1, 1.6, 0.7) });
+    } else if (hairStyle === 'curly') {
+      for (let k = 0; k < 9; k++) { const a = (k / 8 - 0.5) * 2.2; headParts.push({ geo: new THREE.SphereGeometry(0.015, 6, 5), color: wetHair, rough: HR, pos: V3(Math.sin(a) * 0.085, 0.035 + (k % 2) * 0.012, -Math.cos(a) * 0.085) }); }
+      if (face) for (const x of [-0.035, 0, 0.035]) headParts.push({ geo: new THREE.SphereGeometry(0.011, 6, 5), color: wetHair, rough: HR, pos: V3(x, 0.163, surfaceZ(sculpt.geo, x, 0.163) - 0.004) });
+    }
     mesh(headParts, this.head);
+    // Long hair: wet locks coming out under the cap, on their own bone with a spring (secondary motion).
+    this.hair = null;
+    if (hairStyle === 'long') {
+      this.hair = bone(this.head); this.hair.position.set(0, 0.035, -0.085);
+      const lock = sculptLathe([[0, -0.2], [0.02, -0.18], [0.035, -0.1], [0.045, -0.03], [0.04, 0.01], [0, 0.03]], 10, seg + 4, (v) => { v.x *= 1.6; v.z *= 0.45; v.z -= 0.03 * sstep(0, -0.2, v.y); });
+      mesh([{ geo: lock, color: wetHair, rough: HR }], this.hair);
+    }
+    this.hairA = 0; this.hairV = 0; this.hairZ = 0;
     // Cap number on the back of the cap.
     if (face) {
       const num = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.085), new THREE.MeshBasicMaterial({ map: numberTexture(o.number), transparent: true, depthWrite: false }));
       num.position.set(0, 0.125, -0.113); num.rotation.set(0.35, Math.PI, 0); this.head.add(num);
+      if (rich) {   // HIGH / ULTRA: number on the suit (left hip), same texture
+        const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
+        sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); this.torso.add(sn);
+      }
     }
 
     // --- arms: sculpted deltoid, biceps / triceps, forearm muscles tapering to the wrist
@@ -295,12 +377,12 @@ export class Athlete {
     const foreArm = sculptLathe([[0, -0.25], [0.029, -0.236], [0.031, -0.2], [0.04 * bulk, -0.12], [0.047 * bulk, -0.06], [0.045 * bulk, -0.02], [0.036, 0.02], [0, 0.035]], armRows, armSeg,
       (v) => { v.x *= 1 + 0.18 * sstep(-0.1, -0.22, v.y); v.z *= 1 - 0.2 * sstep(-0.1, -0.22, v.y); });   // flat wrist
     const arm = (side) => {
-      const sh = bone(this.torso); sh.position.set(side * 0.205 * sw, 0.03, 0);
+      const sh = bone(this.torso); sh.position.set(side * 0.205 * sw, 0.03, 0); sh.userData.blend = [-0.06, 0.04, 0.35];
       mesh([
         { geo: upperArm, color: skin, rough: W },
         { geo: new THREE.SphereGeometry(0.037 * bulk, seg, seg), color: skin, rough: W, pos: V3(0, -0.28, 0) },   // elbow
       ], sh);
-      const el = bone(sh); el.position.set(0, -0.28, 0);
+      const el = bone(sh); el.position.set(0, -0.28, 0); el.userData.blend = [-0.03, 0.035, 0.5];
       const handParts = [
         { geo: foreArm, color: skin, rough: W },
         { geo: new THREE.SphereGeometry(0.045, seg, seg), color: skin, rough: W, pos: V3(0, -0.27, 0), scale: V3(0.95, 1.25, 0.5) },                    // palm
@@ -311,7 +393,8 @@ export class Athlete {
           pos: V3((f - 1.5) * 0.019, -0.33, 0.004), quat: Q(0.15, 0, 0) });
       }
       mesh(handParts, el);
-      const hand = new THREE.Object3D(); hand.position.set(0, -0.31, 0.06); el.add(hand);
+      // Grip point = ball centre, one ball radius in front of the palm: the ball rests ON the hand.
+      const hand = new THREE.Object3D(); hand.position.set(0, -0.315, 0.128); el.add(hand);
       return { sh, el, hand };
     };
     this.armR = arm(1); this.armL = arm(-1);
@@ -323,9 +406,9 @@ export class Athlete {
     const shin = sculptLathe([[0, -0.38], [0.03, -0.36], [0.032, -0.3], [0.044 * bulk, -0.2], [0.052 * bulk, -0.1], [0.05 * bulk, -0.04], [0.044, 0.02], [0, 0.04]], legRows, legSeg,
       (v) => { v.z -= 0.012 * bulk * gs(v.y + 0.11, 0.06) * back(v); });
     const leg = (side) => {
-      const hip = bone(this.torso); hip.position.set(side * 0.092 * sw, -0.6, 0);
+      const hip = bone(this.torso); hip.position.set(side * 0.092 * sw, -0.6, 0); hip.userData.blend = [-0.04, 0.06, 0.5];
       mesh([{ geo: thigh, color: skin, rough: W }], hip);
-      const kn = bone(hip); kn.position.set(0, -0.42, 0);
+      const kn = bone(hip); kn.position.set(0, -0.42, 0); kn.userData.blend = [-0.03, 0.04, 0.5];
       mesh([
         { geo: shin, color: skin, rough: W },
         { geo: new THREE.SphereGeometry(0.05, seg, seg), color: skin, rough: W, pos: V3(0, -0.395, 0.045), scale: V3(0.8, 0.5, 2.1) },   // foot
@@ -338,10 +421,17 @@ export class Athlete {
     rootBone.updateMatrixWorld(true);
     const geos = [];
     for (const [b, parts] of partsByBone) {
-      const g = mergeParts(parts).applyMatrix4(b.matrixWorld);
+      const g = mergeParts(parts);
       const n = g.attributes.position.count, bi = bones.indexOf(b);
-      const si = new Uint16Array(n * 4), sw4 = new Float32Array(n * 4);
-      for (let i = 0; i < n; i++) { si[i * 4] = bi; sw4[i * 4] = 1; }
+      const si = new Uint16Array(n * 4), sw4 = new Float32Array(n * 4), bl = b.userData.blend, py = g.attributes.position.array;
+      const pi = bl ? bones.indexOf(b.parent) : 0;
+      for (let i = 0; i < n; i++) {
+        // Joints: vertices near the joint are shared with the parent bone (smooth shoulder / elbow / hip /
+        // knee instead of rigid mannequin pieces); everything else is rigid.
+        const wp = bl ? sstep(bl[0], bl[1], py[i * 3 + 1]) * bl[2] : 0;
+        si[i * 4] = bi; sw4[i * 4] = 1 - wp; si[i * 4 + 1] = pi; sw4[i * 4 + 1] = wp;
+      }
+      g.applyMatrix4(b.matrixWorld);
       g.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4)); g.setAttribute('skinWeight', new THREE.BufferAttribute(sw4, 4));
       geos.push(g);
     }
@@ -354,13 +444,22 @@ export class Athlete {
 
     // Animation state.
     this.pose = Object.fromEntries(JOINTS.map((k) => [k, 0]));
-    this.w = { swim: 0, hold: 0, wind: 0, throw: 0, block: 0, gk: o.isGK ? 1 : 0, dive: 0, celebrate: 0, receive: 0 };
+    this.w = { swim: 0, hold: 0, wind: 0, throw: 0, block: 0, gk: o.isGK ? 1 : 0, dive: 0, celebrate: 0, receive: 0, reach: 0, save: 0 };
     this.phase = r() * 6.28; this.tread = r() * 6.28; this.throwT = 0; this.throwKind = 'shot'; this.diveT = 0; this.diveDir = 1; this.celebrateT = 0; this.celebrateKind = 'arms';
-    this.isGK = o.isGK; this.lastStroke = 0; this.onStroke = null;
+    this.isGK = o.isGK; this.lastStroke = 0; this.onStroke = null; this.onDrip = null;
+    this.reachT = 0; this.reachDir = 1; this.saveT = 0; this.lookT = 0; this.lookTarget = new THREE.Vector3();
+    this.prevYaw = null; this.yawRate = 0; this.prevSpeed = 0; this.accel = 0; this.prevRise = 0; this.dripAcc = 0;
   }
 
   /** One-shot actions triggered by match events. */
-  playThrow(kind) { this.throwT = kind === 'pass' ? 0.3 : 0.38; this.throwKind = kind; }
+  /** kind: 'pass' | 'shot' | 'power' | 'lob' */
+  playThrow(kind) { this.throwT = THROW_DUR[kind] || 0.38; this.throwKind = kind; }
+  /** Interception / steal: lunge with one arm toward the ball (dir +1 right, -1 left). */
+  playReach(dir) { this.reachT = 0.45; this.reachDir = dir; }
+  /** Goalkeeper parry: both hands up toward the shot. */
+  playSave() { this.saveT = 0.5; }
+  /** Look at a point for a while (pass target, goal...), then back to the default look target. */
+  lookAtFor(x, y, z, dur) { this.lookTarget.set(x, y, z); this.lookT = dur; }
   playDive(dir) { this.diveT = 0.9; this.diveDir = dir; }
   playCelebrate(kind = 'arms') { this.celebrateT = 2.6; this.celebrateKind = kind; }
 
@@ -375,6 +474,14 @@ export class Athlete {
     this.throwT = Math.max(0, this.throwT - dt);
     this.diveT = Math.max(0, this.diveT - dt);
     this.celebrateT = Math.max(0, this.celebrateT - dt);
+    this.reachT = Math.max(0, this.reachT - dt); this.saveT = Math.max(0, this.saveT - dt); this.lookT = Math.max(0, this.lookT - dt);
+    // Turning rate and acceleration (smoothed): banking into turns, leaning on acceleration / braking.
+    const yaw0 = Math.atan2(s.fx, s.fz);
+    if (this.prevYaw === null) this.prevYaw = yaw0;
+    const ks = 1 - Math.exp(-dt * 6);
+    this.yawRate += (wrap(yaw0 - this.prevYaw) / Math.max(dt, 1e-3) - this.yawRate) * ks; this.prevYaw = yaw0;
+    this.accel += ((speed - this.prevSpeed) / Math.max(dt, 1e-3) - this.accel) * ks; this.prevSpeed = speed;
+    const M = this.morph;
 
     // ---- blend weights (smoothed: no snapping between animations)
     const k = 1 - Math.exp(-dt * 9);
@@ -388,15 +495,17 @@ export class Athlete {
       dive: this.diveT > 0 ? 1 : 0,
       celebrate: this.celebrateT > 0 ? 1 : 0,
       receive: s.receive && !s.hasBall ? 1 : 0,
+      reach: this.reachT > 0 ? 1 : 0,
+      save: this.saveT > 0 ? 1 : 0,
     };
-    for (const key in target) this.w[key] += (target[key] - this.w[key]) * (key === 'throw' || key === 'dive' ? 1 - Math.exp(-dt * 25) : k);
+    for (const key in target) this.w[key] = (this.w[key] || 0) + (target[key] - (this.w[key] || 0)) * (key === 'throw' || key === 'dive' || key === 'reach' || key === 'save' ? 1 - Math.exp(-dt * 25) : k);
     const w = this.w;
 
     // ---- cycles
-    const strokeRate = (2.4 + speed * 2.2 + (s.sprint ? 1.2 : 0)) * (0.7 + 0.3 * fatigue);
+    const strokeRate = (2.4 + speed * 2.2 + (s.sprint ? 1.2 : 0)) * (0.7 + 0.3 * fatigue) * M.tempo;
     const prev = this.phase;
     this.phase += dt * strokeRate * w.swim;
-    this.tread += dt * (this.isGK ? 7.5 : 5.5) * (0.75 + 0.25 * fatigue);
+    this.tread += dt * (this.isGK ? 7.5 : 5.5) * (0.75 + 0.25 * fatigue) * M.tempo;
     // Stroke splash when a hand enters the water (two per cycle).
     if (w.swim > 0.5 && this.onStroke) {
       const twoPi = Math.PI * 2;
@@ -429,6 +538,18 @@ export class Athlete {
     for (const j of JOINTS) P[j] = tread[j] + (swim[j] - tread[j]) * w.swim;
     // Swim arms rotate continuously: take them from the swim pose when swimming.
     if (w.swim > 0.5) { P.shRx = swim.shRx; P.shLx = swim.shLx; }
+    // Sprint: flatter, head lower, arms closer to the body. Body type sets the stroke amplitude.
+    if (s.sprint) { P.pitch += 0.08 * w.swim; P.neck -= 0.08 * w.swim; P.shRz *= 0.8; P.shLz *= 0.8; }
+    P.shRz *= M.amp; P.shLz *= M.amp; P.knRy *= M.amp; P.knLy *= M.amp;
+    // Acceleration leans forward; braking sits the body up with the legs forward.
+    const brake = clamp(-this.accel / 4, 0, 1), push = clamp(this.accel / 4, 0, 1);
+    P.pitch += push * 0.12 * w.swim - brake * 0.45 * w.swim; P.hipRx -= brake * 0.5; P.hipLx -= brake * 0.5; P.rise += brake * 0.05;
+    // Turning: bank into the turn, head leads it.
+    const turn = clamp(this.yawRate, -3, 3);
+    P.roll -= turn * 0.1 * (0.4 + 0.6 * w.swim); P.headY += turn * 0.1;
+    // Fatigue: head drops, arms scull lower and slower.
+    const tired = clamp((0.4 - fatigue) / 0.4, 0, 1);
+    P.headX += tired * 0.25; P.shRz -= tired * 0.15; P.shLz += tired * 0.15; P.pitch += tired * 0.08 * (1 - w.swim);
 
     // ---- goalkeeper stance: high in the water, arms wide and sculling, faster eggbeater
     if (w.gk > 0) {
@@ -445,13 +566,23 @@ export class Athlete {
     }
     // ---- release (shot / pass): fast forward whip and follow-through
     if (w.throw > 0) {
-      const dur = this.throwKind === 'pass' ? 0.3 : 0.38, u = 1 - this.throwT / dur;
+      const kind = this.throwKind, dur = THROW_DUR[kind] || 0.38, u = 1 - this.throwT / dur;
       const e = 1 - Math.pow(1 - clamp(u * 1.6, 0, 1), 3);
-      mix(P, { shRx: -3.6 + e * (this.throwKind === 'pass' ? 2.0 : 2.5), shRz: 0.25, elR: -1.1 * (1 - e), twist: -0.5 + e * 0.9, pitch: 0.35 * e - 0.1,
-        rise: 0.32 * (1 - u) + 0.05, shLx: -0.8, shLz: -0.6 }, w.throw);
+      // pass: short whip; shot: torso rotation + whip; power: bigger rotation, body out of the water; lob: high soft arc
+      const K = { pass: [2.0, 0.9, 0.35, 0.32], shot: [2.5, 0.9, 0.35, 0.32], power: [2.8, 1.35, 0.5, 0.42], lob: [1.3, 0.5, 0.1, 0.36] }[kind] || [2.5, 0.9, 0.35, 0.32];
+      mix(P, { shRx: -3.6 + e * K[0], shRz: 0.25, elR: -1.1 * (1 - e) * (kind === 'lob' ? 0.4 : 1), twist: -0.5 * K[1] + e * K[1], pitch: K[2] * e - 0.1,
+        rise: K[3] * (1 - u) + 0.05, shLx: -0.8, shLz: -0.6, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
     }
     // ---- block: both arms straight up
     if (w.block > 0) mix(P, { shRx: -3.0, shRz: 0.22, elR: -0.1, shLx: -3.0, shLz: -0.22, elL: -0.1, rise: 0.26, pitch: 0 }, w.block);
+    // ---- interception / steal: lunge, one arm reaching for the ball
+    if (w.reach > 0) {
+      const d = this.reachDir, u = 1 - this.reachT / 0.45, ext = Math.sin(Math.min(1, u * 1.4) * Math.PI);
+      const R = d > 0 ? { shRx: -1.5 - 0.3 * ext, shRz: 0.9 * ext, elR: -0.05 } : { shLx: -1.5 - 0.3 * ext, shLz: -0.9 * ext, elL: -0.05 };
+      mix(P, { ...R, pitch: 0.45 * ext, roll: -d * 0.25 * ext, rise: 0.12 * ext, twist: d * 0.3 * ext }, w.reach);
+    }
+    // ---- goalkeeper parry: both hands up toward the shot
+    if (w.save > 0) mix(P, { shRx: -2.9, shRz: 0.5, elR: -0.15, shLx: -2.9, shLz: -0.5, elL: -0.15, rise: 0.34, pitch: -0.05, headX: -0.2 }, w.save);
     // ---- goalkeeper dive toward the ball side
     if (w.dive > 0) {
       const d = this.diveDir, u = 1 - this.diveT / 0.9;
@@ -470,11 +601,15 @@ export class Athlete {
       mix(P, cel, w.celebrate);
     }
 
-    // ---- head looks at the ball
-    tmpV.set(s.ball.x - s.x, 0, s.ball.z - s.z);
-    const yaw = Math.atan2(s.fx, s.fz);
-    const look = clamp(wrap(Math.atan2(tmpV.x, tmpV.z) - yaw), -1.1, 1.1);
-    P.headY += look * (1 - w.wind) * 0.8;
+    // ---- head tracking: the ball by default, the goal while winding up a shot, the pass target
+    // while passing (lookAtFor). Head turns and tilts; the torso follows a little when not swimming.
+    const L = this.lookT > 0 ? this.lookTarget : s.look || s.ball;
+    tmpV.set(L.x - s.x, 0, L.z - s.z);
+    const yaw = Math.atan2(s.fx, s.fz), hd = Math.hypot(tmpV.x, tmpV.z);
+    const look = clamp(wrap(Math.atan2(tmpV.x, tmpV.z) - yaw), -1.2, 1.2);
+    P.headY += look * (1 - w.wind * 0.5) * 0.85;
+    P.twist += look * 0.25 * (1 - w.swim) * (1 - w.throw) * (1 - w.wind);
+    P.headX -= clamp(Math.atan2((L.y ?? 0.2) - 0.55, Math.max(hd, 0.5)), -0.5, 0.6) * 0.7 * (1 - w.swim);
 
     // ---- smooth toward the target pose (shortest-angle) and apply
     const sk = 1 - Math.exp(-dt * 14);
@@ -492,6 +627,25 @@ export class Athlete {
     this.armL.sh.rotation.set(q.shLx, 0, q.shLz); this.armL.el.rotation.set(q.elL, 0, 0);
     this.legR.hip.rotation.set(q.hipRx, 0, q.hipRz); this.legR.kn.rotation.set(q.knR, q.knRy, 0);
     this.legL.hip.rotation.set(q.hipLx, 0, q.hipLz); this.legL.kn.rotation.set(q.knL, q.knLy, 0);
+
+    // ---- long hair: damped spring (hangs down against the head tilt, swings with speed and turns)
+    if (this.hair) {
+      const tgt = clamp(-(q.pitch + q.neck + q.headX) * 0.85 + speed * 0.12, -1.2, 1.4);
+      this.hairV += ((tgt - this.hairA) * 60 - this.hairV * 9) * dt; this.hairA += this.hairV * dt;
+      this.hairZ += (clamp(turn * 0.18 - q.roll * 0.6, -0.6, 0.6) - this.hairZ) * (1 - Math.exp(-dt * 5));
+      this.hair.rotation.set(this.hairA, 0, this.hairZ);
+    }
+    // ---- water dripping off the body: rising out of the water, throws, dives, celebrations, fast swim
+    if (this.onDrip) {
+      const riseV = (q.rise - this.prevRise) / Math.max(dt, 1e-3); this.prevRise = q.rise;
+      this.dripAcc += dt * (Math.max(0, riseV) * 30 + w.throw * 10 + w.dive * 14 + w.celebrate * 6 + w.save * 8 + (speed > 1.8 ? 2 : 0));
+      if (this.dripAcc > 1) {
+        this.dripAcc = Math.min(this.dripAcc - 1, 2);
+        this.root.updateMatrixWorld(true);
+        const src = [this.head, this.armR.hand, this.armL.hand, this.armR.el, this.armL.el, this.torso][Math.floor(Math.random() * 6)];
+        src.getWorldPosition(tmpV2); if (tmpV2.y > 0.1) this.onDrip(tmpV2.x + (Math.random() - 0.5) * 0.1, tmpV2.y, tmpV2.z + (Math.random() - 0.5) * 0.1);
+      }
+    }
 
     // ---- catch IK: right arm reaches toward an incoming ball
     if (w.receive > 0.01) {

@@ -9,8 +9,8 @@ l'appareil) : aucune valeur décorative. Règles vérifiées par `node tools/web
 |---|---|---|
 | Barre supérieure | réglages, logo + nom du club, TOTAL, niveau / XP, pièces, gemmes (+ = comment les gagner) | oui |
 | Accueil | gauche : CLASSEMENT, PERSONNALISER, OBJECTIFS, RÉCOMPENSES GRATUITES (pastille) · centre : joueur 3D aux couleurs du club · droite : carte PROCHAIN MATCH (ligue, logos, TOTAL des deux équipes, piscine, JOUER) + MON ÉQUIPE, ÉVÉNEMENTS (minuteur), BOUTIQUE, MATCH RAPIDE | oui |
-| Mon équipe | formation water-polo (ailes et pivot à 2 m, demi-ailes, meneur, gardien), cartes joueurs (note, poste, rareté, nationalité, 3 stats clés, bonus de poste), panneau TOTAL / NOTE MOYENNE / BONUS DE POSTE, remplaçants, échange par touchers, MEILLEUR TOTAL, onglet TACTIQUES | oui — le bonus de poste (+2 à toutes les stats au poste naturel) est appliqué dans le match |
-| Fiche joueur | portrait, note, poste, rareté, pays, âge, taille, niveau, 13–14 statistiques, AMÉLIORER (coût en pièces, +1 à toutes les stats) | oui |
+| Mon équipe | formation water-polo (ailes et pivot à 2 m, demi-ailes, meneur, gardien), cartes joueurs (portrait 3D du vrai modèle du joueur, note, poste, numéro, rareté, nationalité, club, niveau, 3 stats clés, bonus de poste), panneau TOTAL / NOTE MOYENNE / BONUS DE POSTE, remplaçants, échange par touchers, MEILLEUR TOTAL, onglet TACTIQUES | oui — le bonus de poste (+2 à toutes les stats au poste naturel) est appliqué dans le match |
+| Fiche joueur | portrait 3D, note, poste, rareté, pays, âge, taille, niveau, 13–14 statistiques, AMÉLIORER (coût en pièces, +1 à toutes les stats) | oui |
 | Classement | ligue de 8 clubs, J V N D +/- PTS TOTAL ; onglets mondial / amis / régional marqués NON IMPLÉMENTÉ (serveur) | oui |
 | Événements | 4 cartes (standard, spécial, majeur, premium) : trophée, progression, récompense, minuteur réel, état VERROUILLÉ / BIENTÔT / COMMENCER / CONTINUER / RÉCUPÉRER / TERMINÉ | oui |
 | Objectifs | 3 objectifs du jour (renouvelés à minuit, minuteur), progression issue des statistiques de match, RÉCUPÉRER une seule fois | oui |
@@ -41,3 +41,10 @@ les écrans n'ont rien à changer.
 Textes des menus complets en français et en anglais ; espagnol, allemand, italien et portugais
 reprennent l'anglais pour ces menus (à traduire). Sauvegarde locale uniquement (pas de cloud, pas de
 validation serveur). Carrière joueur / club, transferts, saisons et passe : NON IMPLÉMENTÉ.
+
+## Logo
+
+Le logo WATER POLO 26 MOBILE fourni par le porteur du projet (`web/assets/logo.webp`, icônes
+`icon-192.png` / `icon-512.png`) est l'icône de l'application (onglet, écran d'accueil du téléphone
+via le manifeste, raccourci iOS), l'écran de démarrage pendant le chargement, l'écran « Tournez votre
+appareil » et le bouton en haut à gauche de chaque menu (retour à l'accueil).

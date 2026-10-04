@@ -124,7 +124,7 @@ export class Match {
       const team = { index: ti, def, players: [], field: [], gk: null, score: 0, tactic: def.tactic, tp: tacticParams(def.tactic) };
       for (const pd of def.players) {
         const p = {
-          id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, isGK: pd.role === Role.GK,
+          id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, look: pd.look || null, isGK: pd.role === Role.GK,
           prof: PERSONALITY[pd.personality], stats: pd.stats, slot: pd.role === Role.GK ? -1 : pd.slot,
           pos: V(), vel: V(), facing: V(1, 0, 0), stamina: 1, sprinting: false, sprintLocked: false, human: false, cmd: {},
           charge: 0, charging: false, heldAtMax: 0, actionCd: 0, stealCd: 0, stun: 0, block: 0, possTime: 0, nextDecision: 0, wantSprint: false, aiCharge: -1,
@@ -554,7 +554,7 @@ export class Match {
     const vel = ballistic(from, add(target, V(this.sign(p.team) * 0.4, 0, 0)), speed);
     b.shooter = p; b.receiver = null; this.release('SHOT', vel); p.actionCd = 0.5;
     this.stats.teams[p.team].shots++;
-    this.emit(Ev.SHOT, p.team, p.id, -1, p.pos, len(vel)); this.events[this.events.length - 1].timing = timing;
+    this.emit(Ev.SHOT, p.team, p.id, -1, p.pos, len(vel)); Object.assign(this.events[this.events.length - 1], { timing, lob: !!cmd.lobShot, power: charge > 0.85 });
   }
 
   // =============================================================== ball

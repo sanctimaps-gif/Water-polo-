@@ -17,6 +17,8 @@ const FIRST = ['Lucas', 'Matteo', 'Nikola', 'Ádám', 'Pablo', 'Luka', 'Yannis',
   'Tom', 'Enzo', 'Viktor', 'Dario', 'Milan', 'Theo', 'Jonas', 'Ivan', 'Sami', 'Leo', 'Alex', 'Bruno', 'Nils', 'Oscar', 'Max', 'Andrea'];
 const LAST = ['Marlin', 'Varga', 'Kovač', 'Delmar', 'Rivas', 'Petrov', 'Costa', 'Novak', 'Laurent', 'Brenner', 'Okafor', 'Santos', 'Tanaka', 'Moreau',
   'Horvat', 'Lindqvist', 'Aranda', 'Kiss', 'Marić', 'Vidal', 'Fontaine', 'Weber', 'Bianchi', 'Duarte', 'Nagy', 'Ricci', 'Jansen', 'Silva', 'Ortega', 'Klein'];
+/** Stable appearance of a squad player (same face and body in the match, the menus and the cards). */
+export function lookOf(p) { let h = 2166136261; for (const ch of p.id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); return { seed: (h >>> 0) % 1000003, role: p.role }; }
 export const SLOT_ROLES = ['WINGER', 'FINISHER', 'PLAYMAKER', 'DEFENDER', 'WINGER', 'CENTER'];   // formation slots 0..5 (+ GK)
 export const ROLE_ABBR = { GOALKEEPER: 'GB', CENTER: 'PV', DEFENDER: 'DF', WINGER: 'AI', PLAYMAKER: 'MJ', FINISHER: 'FI', ALL_ROUNDER: 'PO' };
 const PERSONALITIES = ['LEADER', 'CREATIVE', 'CALM', 'AGGRESSIVE', 'TEAM_PLAYER', 'TACTICAL', 'RISK_TAKER'];
@@ -249,7 +251,7 @@ export class GameState {
     const toDef = (p, slot) => {
       const b = this.slotBonus(p, slot), stats = {};
       for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, p.stats[k] + b));
-      return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id };
+      return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id, look: lookOf(p) };
     };
     return { id: 'user', name: c.name, short: c.short, color: c.color, tactic: c.tactic,
       players: [toDef(this.player(L.gk), -1), ...L.slots.map((id, i) => toDef(this.player(id), i))] };
@@ -257,7 +259,7 @@ export class GameState {
   opponentTeamDef(id, rating) {
     const c = CLUBS.find((x) => x.id === id), sq = this.opponentSquad(id, rating).slice(0, 7);
     return { id, name: c.name, short: c.short, color: c.color, tactic: TACTICS[[...id].length % TACTICS.length],
-      players: sq.map((p) => ({ name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot: p.slot ?? -1 })) };
+      players: sq.map((p) => ({ name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot: p.slot ?? -1, look: lookOf(p) })) };
   }
 
   // ------------------------------------------------ league

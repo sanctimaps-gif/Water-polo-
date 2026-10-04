@@ -2,7 +2,7 @@
 // deterministic JS simulation. Rendering modules live in web/render/.
 import * as THREE from './vendor/three.module.min.js';
 import { Match, Ev, TACTICS } from './sim.js';
-import { GameState } from './state.js';
+import { GameState, lookOf } from './state.js';
 import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
@@ -280,9 +280,11 @@ const trimFor = (m, p) => (p.team === 0 ? (state.equippedColor('trim') ?? state.
 function buildActors(m) {
   for (const a of athletes) scene.remove(a.root);
   athletes = m.players.map((p) => {
+    // Appearance tied to the squad player (same face / body in the cards and every match).
     const a = new Athlete({ teamColor: m.teams[p.team].def.color, capColor: capColorFor(m, p), trimColor: trimFor(m, p), number: p.number,
-      role: p.role, isGK: p.isGK, seed: p.id * 31 + p.team * 977 + 5, preset });
+      role: p.role, bodyRole: p.look ? p.look.role : p.role, isGK: p.isGK, seed: p.look ? p.look.seed : p.id * 31 + p.team * 977 + 5, preset });
     a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
+    a.onDrip = (x, y, z) => { vfx.drip(x, y, z); };
     scene.add(a.root);
     return a;
   });
@@ -352,16 +354,23 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 function react(e) {
   const a = e.player >= 0 ? athletes[e.player] : null;
   switch (e.type) {
-    case Ev.PASS: if (a) a.playThrow('pass'); vfx.burst(e.pos.x, e.pos.z, 0.35); audio.ballHit(0.5); break;
+    case Ev.PASS: {
+      if (a) a.playThrow('pass'); vfx.burst(e.pos.x, e.pos.z, 0.35); audio.ballHit(0.5);
+      const rcv = e.other >= 0 ? athletes[e.other] : null;   // the passer looks at his team-mate
+      if (a && rcv) a.lookAtFor(rcv.root.position.x, 0.4, rcv.root.position.z, 0.6);
+      break;
+    }
     case Ev.SHOT:
-      if (a) a.playThrow('shot'); vfx.burst(e.pos.x, e.pos.z, 0.9); audio.ballHit(1.2);
+      if (a) a.playThrow(e.lob ? 'lob' : e.power ? 'power' : 'shot'); vfx.burst(e.pos.x, e.pos.z, 0.9); audio.ballHit(1.2);
       if (e.gk >= 0 && athletes[e.gk]) setTimeout(() => athletes[e.gk] && athletes[e.gk].playDive(e.diveDir), 160);
       arena.cheer(e.pos.x < -7 ? 0 : e.pos.x > 7 ? 2 : 1, 0.35);
       break;
-    case Ev.SAVE: vfx.burst(e.pos.x, e.pos.z, 1.6); audio.splash(1.4); audio.ballHit(1); arena.cheer(-1, 0.6); break;
+    case Ev.SAVE: if (a) a.playSave(); vfx.burst(e.pos.x, e.pos.z, 1.6); audio.splash(1.4); audio.ballHit(1); arena.cheer(-1, 0.6); break;
     case Ev.BLOCK: vfx.burst(e.pos.x, e.pos.z, 0.8); audio.ballHit(0.8); break;
     case Ev.FRAME: vfx.burst(e.pos.x, e.pos.z, 0.6); audio.post(); arena.cheer(-1, 0.5); break;
-    case Ev.INTERCEPT: case Ev.STEAL: vfx.burst(e.pos.x, e.pos.z, 0.5); audio.splash(0.5); break;
+    case Ev.INTERCEPT: case Ev.STEAL:
+      if (a) { const r = a.root, dx = e.pos.x - r.position.x, dz = e.pos.z - r.position.z; a.playReach(Math.cos(r.rotation.y) * dx - Math.sin(r.rotation.y) * dz > 0 ? 1 : -1); }
+      vfx.burst(e.pos.x, e.pos.z, 0.5); audio.splash(0.5); break;
     case Ev.GOAL: {
       arena.netHit(e.pos.x, e.pos.z, e.pos.y, 1.6); vfx.burst(e.pos.x, e.pos.z, 2.6); audio.netHit(); audio.roar(1.2);
       arena.cheer(-1, 1.5);
@@ -468,12 +477,15 @@ function setFov(fov, dt, rate) {
 
 // ------------------------------------------------------------------ per-frame presentation
 let prevBallY = 1, prevBallPos = new THREE.Vector3(), dripT = 0;
+const lookGoal = new THREE.Vector3();
 const wakeList = [];
 function updateWorld(dt, v) {
   // Athletes
   for (let i = 0; i < athletes.length; i++) {
     const s = v.players[i];
     s.hasBall = v.owner === i; s.receive = v.receiver === i && Math.hypot(v.ball.x - s.x, v.ball.z - s.z) < 2.8; s.ball = v.ball;
+    // Look: the goal while winding up a shot / holding the ball, the ball otherwise.
+    if (s.hasBall && match) { const g = match.targetGoal(match.players[i].team); lookGoal.set(g.x, 0.9, g.z); s.look = s.charging ? lookGoal : null; } else s.look = null;
     athletes[i].update(dt, s);
   }
   // Ball: in the hand when held, simulated position otherwise.
@@ -659,6 +671,46 @@ function resize() {
   vfx.setScale(h * Math.min(devicePixelRatio, preset.pixelRatio));
 }
 
+// ------------------------------------------------------------------ 3D portraits (player cards)
+// The real 3D model of the player (same seed = same face, hair and body as in the match), rendered
+// once off screen as a head-and-shoulders bust, cached as an image.
+const portraitCache = new Map();
+let portraitRig = null;
+function portraitFor(p, capColor) {
+  const key = `${p.id}|${capColor}|${p.number}`;
+  if (portraitCache.has(key)) return portraitCache.get(key);
+  if (!portraitRig) {
+    const sc = new THREE.Scene();
+    sc.environment = scene.environment;
+    sc.add(new THREE.HemisphereLight(0xdfeeff, 0x1d6c96, 0.45));
+    const k = new THREE.DirectionalLight(0xfff1de, 1.25); k.position.set(1.2, 2, 2.5); sc.add(k);
+    const rim = new THREE.DirectionalLight(0x8fd0ff, 1.6); rim.position.set(-2, 1.5, -2); sc.add(rim);
+    const rt = new THREE.WebGLRenderTarget(160, 200, { samples: 4 }); rt.texture.colorSpace = THREE.SRGBColorSpace;
+    const cv = document.createElement('canvas'); cv.width = 160; cv.height = 200;
+    portraitRig = { sc, rt, cam: new THREE.PerspectiveCamera(24, 160 / 200, 0.05, 10), cv, buf: new Uint8Array(160 * 200 * 4) };
+  }
+  const R = portraitRig, look = lookOf(p), gk = p.role === 'GOALKEEPER';
+  const a = new Athlete({ teamColor: state.data.club.color, capColor: gk ? 0xd81a1f : capColor, trimColor: state.equippedColor('trim') ?? state.data.club.color2, number: p.number,
+    role: p.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset: { ...PRESETS.ULTRA } });
+  a.root.position.y = 0.25; R.sc.add(a.root);
+  const st = { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 0.6, 3), receive: false };
+  for (let i = 0; i < 30; i++) a.update(1 / 30, st);
+  a.root.updateMatrixWorld(true);
+  const h = a.head.getWorldPosition(new THREE.Vector3());
+  R.cam.position.set(h.x + 0.1, h.y + 0.04, h.z + 0.95); R.cam.lookAt(h.x, h.y - 0.02, h.z);
+  const prevT = renderer.getRenderTarget(), prevC = renderer.getClearColor(new THREE.Color()), prevA = renderer.getClearAlpha();
+  renderer.setRenderTarget(R.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(R.sc, R.cam);
+  renderer.readRenderTargetPixels(R.rt, 0, 0, 160, 200, R.buf);
+  renderer.setRenderTarget(prevT); renderer.setClearColor(prevC, prevA);
+  R.sc.remove(a.root); a.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+  const g = R.cv.getContext('2d'), img = g.createImageData(160, 200);
+  for (let y = 0; y < 200; y++) img.data.set(R.buf.subarray((199 - y) * 640, (200 - y) * 640), y * 640);   // flip Y
+  g.putImageData(img, 0, 0);
+  const url = R.cv.toDataURL('image/png');
+  portraitCache.set(key, url);
+  return url;
+}
+
 // ------------------------------------------------------------------ game state + front-end
 const state = new GameState();
 let heroVisible = true;
@@ -678,6 +730,7 @@ const settingsDef = () => [
 const app = new App($('app'), {
   L, state,
   setHero: (v) => { heroVisible = v; },
+  portrait: (p, capColor) => { try { return portraitFor(p, capColor); } catch (e) { console.warn('portrait', e); return null; } },
   refreshHero: () => buildHero(),
   startMatch: (ctx) => {
     const el = document.documentElement;
@@ -736,4 +789,5 @@ function buildShowcase() {
   $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); };
   if (new URLSearchParams(location.search).has('showcase')) buildShowcase();
   requestAnimationFrame(frame);
+  requestAnimationFrame(() => { const sp = $('splash'); sp.classList.add('done'); setTimeout(() => sp.remove(), 600); });
 })();

@@ -7,7 +7,7 @@ import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
 import { Water } from './render/water.js';
-import { Athlete } from './render/athlete.js';
+import { Athlete, loadScanHead, loadScanBody } from './render/athlete.js';
 import { Arena } from './render/arena.js';
 import { Splashes } from './render/vfx.js';
 import { MatchAudio } from './render/audio.js';
@@ -716,7 +716,7 @@ function resize() {
 const portraitCache = new Map();
 let portraitRig = null;
 function portraitFor(p, capColor) {
-  const key = `${p.id}|${capColor}|${p.number}|2`;
+  const key = `${p.id}|${capColor}|${p.number}|3`;
   if (portraitCache.has(key)) return portraitCache.get(key);
   if (!portraitRig) {
     const sc = new THREE.Scene();
@@ -736,7 +736,7 @@ function portraitFor(p, capColor) {
   for (let i = 0; i < 30; i++) a.update(1 / 30, st);
   a.root.updateMatrixWorld(true);
   const h = a.head.getWorldPosition(new THREE.Vector3());
-  R.cam.position.set(h.x + 0.1, h.y + 0.12, h.z + 1.0); R.cam.lookAt(h.x, h.y + 0.03, h.z);   // head bone = neck pivot: the face is ~0.1 m above
+  R.cam.position.set(h.x + 0.1, h.y + 0.16, h.z + 1.05); R.cam.lookAt(h.x, h.y + 0.07, h.z);   // head bone = neck pivot: the face is ~0.1 m above
   const prevT = renderer.getRenderTarget(), prevC = renderer.getClearColor(new THREE.Color()), prevA = renderer.getClearAlpha();
   renderer.setRenderTarget(R.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(R.sc, R.cam);
   renderer.readRenderTargetPixels(R.rt, 0, 0, 160, 200, R.buf);
@@ -822,7 +822,7 @@ function buildShowcase() {
 
 // ------------------------------------------------------------------ boot
 (async () => {
-  await Promise.all([loadLang('en'), loadLang(lang)]);
+  await Promise.all([loadLang('en'), loadLang(lang), loadScanHead().catch((e) => console.warn('scan head', e)), loadScanBody().catch((e) => console.warn('scan body', e))]);
   applyQuality(tier);
   setupInput();
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });

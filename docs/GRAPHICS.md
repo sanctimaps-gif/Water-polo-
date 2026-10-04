@@ -8,7 +8,31 @@ provisoire), **NON IMPLÉMENTÉ**. Tout ce qui suit concerne la version web (Thr
 Le projet Unity garde pour l'instant la présentation en primitives : le portage de ces systèmes vers
 Unity/URP est à faire.
 
-## Joueurs — `web/render/athlete.js` — IMPLÉMENTÉ (procédural)
+## Joueurs — `web/render/athlete.js` — IMPLÉMENTÉ
+
+**Joueurs réalistes (HIGH / ULTRA, cartes, menus)** :
+* **Visage scanné en 3D** : scan de tête « Lee Perry-Smith » (Infinite-Realities, licence
+  CC BY 3.0) avec ses textures (couleur, carte de normales, rugosité tirée de la carte spéculaire).
+  Recadré sous le bonnet, remodelé par joueur (largeur du visage, mâchoire, nez, menton, arcade,
+  lèvres), teinté au teint du joueur, barbe / moustache / bouc peints par joueur, paupières ouvertes
+  avec de vrais globes oculaires (iris de couleur variable).
+* **Corps humain réel** : maillage MakeHuman hm08 (CC0) passé en homme jeune avec les cibles de
+  genre (mélange des 3 origines) et de musculature / poids, en 3 gabarits (fin, athlétique, massif)
+  choisis selon le type de corps. Mains à 5 doigts, pieds, anatomie réelle. Tête retirée (le scan la
+  remplace), squelette du jeu posé sur les articulations MakeHuman, poids de skinning calculés hors
+  ligne (4 os par sommet), os « demi-épaule » qui suit la moitié de la rotation du bras (pas d'aisselle
+  écrasée bras levé, pas de saut pendant le crawl). Maillot peint sur le corps (couleur d'équipe,
+  ceinture et bandes de jambes, panneaux, chevron).
+* Préparation des données : `tools/assets/` (sources, licences, scripts). Crédits dans
+  Paramètres > Autres et `web/assets/*/LICENSE.txt`.
+* Coût mesuré (ULTRA, match) : 114 draw calls, 607 k triangles (avant : 86 / 425 k). LOW et MEDIUM
+  gardent le corps procédural ci-dessous.
+* Limite : un seul scan de visage de base (les visages diffèrent par la forme, le teint et la
+  pilosité, pas par l'identité) ; pas de cheveux visibles hors du bonnet sur ce modèle ; pas de
+  textures de peau sur le corps (couleur par sommet). Un rendu console « FIFA / Call of Duty »
+  demanderait des scans et textures par joueur faits par des artistes.
+
+**Corps procédural (LOW / MEDIUM)** :
 
 * Squelette réel (os `THREE.Bone`) : bassin, buste, cou, tête, épaules, bras, coudes, avant-bras,
   mains (paume, pouce, 4 doigts), hanches, cuisses, genoux, jambes, pieds.

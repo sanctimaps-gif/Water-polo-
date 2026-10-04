@@ -2,6 +2,7 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'ui.credits': 'Crédits 3D : visage scanné « Lee Perry-Smith » par Infinite-Realities (CC BY 3.0) ; corps dérivé du maillage MakeHuman (CC0).',
     'set.match': 'MATCH', 'set.controls': 'CONTRÔLES', 'set.audio': 'AUDIO', 'set.graphics': 'GRAPHISMES', 'set.other': 'AUTRES',
     'ui.trade': 'ÉCHANGER', 'ui.trade_hint': 'Touchez des remplaçants pour les échanger contre des points d’entraînement. Les titulaires et un effectif de 9 joueurs sont conservés.',
     'ui.trade_none': 'Aucun joueur échangeable (titulaires ou effectif minimum).', 'ui.trade_value': 'VOUS RAPPORTERA', 'ui.trade_confirm': 'Échanger {0} joueur(s) ? Ils quittent définitivement le club.',
@@ -56,6 +57,7 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'ui.credits': '3D credits: head scan "Lee Perry-Smith" by Infinite-Realities (CC BY 3.0); body derived from the MakeHuman mesh (CC0).',
     'set.match': 'MATCH', 'set.controls': 'CONTROLS', 'set.audio': 'AUDIO', 'set.graphics': 'GRAPHICS', 'set.other': 'OTHER',
     'ui.trade': 'TRADE', 'ui.trade_hint': 'Tap reserve players to trade them for training points. Starters and a squad of 9 are kept.',
     'ui.trade_none': 'No tradable player (starters or minimum squad).', 'ui.trade_value': 'YOU WILL GET', 'ui.trade_confirm': 'Trade {0} player(s)? They leave the club for good.',

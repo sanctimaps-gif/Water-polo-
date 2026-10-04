@@ -69,6 +69,112 @@ function athleteMaterial(waterTint, rich) {
   return m;
 }
 
+// ---------------------------------------------------------------- scanned head (HIGH / ULTRA, portraits)
+// Real 3D head scan "Lee Perry-Smith" by Infinite-Realities, licence Creative Commons Attribution 3.0
+// (web/assets/head/LICENSE.txt), cropped under the cap and re-shaped per player (face width, jaw,
+// nose, chin, brow, lips), tinted to the player's skin tone, beard painted per player.
+let HEAD = null;
+export async function loadScanHead(base = 'web/assets/head/') {
+  if (HEAD) return HEAD;
+  const buf = await (await fetch(base + 'head.bin')).arrayBuffer(), dv = new DataView(buf);
+  const n = dv.getUint32(0, true), ni = dv.getUint32(4, true); let o = 8;
+  const pos = new Float32Array(buf, o, n * 3); o += n * 12;
+  const nor = new Float32Array(buf, o, n * 3); o += n * 12;
+  const uv = new Float32Array(buf, o, n * 2); o += n * 8;
+  const idx = new Uint16Array(buf, o, ni);
+  const tl = new THREE.TextureLoader(), load = (f, srgb) => new Promise((res, rej) => tl.load(base + f, (t) => { if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.flipY = false; t.anisotropy = 4; res(t); }, undefined, rej));
+  const [map, normalMap, roughnessMap] = await Promise.all([load('skin_col.jpg', true), load('skin_nrm.jpg'), load('skin_rgh.jpg')]);
+  HEAD = { pos, nor, uv, idx, map, normalMap, roughnessMap, mats: new Map() };
+  return HEAD;
+}
+export const scanHeadReady = () => !!HEAD;
+
+// ---------------------------------------------------------------- scanned-quality body (HIGH / ULTRA, portraits)
+// MakeHuman base mesh hm08 (CC0 1.0) morphed with its male / muscle / weight targets into 3 builds
+// (lean, athletic, massive), head removed (the scanned head replaces it), skinned offline to this
+// skeleton (tools/assets/prep_body.mjs). Joints come from the MakeHuman joint helpers.
+let BODY = null;
+export async function loadScanBody(base = 'web/assets/body/') {
+  if (BODY) return BODY;
+  const [hdr, buf] = await Promise.all([fetch(base + 'body.json').then((r) => r.json()), fetch(base + 'body.bin').then((r) => r.arrayBuffer())]);
+  const { nv, ni } = hdr; let o = 0;
+  const index = new THREE.BufferAttribute(new Uint16Array(buf, o, ni), 1); o += ni * 2; o += (4 - (o % 4)) % 4;
+  const pos = [], nor = [];
+  for (let v = 0; v < hdr.variants.length; v++) {
+    const a = new Float32Array(buf.slice(o, o + nv * 12)); o += nv * 12;
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a, 3)); g.setIndex(index); g.computeVertexNormals();
+    pos.push(g.attributes.position); nor.push(g.attributes.normal);
+  }
+  const b4 = new Uint8Array(buf, o, nv * 4); o += nv * 4;
+  const w4 = new Float32Array(buf.slice(o, o + nv * 16)); o += nv * 16; const suit = new Uint8Array(buf, o, nv);
+  BODY = { ...hdr, index, pos, nor, b4, w4, suit };
+  return BODY;
+}
+const BUILD = { SMALL_FAST: 'lean', SLIM: 'lean', ATHLETIC: 'athletic', TALL_POWER: 'athletic', MASSIVE: 'massive' };
+const TILT_C = Math.cos(0.18), TILT_S = Math.sin(0.18), EYE_U = [0.447, 0.568], EYE_V = 0.711;
+const SCAN_REF = new THREE.Color(0.51, 0.294, 0.248);   // average skin colour of the scan texture (linear)
+function headMaterial(waterTint, rich) {
+  const key = rich ? 'rich' : 'std';
+  if (HEAD.mats.has(key)) return HEAD.mats.get(key);
+  const P = { vertexColors: true, map: HEAD.map, normalMap: HEAD.normalMap, roughnessMap: HEAD.roughnessMap, roughness: 1, metalness: 0, envMapIntensity: 1.0 };
+  const m = rich ? new THREE.MeshPhysicalMaterial({ ...P, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.25, sheenColor: new THREE.Color(0xff9a80), sheenRoughness: 0.6 }) : new THREE.MeshStandardMaterial(P);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uUwTint = { value: waterTint }; sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.28) };
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vUwY;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvUwY = (modelMatrix * vec4(transformed, 1.0)).y;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vUwY;\nuniform vec3 uUwTint;\nuniform vec3 uRim;')
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+        float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
+        gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);
+        if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
+  };
+  m.customProgramCacheKey = () => 'scanhead-' + key;
+  HEAD.mats.set(key, m);
+  return m;
+}
+/** Per-player scanned head geometry (head bone space). */
+function scanHeadGeometry(P, skin, hair) {
+  const s = 0.0556, n = HEAD.pos.length / 3, pos = new Float32Array(HEAD.pos), col = new Float32Array(n * 3), eyeAcc = [[], []];
+  const toHead = (X, Y, Z) => { const hx = (X + 0.08) * s, hy = (Y + 0.5) * s - 0.03 - 0.08, hz = (Z - 0.25) * s; return [hx, hy * TILT_C - hz * TILT_S + 0.08, hy * TILT_S + hz * TILT_C]; };
+  // Skin tone: per-channel ratio to the scan's tone, partly replaced by a luminance ratio so the lips
+  // and cheeks keep natural hues on every skin tone.
+  const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, kl = lum(skin) / lum(SCAN_REF);
+  const tint = new THREE.Color(skin.r / SCAN_REF.r, skin.g / SCAN_REF.g, skin.b / SCAN_REF.b).lerp(new THREE.Color(kl, kl, kl), 0.6).multiplyScalar(1.16), hairT = new THREE.Color(hair.r / SCAN_REF.r, hair.g / SCAN_REF.g, hair.b / SCAN_REF.b).multiplyScalar(0.8), c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    // scan units (y up, z forward): eyes ~ 1.6, nose tip (0, 1.1, 2.6), mouth ~ 0.35, chin ~ -0.45
+    // Eye openings (the scan has closed lids): almond-shaped area of each eye, found in texture space,
+    // pushed into the head and darkened; real eyeballs are placed behind it.
+    const u = HEAD.uv[i * 2], v = HEAD.uv[i * 2 + 1];
+    let aw = 0;
+    for (const u0 of EYE_U) { const r = ((u - u0) / 0.027) ** 2 + ((v - EYE_V) / 0.0088) ** 2; aw = Math.max(aw, sstep(1.0, 0.55, r)); }
+    let X = pos[i * 3] / s - 0.08, Y = (pos[i * 3 + 1] + 0.03) / s - 0.5, Z = pos[i * 3 + 2] / s + 0.25;
+    const f = sstep(0.4, 1.8, Z), ax = Math.abs(X);
+    X *= P.faceW * (1 - (1 - P.jawW) * sstep(1.0, -0.6, Y) * f);                                   // face, jaw width
+    // variations around the scan (0 = the scanned face): nose, chin, brow ridge, lips
+    const dn = (P.nose - 0.16) * 3, dc = (P.chin - 0.055) * 5, db = (P.brow - 0.052) * 5, dl = (P.lips - 0.032) * 2;
+    Z += f * (dn * gs(X, 0.4) * gs(Y - 1.0, 0.5) + dc * gs(Y + 0.45, 0.4) * gs(X, 0.9) + db * gs(Y - 2.0, 0.25) * gs(X, 1.2) + dl * gs(Y - 0.35, 0.2) * gs(X, 0.6));
+    Y -= dc * 2 * sstep(0.2, -0.6, Y) * f;                                                         // longer / shorter chin
+    if (aw > 0.5) eyeAcc[X < 0 ? 0 : 1].push([X, Y, Z]);
+    Z -= aw * 0.22;
+    // back to head space, pitched forward a little (the scan looks slightly up)
+    const hx = (X + 0.08) * s, hy = (Y + 0.5) * s - 0.03 - 0.08, hz = (Z - 0.25) * s;
+    pos[i * 3] = hx; pos[i * 3 + 1] = hy * TILT_C - hz * TILT_S + 0.08; pos[i * 3 + 2] = hy * TILT_S + hz * TILT_C;
+    // colour multiplier: skin tone; beard / moustache / goatee darken toward the hair colour
+    const beard = f * sstep(0.75, -0.1, Y) * (1 - gs(Y - 0.35, 0.16) * gs(X, 0.55)) * sstep(2.0, 1.2, ax);
+    const must = f * gs(Y - 0.62, 0.13) * gs(X, 0.6), goat = f * gs(Y + 0.25, 0.35) * gs(X, 0.45);
+    c.copy(tint).lerp(hairT, Math.min(1, beard * P.beard * 0.6 + must * P.moustache + goat * P.goatee)).multiplyScalar(1 - 0.88 * aw);
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(HEAD.uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(new THREE.BufferAttribute(HEAD.idx, 1));
+  // eye centres (head space): middle of each opening, on the lid surface
+  g.userData.eyes = eyeAcc.map((L) => { const m = [0, 0, 0]; for (const p of L) { m[0] += p[0] / L.length; m[1] += p[1] / L.length; m[2] = Math.max(m[2], p[2]); } return toHead(m[0], m[1], m[2]); });
+  return weldNormals(g);
+}
+
 // ---------------------------------------------------------------- appearance
 const SKIN = [0xf1c7a6, 0xe0ac87, 0xc68b62, 0xa86d47, 0x7c4e31, 0x5a3622];
 const HAIR = [0x1d140f, 0x3a2818, 0x5b3b1f, 0x8a6236, 0xc9a26b, 0x2a2a2a];
@@ -209,7 +315,7 @@ function numberTexture(n, fg = '#ffffff') {
 }
 
 // ---------------------------------------------------------------- athlete
-const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
+const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), IDQ = new THREE.Quaternion();
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -250,6 +356,9 @@ export class Athlete {
     const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
 
+    const scan = HEAD && (rich || o.preset.scanHead);
+    const mhb = scan && BODY, build = BUILD[morph.type] || 'athletic';
+    this.realistic = !!mhb;
     // --- torso: smooth lathe profile (hips -> waist -> ribcage -> shoulders), sculpted muscles:
     // pectorals, abdominals, linea alba, lats (V shape), shoulder blades, spine groove.
     const front = (v) => sstep(0, 0.12, v.z), back = (v) => sstep(0, -0.12, v.z);
@@ -281,7 +390,7 @@ export class Athlete {
     });
     const neck = sculptLathe([[0, 0.06], [0.074, 0.075], [0.064, 0.13], [0.057, 0.2], [0.05, 0.25], [0, 0.27]], 10, seg * 2 + 4,
       (v) => { v.x *= 1 + 0.12 * gs(v.y - 0.1, 0.04) * sstep(0.02, -0.04, v.z); });   // sternocleidomastoid / traps base
-    mesh([
+    if (!mhb) mesh([
       { geo: torsoGeo, color: skin, rough: W, scale: V3(1.22 * sw, 1, 0.74 * bulk) },
       { geo: briefs, colors: suitColors, color: team, rough: SUIT, scale: V3(1.24 * sw * waist, 1, 0.78 * bulk * waist) },
       { geo: new THREE.TorusGeometry(0.012, 0.004, 4, 8), color: trim, rough: SUIT, pos: V3(0.012, -0.49, 0.121 * bulk * waist), scale: V3(1, 0.6, 0.5) },   // drawstring bow
@@ -294,6 +403,7 @@ export class Athlete {
     // --- head: one sculpted mesh (skull, jaw, chin, cheekbones, brow, sockets, nose, lips;
     // beard / stubble and shading in vertex colours), eyes with lids, cap, ear guards, chin strap
     this.head = bone(this.torso); this.head.position.set(0, 0.2, 0.005);
+    if (mhb) this.head.position.fromArray(BODY.joints[build].headBone);
     const hs = 1 + (r() - 0.5) * 0.08, R = 0.112;
     const bk = this.look.beard;
     const FP = { jawW: 0.8 + r() * 0.16, faceW: 0.92 + r() * 0.1, nose: 0.12 + r() * 0.08, noseW: 0.08 + r() * 0.05, brow: 0.035 + r() * 0.035, chin: 0.03 + r() * 0.05,
@@ -301,8 +411,18 @@ export class Athlete {
       goatee: bk === 'goatee' ? 0.85 : 0, eyeX: 0.034 + r() * 0.007, eyeS: 0.9 + r() * 0.2 };
     const sculpt = sculptHead(face ? seg * 4 + 8 : 14, face ? seg * 3 + 6 : 10, FP, skin, hair);
     sculpt.geo.applyMatrix4(new THREE.Matrix4().compose(V3(0, 0.1, 0), new THREE.Quaternion(), V3(0.92 * hs * R, 1.08 * R, 1.02 * R)));
-    const headParts = [{ geo: sculpt.geo, colors: sculpt.colors, color: skin, rough: S }];
-    if (face) {
+    const scanGeo = scan ? scanHeadGeometry(FP, skin, hair) : null;
+    const headParts = scan ? [] : [{ geo: sculpt.geo, colors: sculpt.colors, color: skin, rough: S }];
+    if (scanGeo) {
+      const iris = C(r() < 0.3 ? 0x3d6b8f : r() < 0.5 ? 0x5a7a3a : 0x3b2414);
+      for (const [ex, ey, ez] of scanGeo.userData.eyes) {
+        const wc = ez - 0.0125, R = 0.0118;   // eyeball centre behind the lids, iris and pupil on its front
+        headParts.push({ geo: new THREE.SphereGeometry(R, 14, 10), color: C(0xcfc6b8), rough: 0.08, pos: V3(ex, ey, wc) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.0066, 12, 8), color: iris, rough: 0.05, pos: V3(ex, ey - 0.0003, wc + R * 0.92), scale: V3(1, 1, 0.45) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.003, 8, 6), color: C(0x030303), rough: 0.02, pos: V3(ex, ey - 0.0003, wc + R * 0.98), scale: V3(1, 1, 0.4) });
+      }
+    }
+    if (face && !scan) {
       const eyeY = 0.118, eyeX = FP.eyeX * hs * FP.faceW, es = FP.eyeS;
       const lidGeo = new THREE.SphereGeometry(0.0158, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.45);
       for (const sx of [-1, 1]) {
@@ -329,7 +449,7 @@ export class Athlete {
     // Cap: fabric shell covering the skull and the back of the head, slightly tilted back.
     headParts.push({ geo: new THREE.SphereGeometry(0.117, seg * 2, seg + 2, 0, Math.PI * 2, 0, Math.PI * 0.52), color: cap, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(-0.62, 0, 0), scale: V3(0.95 * hs, 1.06, 1.05) });
     headParts.push({ geo: new THREE.TorusGeometry(0.114, 0.0055, 4, seg * 2, Math.PI * 2), color: trim, rough: CAP, pos: V3(0, 0.1 + 0.068 * 0.0, -0.006), quat: Q(Math.PI / 2 - 0.62, 0, 0), scale: V3(0.95 * hs, 1.06, 1.05) }); // edge seam
-    headParts.push({ geo: new THREE.TorusGeometry(0.117, 0.004, 3, seg * 2, Math.PI), color: trim, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(0, Math.PI / 2, 0), scale: V3(1, 1.06, 1.05) });                       // centre seam
+    headParts.push({ geo: new THREE.TorusGeometry(0.118, 0.004, 3, seg * 2, Math.PI * 0.6), color: trim, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(0.25, Math.PI / 2, 0), scale: V3(1, 1.06, 1.05) });                       // centre seam (stops at the cap edge)
     for (const sx of [-1, 1]) {
       // Ear guard: rigid disc, with a ring of holes, part of the cap.
       headParts.push({ geo: new THREE.CylinderGeometry(0.046, 0.046, 0.022, seg * 2), color: cap, rough: 0.5, pos: V3(sx * 0.098 * hs, 0.085, 0.004), quat: Q(0, 0, Math.PI / 2) });
@@ -366,7 +486,8 @@ export class Athlete {
       num.position.set(0, 0.125, -0.113); num.rotation.set(0.35, Math.PI, 0); this.head.add(num);
       if (rich) {   // HIGH / ULTRA: number on the suit (left hip), same texture
         const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
-        sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); this.torso.add(sn);
+        if (mhb) { sn.position.set(-0.1, -0.415, 0.098); sn.rotation.set(-0.15, -0.5, 0); } else { sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); }
+        this.torso.add(sn);
       }
     }
 
@@ -397,7 +518,37 @@ export class Athlete {
       const hand = new THREE.Object3D(); hand.position.set(0, -0.315, 0.128); el.add(hand);
       return { sh, el, hand };
     };
-    this.armR = arm(1); this.armL = arm(-1);
+    // Realistic body: bones placed on the MakeHuman joints. The mesh is bound in its A-pose (bind
+    // rotations), so a zero pose = arms and legs straight down, like the procedural body.
+    const binds = [];
+    const mhArm = (side) => {
+      const Jt = BODY.joints[build], c = side > 0 ? 'l' : 'r', v = (k) => new THREE.Vector3(...Jt[`${c}-${k}`]);
+      const shW = v('shoulder'), elW = v('elbow'), wrW = v('hand'), fW = v('finger-3-1');
+      const sh = bone(this.torso); sh.position.copy(shW);
+      const A = new THREE.Quaternion().setFromUnitVectors(DOWN, elW.clone().sub(shW).normalize());
+      const Bq = new THREE.Quaternion().setFromUnitVectors(DOWN, wrW.clone().sub(elW).normalize());
+      const Hq = new THREE.Quaternion().setFromUnitVectors(DOWN, fW.clone().sub(wrW).normalize());
+      const el = bone(sh); el.position.set(0, -elW.distanceTo(shW), 0);
+      const wr = bone(el); wr.position.set(0, -wrW.distanceTo(elW), 0);
+      // half-way shoulder bone: follows half of the arm rotation (no collapsed armpit when the arm is raised)
+      const sm = bone(this.torso); sm.position.copy(shW);
+      binds.push([sh, A], [el, A.clone().invert().multiply(Bq)], [wr, Bq.clone().invert().multiply(Hq)], [sm, new THREE.Quaternion().slerp(A, 0.5)]);
+      // ball grip: in front of the palm (palm faces the body's front once the arm is down and turned)
+      const hand = new THREE.Object3D(); hand.position.set(-side * 0.012, -0.075, 0.115); wr.add(hand);
+      wr.userData.twist = 0;
+      return { sh, el, wr, hand, sm };
+    };
+    const mhLeg = (side) => {
+      const Jt = BODY.joints[build], c = side > 0 ? 'l' : 'r', v = (k) => new THREE.Vector3(...Jt[`${c}-${k}`]);
+      const hW = v('upper-leg'), kW = v('knee'), aW = v('ankle');
+      const hip = bone(this.torso); hip.position.copy(hW);
+      const Cq = new THREE.Quaternion().setFromUnitVectors(DOWN, kW.clone().sub(hW).normalize());
+      const Dq = new THREE.Quaternion().setFromUnitVectors(DOWN, aW.clone().sub(kW).normalize());
+      const kn = bone(hip); kn.position.set(0, -kW.distanceTo(hW), 0);
+      binds.push([hip, Cq], [kn, Cq.clone().invert().multiply(Dq)]);
+      return { hip, kn };
+    };
+    if (mhb) { this.armR = mhArm(1); this.armL = mhArm(-1); } else { this.armR = arm(1); this.armL = arm(-1); }
 
     // --- legs (under water, shaded by the water tint): quadriceps, knee, calf
     const legSeg = seg + 2, legRows = seg + 2;
@@ -415,7 +566,8 @@ export class Athlete {
       ], kn);
       return { hip, kn };
     };
-    this.legR = leg(1); this.legL = leg(-1);
+    if (mhb) { this.legR = mhLeg(1); this.legL = mhLeg(-1); } else { this.legR = leg(1); this.legL = leg(-1); }
+    for (const [b, q] of binds) b.quaternion.copy(q);   // bind pose = the mesh's A-pose
 
     // ---- bake: parts -> mesh space at the bind pose, bound 100 % to their bone
     rootBone.updateMatrixWorld(true);
@@ -440,6 +592,48 @@ export class Athlete {
     skinned.add(rootBone);
     skinned.bind(new THREE.Skeleton(bones));
     this.root.add(skinned);
+    if (scan) {
+      const hg = scanGeo, hn = hg.attributes.position.count, hi = bones.indexOf(this.head);
+      const si = new Uint16Array(hn * 4), sw4 = new Float32Array(hn * 4); for (let i = 0; i < hn; i++) { si[i * 4] = hi; sw4[i * 4] = 1; }
+      hg.applyMatrix4(this.head.matrixWorld);
+      hg.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4)); hg.setAttribute('skinWeight', new THREE.BufferAttribute(sw4, 4));
+      const hm = new THREE.SkinnedMesh(hg, headMaterial(o.waterTint || C(0x0b5d84), rich));
+      hm.castShadow = true; hm.frustumCulled = false; hm.bind(skinned.skeleton, skinned.bindMatrix);
+      this.root.add(hm);
+    }
+    if (mhb) {
+      const Bd = BODY, vi = Bd.variants.indexOf(build), nv = Bd.nv;
+      const byName = { torso: this.torso, head: this.head, shL: this.armR.sh, elL: this.armR.el, wrL: this.armR.wr, shR: this.armL.sh, elR: this.armL.el, wrR: this.armL.wr,
+        hipL: this.legR.hip, knL: this.legR.kn, hipR: this.legL.hip, knR: this.legL.kn, smL: this.armR.sm, smR: this.armL.sm };
+      const id = Bd.bones.map((n) => bones.indexOf(byName[n]));
+      const si = new Uint16Array(nv * 4), sw4 = new Float32Array(nv * 4), col = new Float32Array(nv * 3), rg = new Float32Array(nv), P = Bd.pos[vi].array;
+      const cc = new THREE.Color(), ss = (a, b, x) => sstep(a, b, x);
+      for (let k = 0; k < nv; k++) {
+        for (let j = 0; j < 4; j++) { si[k * 4 + j] = id[Bd.b4[k * 4 + j]]; sw4[k * 4 + j] = Bd.w4[k * 4 + j]; }
+        const x = P[k * 3], y = P[k * 3 + 1], z = P[k * 3 + 2];
+        if (Bd.suit[k]) {
+          // suit: team colour, trim waistband / leg bands (from the asset), side panels and a chevron
+          cc.copy(team);
+          if (Bd.suit[k] === 200) cc.copy(trim);
+          else {
+            cc.lerp(trim, 0.85 * (z > 0.03 ? 1 : 0) * gs(Math.abs(x) * 1.3 - (y - Bd.suitRef.hipY - 0.02), 0.01));
+            cc.lerp(trim, 0.9 * gs(z, 0.02) * ss(0.11, 0.14, Math.abs(x)));
+          }
+          rg[k] = SUIT;
+        } else {
+          const h = Math.sin(k * 12.9898) * 43758.5453; cc.copy(skin).multiplyScalar(1 + (h - Math.floor(h) - 0.5) * 0.04);   // tone variation
+          rg[k] = W;
+        }
+        col[k * 3] = cc.r; col[k * 3 + 1] = cc.g; col[k * 3 + 2] = cc.b;
+      }
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', Bd.pos[vi]); bg.setAttribute('normal', Bd.nor[vi]); bg.setIndex(Bd.index);
+      bg.setAttribute('color', new THREE.BufferAttribute(col, 3)); bg.setAttribute('aRough', new THREE.BufferAttribute(rg, 1));
+      bg.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4)); bg.setAttribute('skinWeight', new THREE.BufferAttribute(sw4, 4));
+      const bm = new THREE.SkinnedMesh(bg, mat); bm.castShadow = true; bm.frustumCulled = false; bm.bind(skinned.skeleton, skinned.bindMatrix);
+      this.root.add(bm);
+    }
+    for (const [b] of binds) b.quaternion.identity();
     this.root.scale.setScalar(morph.height);
 
     // Animation state.
@@ -658,6 +852,19 @@ export class Athlete {
       sh.quaternion.slerp(tmpQ, clamp(w.receive, 0, 1));
       this.armR.el.rotation.x *= 1 - w.receive;
     }
+    this.updateShoulders(w.receive > 0.01);
+  }
+
+  /** Shoulder half-way bones (realistic body) follow half of the arm rotation. */
+  updateShoulders(ik) {
+    if (!this.armR.sm) return;
+    // Half of the arm angles; the crawl turns the arm a full circle, so the half angle eases back to 0
+    // around the top (continuous, no flip of the shoulder region).
+    const half = (a) => { const t = wrap(a), k = Math.abs(t) < 2.85 ? 1 : sstep(Math.PI, 2.85, Math.abs(t)); return 0.5 * t * k; };
+    const q = this.pose;
+    this.armR.sm.rotation.set(half(q.shRx), 0, q.shRz * 0.5);
+    this.armL.sm.rotation.set(half(q.shLx), 0, q.shLz * 0.5);
+    if (ik) this.armR.sm.quaternion.copy(IDQ).slerp(this.armR.sh.quaternion, 0.5);
   }
 
   /** World position of the right hand's grip point (where a held ball sits). */

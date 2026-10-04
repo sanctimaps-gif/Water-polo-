@@ -73,7 +73,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 #bars { position: absolute; left: 50%; bottom: calc(10px + var(--safe-b)); transform: translateX(-60%); width: min(240px, 30vw); pointer-events: none; text-align: center; }
 #stamina-wrap, #charge-wrap { position: relative; background: rgba(0, 0, 0, 0.5); border-radius: 6px; overflow: hidden; }
 #stamina-wrap { height: 9px; } #charge-wrap { height: 18px; margin-bottom: 6px; visibility: hidden; }
-#radar { position: absolute; left: calc(12px + var(--safe-l, 0px)); top: calc(30px + var(--safe-t, 0px)); width: 124px; height: 96px; pointer-events: none; border-radius: 4px; }
+#radar { position: absolute; left: calc(12px + var(--safe-l, 0px)); top: calc(54px + var(--safe-t, 0px)); width: 124px; height: 96px; pointer-events: none; border-radius: 4px; }
 #who { font: 700 12px/1.2 system-ui, sans-serif; color: #fff; text-shadow: 0 1px 3px #000; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.04em; }
 #who i { font-style: normal; color: #7fe3ff; }
 #stamina { height: 100%; width: 100%; background: #4de683; }

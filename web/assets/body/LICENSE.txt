@@ -1,0 +1,3 @@
+Body mesh derived from the MakeHuman base mesh hm08 and its macro targets (male, muscle, weight),
+released under CC0 1.0 Universal by the MakeHuman project (http://www.makehumancommunity.org).
+Changes: morphed into 3 builds, head removed, rescaled, skin weights computed for this game's skeleton.

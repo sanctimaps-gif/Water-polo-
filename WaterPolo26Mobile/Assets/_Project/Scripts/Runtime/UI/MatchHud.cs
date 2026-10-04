@@ -21,6 +21,7 @@ namespace WaterPolo.Runtime
         private static readonly Color ButtonShoot = new Color(0.9f, 0.35f, 0.15f, 0.85f);
         private static readonly Color ButtonPass = new Color(0.15f, 0.55f, 0.95f, 0.85f);
         private static readonly Color ButtonDefend = new Color(0.55f, 0.25f, 0.85f, 0.85f);
+        private static readonly Color ButtonSprintColor = new Color(0.95f, 0.7f, 0.15f, 0.85f);
         private static readonly Color ButtonSwitch = new Color(0.25f, 0.65f, 0.4f, 0.85f);
 
         private MatchRunner _runner;
@@ -82,6 +83,8 @@ namespace WaterPolo.Runtime
 
             _input.ButtonA = UiFactory.ActionButton(safe, "ButtonA", new Vector2(-200f, 210f), 230f, ButtonShoot);
             _input.ButtonB = UiFactory.ActionButton(safe, "ButtonB", new Vector2(-430f, 130f), 170f, ButtonPass);
+            _input.ButtonSprint = UiFactory.ActionButton(safe, "ButtonSprint", new Vector2(-430f, 330f), 120f, ButtonSprintColor);
+            _input.ButtonSprint.SetLabel(Loc.Get("btn.sprint"), ButtonSprintColor);
             _input.Camera = camera;
 
             // Scoreboard.

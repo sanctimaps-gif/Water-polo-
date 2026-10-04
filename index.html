@@ -7,6 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b1220">
 <title>Water Polo 26 Mobile</title>
+<link rel="manifest" href="web/manifest.webmanifest">
 <link rel="stylesheet" href="web/style.css">
 </head>
 <body>
@@ -47,6 +48,7 @@
     <div id="stamina-wrap"><div id="stamina"></div></div>
   </div>
 
+  <button id="btnS" class="action" data-mode="sprint">SPRINT</button>
   <button id="btnB" class="action">PASSE</button>
   <button id="btnA" class="action">TIR</button>
 </div>
@@ -59,7 +61,12 @@
   </div>
 </div>
 
-<div id="rotate" class="hidden">⟳ Tournez le téléphone en paysage · Rotate to landscape</div>
+<!-- LANDSCAPE ONLY: shown (and the game paused) whenever the device is held vertically -->
+<div id="rotate" class="hidden">
+  <div class="phone"><div class="screen"></div></div>
+  <h1 id="rotate-title">TOURNEZ VOTRE APPAREIL</h1>
+  <p id="rotate-hint">Water Polo 26 se joue uniquement à l'horizontale</p>
+</div>
 
 <script type="module" src="web/game.js"></script>
 </body>

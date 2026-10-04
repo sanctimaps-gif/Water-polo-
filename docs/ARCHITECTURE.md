@@ -13,6 +13,7 @@ structurent les décisions techniques :
 
 | Exigence | Conséquence technique |
 |---|---|
+| **Paysage exclusif** sur tous les écrans | Orientation verrouillée au lancement (avant la 1re scène), UI conçue en 1920×1080 mise à l'échelle sur la hauteur, safe areas, écran « Tournez votre appareil » + pause si la fenêtre devient verticale |
 | Mobile-first, 4 profils LOW→ULTRA, batterie, chauffe | Moteur au runtime léger, budgets par profil, pas d'effet « gratuit », simulation peu coûteuse |
 | Le match est le cœur, priorité au gameplay | Simulation de match isolée, testable sans moteur, itérable très vite |
 | IA riche (rôles, personnalités, tactiques, stats) | IA pilotée par données (paramètres de tactique / personnalité / stats) et non par du code spécifique |
@@ -206,6 +207,7 @@ Hors MVP : carrière, boutique, online, cosmétiques, public, audio final, anima
 ## 6. Première version jouable (ce commit) — Phase 1 + noyau Phase 2
 
 * Simulation complète d'un match, testée (67 tests) — IMPLÉMENTÉ.
+* **Paysage exclusif** : `Orientation.LockLandscape` (avant le chargement de la scène), réglages joueur sans portrait, iPad sans Split View, `LandscapeGuard` (écran « Tournez votre appareil » + pause) — IMPLÉMENTÉ.
 * Écran MATCH RAPIDE (équipe, difficulté, assistance, durée, timing, langue) — PROTOTYPE.
 * Match en paysage : piscine en primitives, joueurs procéduraux, caméra broadcast, HUD,
   joystick flottant, boutons contextuels, gestes — PROTOTYPE.

@@ -52,12 +52,15 @@ namespace WaterPolo.EditorTools
         private static void ConfigurePlayerSettings()
         {
             PlayerSettings.productName = "Water Polo 26 Mobile";
-            // Menus can rotate; the match forces landscape at runtime (Orientation.EnterLandscape).
+            // LANDSCAPE ONLY: portrait is never allowed, on any screen.
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
-            PlayerSettings.allowedAutorotateToPortrait = true;
+            PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.allowedAutorotateToLandscapeLeft = true;
             PlayerSettings.allowedAutorotateToLandscapeRight = true;
+            // No iPad Split View: it could give the game a portrait-shaped window. (Android's
+            // "Resizable Window" player option is off by default; LandscapeGuard covers any remaining case.)
+            PlayerSettings.iOS.requiresFullScreen = true;
         }
 
         [MenuItem("Water Polo 26/Run AI Benchmark (10 matches)")]

@@ -6,7 +6,7 @@ namespace WaterPolo.Runtime
     /// <summary>
     /// Entry point of the prototype. Put it on one empty GameObject in an empty scene
     /// (menu "Water Polo 26 > Create Prototype Scene" does it) and press Play.
-    /// Flow: QUICK MATCH screen (portrait or landscape) -> landscape match -> full time -> back.
+    /// Flow (landscape only): QUICK MATCH screen -> match -> full time -> back.
     /// </summary>
     public sealed class GameBootstrap : MonoBehaviour
     {
@@ -23,13 +23,13 @@ namespace WaterPolo.Runtime
                 DontDestroyOnLoad(q);
                 q.AddComponent<QualityManager>();
             }
+            if (LandscapeGuard.Instance == null) LandscapeGuard.Create();
             ShowMenu();
         }
 
         private void ShowMenu()
         {
             if (_matchRoot != null) Destroy(_matchRoot);
-            Orientation.AllowAll();
             Screen.sleepTimeout = SleepTimeout.SystemSetting;
             EnsureMenuCamera();
             _menu = PreMatchPanel.Create(_options, StartMatch);
@@ -38,7 +38,6 @@ namespace WaterPolo.Runtime
         private void StartMatch(QuickMatchOptions options)
         {
             if (_menu != null) Destroy(_menu.gameObject);
-            StartCoroutine(Orientation.EnterLandscape());
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
 
             _matchRoot = new GameObject("Match");
@@ -86,30 +85,22 @@ namespace WaterPolo.Runtime
         }
     }
 
-    /// <summary>Menus may rotate freely; matches are played in landscape.</summary>
+    /// <summary>
+    /// LANDSCAPE ONLY (absolute rule): every screen of the game — splash, menus, loading, match,
+    /// results — is landscape. Portrait is never allowed and never offered. Locked before the first
+    /// scene loads; the two landscape sides stay allowed so the phone can be held either way round.
+    /// </summary>
     public static class Orientation
     {
-        public static void AllowAll()
-        {
-            Screen.autorotateToPortrait = true;
-            Screen.autorotateToPortraitUpsideDown = false;
-            Screen.autorotateToLandscapeLeft = true;
-            Screen.autorotateToLandscapeRight = true;
-            Screen.orientation = ScreenOrientation.AutoRotation;
-        }
-
-        public static System.Collections.IEnumerator EnterLandscape()
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        public static void LockLandscape()
         {
             Screen.autorotateToPortrait = false;
             Screen.autorotateToPortraitUpsideDown = false;
             Screen.autorotateToLandscapeLeft = true;
             Screen.autorotateToLandscapeRight = true;
-            // Force landscape first, then re-enable auto-rotation (landscape only, per the flags above)
-            // a couple of frames later so the player can still flip the phone.
             Screen.orientation = ScreenOrientation.LandscapeLeft;
-            yield return null;
-            yield return null;
-            Screen.orientation = ScreenOrientation.AutoRotation;
+            Screen.orientation = ScreenOrientation.AutoRotation; // landscape left/right only (flags above)
         }
     }
 }

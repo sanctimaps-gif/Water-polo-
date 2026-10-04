@@ -34,7 +34,7 @@ namespace WaterPolo.Runtime
     }
 
     /// <summary>
-    /// QUICK MATCH screen (works in portrait and landscape): team, difficulty, assistance,
+    /// QUICK MATCH screen (landscape): team, difficulty, assistance,
     /// period length, shot timing, language. PROTOTYPE of the Phase 5 match setup flow.
     /// </summary>
     public sealed class PreMatchPanel : MonoBehaviour

@@ -60,3 +60,6 @@ value.on = OUI
 value.off = NON
 lang.name = Français
 hud.prototype = PROTOTYPE
+hud.rotate = TOURNEZ VOTRE APPAREIL
+hud.rotate_hint = Water Polo 26 se joue uniquement à l'horizontale
+btn.sprint = SPRINT

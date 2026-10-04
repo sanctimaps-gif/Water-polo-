@@ -1,0 +1,10 @@
+{
+  "name": "Water Polo 26 Mobile",
+  "short_name": "Water Polo 26",
+  "start_url": "../index.html",
+  "scope": "../",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220"
+}

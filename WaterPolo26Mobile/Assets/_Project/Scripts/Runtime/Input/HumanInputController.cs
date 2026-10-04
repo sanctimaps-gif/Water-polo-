@@ -32,6 +32,8 @@ namespace WaterPolo.Runtime
         public VirtualJoystick Joystick;
         public ActionButton ButtonA;
         public ActionButton ButtonB;
+        /// <summary>Hold to sprint (alternative to pushing the joystick to its edge).</summary>
+        public ActionButton ButtonSprint;
         public TouchZone RightZone;
         public SportsCamera Camera;
 
@@ -58,7 +60,9 @@ namespace WaterPolo.Runtime
             stick = Vector2.ClampMagnitude(stick, 1f);
             cmd.Move = ScreenToWorld(stick);
             CurrentWorldMove = cmd.Move;
-            cmd.Sprint = (Settings.EdgeSprint && stick.magnitude > VirtualJoystick.SprintThreshold) || KeySprint();
+            cmd.Sprint = (Settings.EdgeSprint && stick.magnitude > VirtualJoystick.SprintThreshold) || KeySprint()
+                         || (ButtonSprint != null && ButtonSprint.IsHeld);
+            if (ButtonSprint != null) { ButtonSprint.ConsumePress(); ButtonSprint.ConsumeRelease(); }
 
             // ---- button A: SHOOT (with ball) / DEFEND (without)
             if (ButtonA != null)

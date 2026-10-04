@@ -60,3 +60,6 @@ value.on = AN
 value.off = AUS
 lang.name = Deutsch
 hud.prototype = PROTOTYP
+hud.rotate = DREHE DEIN GERÄT
+hud.rotate_hint = Water Polo 26 wird nur im Querformat gespielt
+btn.sprint = SPRINT

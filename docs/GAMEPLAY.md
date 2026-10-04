@@ -3,11 +3,18 @@
 Toutes les valeurs ci-dessous sont celles du code (`Assets/_Project/Scripts/Simulation`). Une
 statistique de joueur va de 1 à 99 et est normalisée en 0..1 (`PlayerStats.N`).
 
-## 1. Contrôles tactiles (match en paysage)
+## 1. Contrôles tactiles
+
+**Le jeu est exclusivement en paysage** (tous les écrans, sans exception). Si l'appareil est tenu
+verticalement, le jeu se met en pause derrière l'écran « TOURNEZ VOTRE APPAREIL » et reprend seul
+une fois l'appareil à l'horizontale. Disposition : joystick à gauche, piscine au centre,
+passe / tir / défense / sprint à droite, score et temps en haut. Interface testée en 16:9, 18:9,
+19,5:9 et tablette 4:3.
 
 | Commande | Avec le ballon | Sans le ballon |
 |---|---|---|
 | Joystick gauche (flottant) | nager ; **bord du joystick = sprint** | idem |
+| Bouton SPRINT (droite, maintenir) | sprint | sprint |
 | Bouton A (gros, droite) | **TIR** : maintenir = charger, relâcher = tirer ; *tap* = tir rapide | **DÉFENSE** : tentative de vol au contact, sinon bras levé (contre) 0,6 s |
 | Bouton B | **PASSE** au coéquipier le plus pertinent ; appui long (> 0,35 s) = passe lobée | **CHANGER** de joueur |
 | Swipe en relâchant A | viser : haut/bas = poteau opposé/proche, vers le but = tir plus haut ; swipe rapide = tir rapide | — |

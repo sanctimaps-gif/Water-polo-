@@ -38,7 +38,8 @@ namespace WaterPolo.Runtime
             var scaler = go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
+            // Landscape-only UI: scale on height so 16:9, 18:9, 19.5:9 and 4:3 tablets keep the same vertical layout.
+            scaler.matchWidthOrHeight = 1f;
             go.AddComponent<GraphicRaycaster>();
             EnsureEventSystem();
             return canvas;

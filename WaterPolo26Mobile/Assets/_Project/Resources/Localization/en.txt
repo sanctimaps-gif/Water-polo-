@@ -60,3 +60,6 @@ value.on = ON
 value.off = OFF
 lang.name = English
 hud.prototype = PROTOTYPE
+hud.rotate = ROTATE YOUR DEVICE
+hud.rotate_hint = Water Polo 26 is played in landscape only
+btn.sprint = SPRINT

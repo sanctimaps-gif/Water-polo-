@@ -167,7 +167,7 @@ function splash(x, z, size = 1) {
 }
 
 // ------------------------------------------------------------------ input
-const input = { stick: { x: 0, y: 0, active: false }, A: btnState(), B: btnState(), pan: 0, dbl: false, keys: new Set() };
+const input = { stick: { x: 0, y: 0, active: false }, A: btnState(), B: btnState(), S: btnState(), pan: 0, dbl: false, keys: new Set() };
 function btnState() { return { held: false, press: false, release: false, down: 0, dur: 0, sx: 0, sy: 0, swipe: { x: 0, y: 0 } }; }
 
 function setupInput() {
@@ -192,7 +192,7 @@ function setupInput() {
   const endStick = (e) => { if (e.pointerId !== sid) return; sid = null; input.stick = { x: 0, y: 0, active: false }; knob.style.transform = ''; base.classList.remove('on', 'sprint'); };
   zone.addEventListener('pointerup', endStick); zone.addEventListener('pointercancel', endStick);
 
-  for (const [id, st] of [['btnA', input.A], ['btnB', input.B]]) {
+  for (const [id, st] of [['btnA', input.A], ['btnB', input.B], ['btnS', input.S]]) {
     const el = $(id); let pid = null, lx = 0, ly = 0;
     el.addEventListener('pointerdown', (e) => { e.stopPropagation(); pid = e.pointerId; try { el.setPointerCapture(pid); } catch {} st.held = true; st.press = true; st.down = performance.now(); st.sx = lx = e.clientX; st.sy = ly = e.clientY; el.classList.add('down'); });
     el.addEventListener('pointermove', (e) => { if (e.pointerId === pid) { lx = e.clientX; ly = e.clientY; } });
@@ -220,7 +220,8 @@ function pollInput(m) {
   if (k.has('KeyW') || k.has('ArrowUp')) sy += 1; if (k.has('KeyS') || k.has('ArrowDown')) sy -= 1;
   if (k.has('KeyD') || k.has('ArrowRight')) sx += 1; if (k.has('KeyA') || k.has('ArrowLeft')) sx -= 1;
   const l = Math.hypot(sx, sy); if (l > 1) { sx /= l; sy /= l; }
-  const cmd = { move: screenToWorld(sx, sy), sprint: Math.hypot(sx, sy) > 0.92 || k.has('ShiftLeft') || k.has('ShiftRight') };
+  const cmd = { move: screenToWorld(sx, sy), sprint: input.S.held || Math.hypot(sx, sy) > 0.92 || k.has('ShiftLeft') || k.has('ShiftRight') };
+  input.S.press = input.S.release = false;
   currentMove = cmd.move;
   const A = input.A, B = input.B;
   if (A.press) { A.press = false; aCtx = hasBall; if (!hasBall) cmd.defend = true; }
@@ -275,7 +276,7 @@ function startMatch() {
   $('home-name').textContent = match.teams[0].def.short; $('away-name').textContent = match.teams[1].def.short;
   $('home-chip').style.background = hex(match.teams[0].def.color); $('away-chip').style.background = hex(match.teams[1].def.color);
   refreshTactic();
-  try { screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {}); } catch {}
+  lockLandscape();
 }
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 function snapshot() {
@@ -322,9 +323,24 @@ function refreshTactic() { if (match) $('tactic').textContent = `${L('btn.tactic
 
 // ------------------------------------------------------------------ frame
 let last = performance.now(), fpsAvg = 60;
+// ------------------------------------------------------------------ LANDSCAPE ONLY
+const isPortrait = () => innerHeight > innerWidth;
+function lockLandscape() {
+  try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch {}
+}
+function updateOrientationGate() {
+  const portrait = isPortrait();
+  $('rotate').classList.toggle('hidden', !portrait);
+  $('rotate-title').textContent = L('hud.rotate');
+  $('rotate-hint').textContent = L('hud.rotate_hint');
+  return portrait;
+}
+
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  // Held vertically: show the rotate screen and freeze everything (the match is paused, nothing renders).
+  if (updateOrientationGate()) { acc = 0; return; }
   fpsAvg += (1 / Math.max(dt, 1e-3) - fpsAvg) * 0.05;
   resize();
   animateWater(now / 1000);
@@ -384,7 +400,7 @@ function updateActors(dt) {
 }
 
 function updateCamera(dt) {
-  const m = match, portrait = innerHeight > innerWidth;
+  const m = match;
   const ball = ballMesh.position;
   const target = ball.clone();
   if (m.human) target.lerp(actors[m.human.id].g.position, 0.25);
@@ -393,12 +409,15 @@ function updateCamera(dt) {
   target.x = Math.max(-HL + 6, Math.min(HL - 6, target.x + userPan));
   target.z = Math.max(-2, Math.min(2, target.z * 0.35)); target.y = 0;
   const near = Math.min(1, Math.max(0, (Math.abs(ball.x) - 6) / 5));
-  let height = 9.5 - 1.5 * near, back = HW + 7.5 - 1.5 * near, fov = portrait ? 74 : 48 - 6 * near;
+  let height = 9.5 - 1.5 * near, back = HW + 7.5 - 1.5 * near, fov = 48 - 6 * near;
   if (goalCam > 0) { goalCam -= dt; target.set(goalPoint.x - Math.sign(goalPoint.x) * 3, 0, 0); height = 5; back = 9; fov = 38; }
   focus.lerp(target, 1 - Math.exp(-dt / 0.25));
   const desired = new THREE.Vector3(focus.x, height, focus.z - back);
   camera.position.lerp(desired, 1 - Math.exp(-dt * 4));
   camera.lookAt(focus.x, 0.5, focus.z);
+  // Landscape screens narrower than 16:9 (4:3 tablets): keep the same horizontal view of the pool.
+  const aspect = innerWidth / innerHeight, ref = 16 / 9;
+  if (aspect < ref) fov = 2 * Math.atan(Math.tan((fov * Math.PI) / 360) * ref / aspect) * 180 / Math.PI;
   camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 3)); camera.updateProjectionMatrix();
   userPan += (0 - userPan) * Math.min(1, dt * 0.8);
 }
@@ -418,12 +437,12 @@ function updateHud(dt) {
   }
   const withBall = me && m.ball.owner === me;
   const A = $('btnA'), B = $('btnB');
+  $('btnS').textContent = L('btn.sprint');
   A.textContent = L(withBall ? 'btn.shoot' : 'btn.defend'); A.dataset.mode = withBall ? 'shoot' : 'defend';
   B.textContent = L(withBall ? 'btn.pass' : 'btn.switch'); B.dataset.mode = withBall ? 'pass' : 'switch';
   if (toastT > 0) { toastT -= dt; $('toast').style.opacity = Math.min(1, toastT * 2); }
   if (timingT > 0) { timingT -= dt; if (timingT <= 0) $('timing').textContent = ''; }
   $('info').textContent = `${L('hud.prototype')} · ${fpsAvg.toFixed(0)} fps`;
-  $('rotate').classList.toggle('hidden', innerWidth >= innerHeight);
 }
 
 let lastW = 0, lastH = 0;
@@ -437,7 +456,14 @@ function resize() {
   await Promise.all([loadLang('en'), loadLang(lang)]);
   renderMenu();
   setupInput();
-  $('play').onclick = () => { startMatch(); const el = document.documentElement; if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches) el.requestFullscreen().catch(() => {}); };
+  $('play').onclick = async () => {
+    // Fullscreen first: browsers only allow the orientation lock in fullscreen.
+    const el = document.documentElement;
+    if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches) { try { await el.requestFullscreen(); } catch {} }
+    lockLandscape();
+    startMatch();
+  };
+  addEventListener('pointerdown', lockLandscape, { once: true });
   $('again').onclick = () => { match = null; for (const a of actors) scene.remove(a.g); actors = []; $('end').classList.add('hidden'); $('hud').classList.add('hidden'); $('menu').classList.remove('hidden'); renderMenu(); };
   $('tactic').onclick = (e) => { e.stopPropagation(); if (!match || !match.human) return; tacticIdx = (tacticIdx + 1) % TACTICS.length; match.setTactic(match.human.team, TACTICS[tacticIdx]); refreshTactic(); };
   requestAnimationFrame(frame);

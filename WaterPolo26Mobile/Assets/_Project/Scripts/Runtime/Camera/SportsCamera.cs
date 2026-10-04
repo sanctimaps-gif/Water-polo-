@@ -64,7 +64,6 @@ namespace WaterPolo.Runtime
             var sim = _runner.Sim;
             if (sim == null) return;
             var cfg = sim.Config;
-            bool portrait = Screen.height > Screen.width;
 
             Vector3 ball = _runner.GetBallPosition();
             Vector3 target = ball;
@@ -81,7 +80,7 @@ namespace WaterPolo.Runtime
             float nearGoal = Mathf.InverseLerp(6f, 11f, Mathf.Abs(ball.x));
             float height = Mathf.Lerp(12f, 10f, nearGoal);
             float back = cfg.HalfWidth + Mathf.Lerp(11f, 9f, nearGoal);
-            float fov = portrait ? 72f : Mathf.Lerp(46f, 40f, nearGoal);
+            float fov = Mathf.Lerp(46f, 40f, nearGoal); // landscape only
 
             if (_goalCamTimer > 0f)
             {
@@ -91,6 +90,11 @@ namespace WaterPolo.Runtime
                 back = 9f;
                 fov = 38f;
             }
+
+            // Landscape screens narrower than 16:9 (4:3 tablets): keep the same horizontal view of the pool.
+            const float refAspect = 16f / 9f;
+            if (_cam.aspect < refAspect)
+                fov = 2f * Mathf.Atan(Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) * refAspect / _cam.aspect) * Mathf.Rad2Deg;
 
             _focus = Vector3.SmoothDamp(_focus, target, ref _focusVelocity, 0.35f);
             Vector3 desiredPos = _focus + new Vector3(0f, height, -back);

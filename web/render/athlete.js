@@ -16,15 +16,17 @@ export function mergeParts(parts) {
     const m = new THREE.Matrix4().compose(p.pos || new THREE.Vector3(), p.quat || new THREE.Quaternion(), p.scale || new THREE.Vector3(1, 1, 1));
     const gg = g.clone().applyMatrix4(m);
     vCount += gg.attributes.position.count; iCount += gg.index ? gg.index.count : gg.attributes.position.count;
-    return { g: gg, color: p.color, rough: p.rough ?? 0.4 };
+    return { g: gg, color: p.color, colors: p.colors, shade: p.geo.userData.shade, rough: p.rough ?? 0.4 };
   });
   const pos = new Float32Array(vCount * 3), nor = new Float32Array(vCount * 3), col = new Float32Array(vCount * 3), rgh = new Float32Array(vCount);
   const idx = new Uint32Array(iCount);
   let vo = 0, io = 0;
-  for (const { g, color, rough } of geos) {
+  for (const { g, color, colors, shade, rough } of geos) {
     const n = g.attributes.position.count;
     pos.set(g.attributes.position.array, vo * 3); nor.set(g.attributes.normal.array, vo * 3);
     for (let i = 0; i < n; i++) { col[(vo + i) * 3] = color.r; col[(vo + i) * 3 + 1] = color.g; col[(vo + i) * 3 + 2] = color.b; rgh[vo + i] = rough; }
+    if (colors) col.set(colors, vo * 3);   // per-vertex colours (face: lips, beard, eye sockets)
+    else if (shade) for (let i = 0; i < n; i++) { const k = shade[i]; col[(vo + i) * 3] *= k; col[(vo + i) * 3 + 1] *= k; col[(vo + i) * 3 + 2] *= k; }   // muscle grooves
     if (g.index) { const a = g.index.array; for (let i = 0; i < a.length; i++) idx[io + i] = a[i] + vo; io += a.length; }
     else { for (let i = 0; i < n; i++) idx[io + i] = vo + i; io += n; }
     vo += n;
@@ -78,6 +80,93 @@ export function morphology(role, seed) {
   return { height: base[0] + (r() - 0.5) * 0.06, shoulders: base[1] + (r() - 0.5) * 0.06, bulk: base[2] + (r() - 0.5) * 0.08 };
 }
 
+// ---------------------------------------------------------------- sculpting
+const gs = (d, w) => Math.exp(-(d / w) * (d / w));
+const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** Normals averaged across duplicated vertices (lathe / sphere seams and poles) -> no visible seam. */
+function weldNormals(g) {
+  g.computeVertexNormals();
+  const p = g.attributes.position.array, n = g.attributes.normal.array, acc = new Map();
+  const key = (i) => `${Math.round(p[i * 3] * 1e5)},${Math.round(p[i * 3 + 1] * 1e5)},${Math.round(p[i * 3 + 2] * 1e5)}`;
+  for (let i = 0; i < p.length / 3; i++) {
+    const k = key(i), a = acc.get(k);
+    if (a) { a[0] += n[i * 3]; a[1] += n[i * 3 + 1]; a[2] += n[i * 3 + 2]; } else acc.set(k, [n[i * 3], n[i * 3 + 1], n[i * 3 + 2]]);
+  }
+  for (let i = 0; i < p.length / 3; i++) {
+    const a = acc.get(key(i)), l = Math.hypot(a[0], a[1], a[2]) || 1;
+    n[i * 3] = a[0] / l; n[i * 3 + 1] = a[1] / l; n[i * 3 + 2] = a[2] / l;
+  }
+  return g;
+}
+
+/**
+ * Muscle body part: smooth lathe through [radius, y] keys (bottom -> top), seam at the back,
+ * then sculpt(v) moves each vertex (muscle bulges, grooves). z+ = front of the body.
+ */
+function sculptLathe(keys, rows, segs, sculpt, shadeFn) {
+  const pts = new THREE.SplineCurve(keys.map(([r, y]) => new THREE.Vector2(r, y))).getPoints(rows);
+  pts[0].x = 0; pts[pts.length - 1].x = 0;
+  for (const q of pts) q.x = Math.max(0, q.x);
+  const g = new THREE.LatheGeometry(pts, segs, Math.PI);
+  if (sculpt) {
+    const a = g.attributes.position.array, v = new THREE.Vector3();
+    const sh = shadeFn ? new Float32Array(a.length / 3) : null;
+    for (let i = 0; i < a.length; i += 3) {
+      v.set(a[i], a[i + 1], a[i + 2]); if (sh) sh[i / 3] = shadeFn(v);
+      sculpt(v); a[i] = v.x; a[i + 1] = v.y; a[i + 2] = v.z;
+    }
+    if (sh) g.userData.shade = sh;   // colour multiplier (painted ambient occlusion of the muscle grooves)
+  }
+  return weldNormals(g);
+}
+
+/**
+ * Sculpted head (unit sphere displaced): long lower face, jaw, chin, cheekbones, brow ridge,
+ * eye sockets, nose bridge and tip, lips. Returns geometry in unit space + per-vertex colours.
+ */
+function sculptHead(ws, hs, P, skin, hair) {
+  const g = new THREE.SphereGeometry(1, ws, hs);
+  const a = g.attributes.position.array, cols = new Float32Array(a.length);
+  const lip = skin.clone().lerp(C(0x9c4a46), 0.45), socket = skin.clone().multiplyScalar(0.8), dark = skin.clone().multiplyScalar(0.72), c = new THREE.Color();
+  for (let i = 0; i < a.length; i += 3) {
+    let x = a[i], y = a[i + 1], z = a[i + 2];
+    const f = sstep(-0.2, 0.75, z);                                   // 0 back of the skull .. 1 face
+    if (y < 0) y *= 1 + 0.3 * f;                                      // longer lower face
+    x *= 1 - (1 - P.jawW) * sstep(0.05, -0.9, y) * (0.4 + 0.6 * f);   // jaw width
+    if (z < 0) z *= 0.95;
+    const top = 1 - 0.05 * sstep(0.4, 0.9, y); x *= top; y *= top; z *= top;   // stays under the cap
+    const ax = Math.abs(x), sx = Math.sign(x);
+    const nose = P.nose * gs(x, 0.1) * (y > -0.12 ? sstep(0.32, -0.12, y) : gs(y + 0.12, 0.06));
+    const eye = gs(y - 0.15, 0.1) * gs(ax - 0.36, 0.13);
+    const lips = gs(y + 0.42, 0.06) * gs(x, 0.2);
+    z += f * (P.brow * gs(y - 0.33, 0.09) * gs(x, 0.5) - 0.07 * eye + 0.035 * gs(y + 0.05, 0.14) * gs(ax - 0.5, 0.14)
+      + nose + 0.03 * lips - 0.018 * gs(y + 0.56, 0.05) * gs(x, 0.16) + P.chin * gs(y + 0.86, 0.12) * gs(x, 0.26));
+    x += sx * (0.04 * gs(y + 0.05, 0.15) * gs(z - 0.5, 0.25) - 0.035 * gs(y + 0.42, 0.15) * gs(z - 0.45, 0.25));
+    a[i] = x; a[i + 1] = y; a[i + 2] = z;
+    // colour: sockets & under-chin shading (cheap ambient occlusion), lips, beard / stubble
+    c.copy(skin).lerp(socket, f * gs(y - 0.12, 0.1) * gs(ax - 0.3, 0.16) * 0.9).lerp(dark, sstep(-0.75, -1.1, y) * 0.6);
+    c.lerp(lip, f * gs(y + 0.42, 0.045) * gs(x, 0.15) * 0.95);
+    const beardZone = f * sstep(-0.22, -0.5, y) * (1 - gs(y + 0.42, 0.05) * gs(x, 0.17)) * sstep(0.95, 0.6, ax + 0.4 * (1 - f));
+    c.lerp(hair, beardZone * P.beard);
+    cols[i] = c.r; cols[i + 1] = c.g; cols[i + 2] = c.b;
+  }
+  return { geo: weldNormals(g), colors: cols };
+}
+
+/** z of the head surface (front) at (x, y), from the generated vertices: features sit ON the face. */
+function surfaceZ(geo, x, y) {
+  const p = geo.attributes.position.array; let best = [], bz = 0;
+  for (let i = 0; i < p.length; i += 3) {
+    if (p[i + 2] <= 0) continue;
+    const d = Math.hypot(p[i] - x, p[i + 1] - y);
+    best.push([d, p[i + 2]]);
+  }
+  best.sort((u, v) => u[0] - v[0]); best = best.slice(0, 4);
+  let wsum = 0; for (const [d, z] of best) { const w = 1 / (d + 1e-4); wsum += w; bz += z * w; }
+  return bz / wsum;
+}
+
 function numberTexture(n, fg = '#ffffff') {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -106,7 +195,7 @@ export class Athlete {
     const skin = C(SKIN[Math.floor(r() * SKIN.length)]);
     const hair = C(HAIR[Math.floor(r() * HAIR.length)]);
     const cap = C(o.capColor), team = C(o.teamColor), trim = C(o.trimColor ?? 0xffffff);
-    const W = 0.4, S = 0.38, CAP = 0.7, SUIT = 0.55;   // roughness: wet skin, skin, fabric cap, suit
+    const W = 0.32, S = 0.36, CAP = 0.7, SUIT = 0.55;   // roughness: wet skin, face, fabric cap, suit
     const mat = athleteMaterial(o.waterTint || C(0x0b5d84));
     const bulk = morph.bulk, sw = morph.shoulders;
 
@@ -123,40 +212,59 @@ export class Athlete {
     const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
 
-    // --- torso: lathe profile (hips -> waist -> ribcage -> shoulders), flattened front/back
-    const prof = [[0.0, -0.64], [0.135, -0.62], [0.15, -0.52], [0.138, -0.4], [0.145, -0.28], [0.168, -0.15], [0.182, -0.04], [0.172, 0.04], [0.12, 0.09], [0.06, 0.105], [0.0, 0.11]]
-      .map(([x, y]) => new THREE.Vector2(x, y));
-    const torsoGeo = new THREE.LatheGeometry(prof, seg * 2 + 4);
-    const briefs = new THREE.LatheGeometry([[0.0, -0.66], [0.142, -0.645], [0.157, -0.55], [0.15, -0.47], [0.0, -0.46]].map(([x, y]) => new THREE.Vector2(x, y)), seg * 2 + 4);
-    const pec = new THREE.SphereGeometry(0.075, seg, seg);
+    // --- torso: smooth lathe profile (hips -> waist -> ribcage -> shoulders), sculpted muscles:
+    // pectorals, abdominals, linea alba, lats (V shape), shoulder blades, spine groove.
+    const front = (v) => sstep(0, 0.12, v.z), back = (v) => sstep(0, -0.12, v.z);
+    const pecs = (y, ax) => sstep(-0.135, -0.105, y) * gs(y + 0.045, 0.07) * gs(ax - 0.07, 0.055);
+    const abs = (y, ax) => sstep(-0.44, -0.4, y) * sstep(-0.12, -0.16, y) * (0.5 + 0.5 * Math.cos(((y + 0.165) / 0.085) * Math.PI * 2)) * gs(ax - 0.032, 0.028);
+    const torsoGeo = sculptLathe([[0.0, -0.64], [0.135, -0.62], [0.15, -0.52], [0.138, -0.4], [0.145, -0.28], [0.168, -0.15], [0.182, -0.04], [0.172, 0.04], [0.12, 0.09], [0.06, 0.105], [0.0, 0.11]],
+      seg * 2 + 12, seg * 3 + 12, (v) => {
+        const ax = Math.abs(v.x), fr = front(v), bk = back(v), sx = Math.sign(v.x);
+        v.z += fr * (0.045 * bulk * pecs(v.y, ax) + 0.014 * abs(v.y, ax) - 0.007 * gs(v.x, 0.012) * sstep(-0.45, -0.12, v.y))
+          + bk * (0.009 * gs(v.x, 0.016) * sstep(-0.5, 0.0, v.y) - 0.014 * gs(v.y + 0.05, 0.06) * gs(ax - 0.075, 0.04));
+        v.x += sx * 0.016 * bulk * gs(v.y + 0.13, 0.1) * gs(v.z + 0.02, 0.1);   // lats
+      }, (v) => {
+        const ax = Math.abs(v.x), fr = front(v), bk = back(v);
+        return 1 - fr * (0.13 * gs(v.y + 0.122, 0.012) * gs(ax - 0.075, 0.05) + 0.09 * (1 - abs(v.y, ax)) * sstep(-0.44, -0.4, v.y) * sstep(-0.11, -0.16, v.y) * gs(ax, 0.07)
+          + 0.12 * gs(v.x, 0.01) * sstep(-0.45, -0.1, v.y)) - bk * 0.12 * gs(v.x, 0.014) * sstep(-0.5, 0.0, v.y);
+      });
+    const briefs = new THREE.LatheGeometry([[0.0, -0.66], [0.142, -0.645], [0.157, -0.55], [0.15, -0.47], [0.0, -0.46]].map(([x, y]) => new THREE.Vector2(x, y)), seg * 2 + 4, Math.PI);
+    const neck = sculptLathe([[0, 0.06], [0.074, 0.075], [0.064, 0.13], [0.058, 0.19], [0, 0.205]], 8, seg * 2 + 4,
+      (v) => { v.x *= 1 + 0.12 * gs(v.y - 0.1, 0.04) * sstep(0.02, -0.04, v.z); });   // sternocleidomastoid / traps base
     mesh([
       { geo: torsoGeo, color: skin, rough: W, scale: V3(1.22 * sw, 1, 0.74 * bulk) },
       { geo: briefs, color: team, rough: SUIT, scale: V3(1.24 * sw, 1, 0.78 * bulk) },
       { geo: new THREE.BoxGeometry(0.24, 0.02, 0.01), color: trim, rough: SUIT, pos: V3(0, -0.5, 0.118 * bulk), scale: V3(sw, 1, 1) },
-      { geo: pec, color: skin, rough: W, pos: V3(0.07 * sw, -0.07, 0.085 * bulk), scale: V3(1.2, 0.75, 0.55 * bulk) },
-      { geo: pec, color: skin, rough: W, pos: V3(-0.07 * sw, -0.07, 0.085 * bulk), scale: V3(1.2, 0.75, 0.55 * bulk) },
-      { geo: new THREE.CylinderGeometry(0.052, 0.062, 0.12, seg), color: skin, rough: W, pos: V3(0, 0.14, 0) },
+      { geo: neck, color: skin, rough: W },
       { geo: new THREE.SphereGeometry(0.06, seg, seg), color: skin, rough: W, pos: V3(0.09 * sw, 0.06, -0.01), scale: V3(1.3, 0.6, 1) },    // trapezius
       { geo: new THREE.SphereGeometry(0.06, seg, seg), color: skin, rough: W, pos: V3(-0.09 * sw, 0.06, -0.01), scale: V3(1.3, 0.6, 1) },
     ], this.torso);
 
-    // --- head: skull, jaw, face, cap shell, ear guards with holes, chin strap, beard
+    // --- head: one sculpted mesh (skull, jaw, chin, cheekbones, brow, sockets, nose, lips;
+    // beard / stubble and shading in vertex colours), eyes with lids, cap, ear guards, chin strap
     this.head = bone(this.torso); this.head.position.set(0, 0.2, 0.005);
-    const hs = 1 + (r() - 0.5) * 0.08, jaw = 0.9 + r() * 0.25, noseL = 0.035 + r() * 0.02;
-    const headParts = [
-      { geo: new THREE.SphereGeometry(0.112, seg * 2, seg + 4), color: skin, rough: S, pos: V3(0, 0.1, 0), scale: V3(0.92 * hs, 1.08, 1.02) },
-      { geo: new THREE.SphereGeometry(0.08, seg * 2, seg), color: skin, rough: S, pos: V3(0, 0.04, 0.022), scale: V3(0.95 * jaw, 0.72, 1.05) },
-    ];
+    const hs = 1 + (r() - 0.5) * 0.08, R = 0.112;
+    const beard = r() < 0.45 ? 0.85 : 0.1 + r() * 0.15;
+    const sculpt = sculptHead(face ? seg * 4 + 8 : 14, face ? seg * 3 + 6 : 10,
+      { jawW: 0.82 + r() * 0.14, nose: 0.13 + r() * 0.07, brow: 0.04 + r() * 0.03, chin: 0.04 + r() * 0.04, beard }, skin, hair);
+    sculpt.geo.applyMatrix4(new THREE.Matrix4().compose(V3(0, 0.1, 0), new THREE.Quaternion(), V3(0.92 * hs * R, 1.08 * R, 1.02 * R)));
+    const headParts = [{ geo: sculpt.geo, colors: sculpt.colors, color: skin, rough: S }];
     if (face) {
-      const eyeY = 0.118, eyeX = 0.037, eyeZ = 0.094;
+      const eyeY = 0.118, eyeX = 0.037 * hs;
+      const lidGeo = new THREE.SphereGeometry(0.0158, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.45);
       for (const sx of [-1, 1]) {
-        headParts.push({ geo: new THREE.SphereGeometry(0.0145, 8, 6), color: C(0xf4f1ea), rough: 0.2, pos: V3(sx * eyeX, eyeY, eyeZ), scale: V3(1.15, 0.8, 0.7) });
-        headParts.push({ geo: new THREE.SphereGeometry(0.0085, 8, 6), color: C(r() < 0.3 ? 0x3d6b8f : 0x2b1a10), rough: 0.1, pos: V3(sx * eyeX, eyeY, eyeZ + 0.009) });
-        headParts.push({ geo: new THREE.BoxGeometry(0.036, 0.008, 0.012), color: hair, rough: 0.8, pos: V3(sx * eyeX, eyeY + 0.024, eyeZ + 0.006), quat: Q(0, 0, -sx * (0.12 + r() * 0.12)) });
+        const ez = surfaceZ(sculpt.geo, sx * eyeX, eyeY) - 0.003;
+        headParts.push({ geo: new THREE.SphereGeometry(0.0145, 10, 8), color: C(0xf4f1ea), rough: 0.15, pos: V3(sx * eyeX, eyeY, ez), scale: V3(1.15, 0.8, 0.7) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.0078, 8, 6), color: C(r() < 0.3 ? 0x3d6b8f : 0x2b1a10), rough: 0.08, pos: V3(sx * eyeX, eyeY - 0.001, ez + 0.0085), scale: V3(1, 1, 0.6) });
+        headParts.push({ geo: lidGeo, color: skin.clone().multiplyScalar(0.92), rough: S, pos: V3(sx * eyeX, eyeY + 0.001, ez - 0.001), scale: V3(1.15, 0.75, 0.78), quat: Q(0.35, 0, 0) });   // upper lid
+        const by = eyeY + 0.021;
+        headParts.push({ geo: new THREE.CapsuleGeometry(0.0042, 0.03, 2, 6), color: hair, rough: 0.85, pos: V3(sx * (eyeX + 0.002), by, surfaceZ(sculpt.geo, sx * eyeX, by) + 0.001),
+          quat: Q(0, sx * 0.35, Math.PI / 2 - sx * (0.1 + r() * 0.12)) });   // eyebrow
       }
-      headParts.push({ geo: new THREE.ConeGeometry(0.018, noseL, 6), color: skin, rough: S, pos: V3(0, 0.087, 0.098 + noseL * 0.3), quat: Q(Math.PI / 2 + 0.25, 0, 0) });
-      headParts.push({ geo: new THREE.BoxGeometry(0.038, 0.007, 0.01), color: C(0x8a4a40), rough: 0.5, pos: V3(0, 0.048, 0.098) });
-      if (r() < 0.45) headParts.push({ geo: new THREE.SphereGeometry(0.083, seg * 2, seg), color: hair, rough: 0.9, pos: V3(0, 0.035, 0.024), scale: V3(0.98 * jaw, 0.66, 1.06) }); // beard
+      const my = 0.049;
+      headParts.push({ geo: new THREE.CapsuleGeometry(0.0022, 0.026, 2, 6), color: C(0x5e2c28), rough: 0.5, pos: V3(0, my, surfaceZ(sculpt.geo, 0, my) - 0.0005), quat: Q(0, 0, Math.PI / 2) });  // mouth line
+      const ny = 0.083;
+      headParts.push({ geo: new THREE.SphereGeometry(0.0125, 8, 6), color: skin, rough: S, pos: V3(0, ny, surfaceZ(sculpt.geo, 0, ny) - 0.006), scale: V3(1.25, 0.85, 1) });   // nose tip / nostrils
     }
     // Cap: fabric shell covering the skull and the back of the head, slightly tilted back.
     headParts.push({ geo: new THREE.SphereGeometry(0.117, seg * 2, seg + 2, 0, Math.PI * 2, 0, Math.PI * 0.52), color: cap, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(-0.62, 0, 0), scale: V3(0.95 * hs, 1.06, 1.05) });
@@ -180,18 +288,21 @@ export class Athlete {
       num.position.set(0, 0.125, -0.113); num.rotation.set(0.35, Math.PI, 0); this.head.add(num);
     }
 
-    // --- arms
+    // --- arms: sculpted deltoid, biceps / triceps, forearm muscles tapering to the wrist
+    const armSeg = seg + 6, armRows = seg + 6;
+    const upperArm = sculptLathe([[0, -0.315], [0.036 * bulk, -0.302], [0.043 * bulk, -0.27], [0.047 * bulk, -0.22], [0.053 * bulk, -0.16], [0.057 * bulk, -0.1], [0.064 * bulk, -0.05], [0.064 * bulk, -0.01], [0.05 * bulk, 0.03], [0, 0.05]], armRows, armSeg,
+      (v) => { v.z += 0.014 * bulk * gs(v.y + 0.15, 0.06) * front(v) - 0.01 * bulk * gs(v.y + 0.1, 0.07) * back(v); });
+    const foreArm = sculptLathe([[0, -0.25], [0.029, -0.236], [0.031, -0.2], [0.04 * bulk, -0.12], [0.047 * bulk, -0.06], [0.045 * bulk, -0.02], [0.036, 0.02], [0, 0.035]], armRows, armSeg,
+      (v) => { v.x *= 1 + 0.18 * sstep(-0.1, -0.22, v.y); v.z *= 1 - 0.2 * sstep(-0.1, -0.22, v.y); });   // flat wrist
     const arm = (side) => {
       const sh = bone(this.torso); sh.position.set(side * 0.205 * sw, 0.03, 0);
       mesh([
-        { geo: new THREE.SphereGeometry(0.058 * bulk, seg, seg), color: skin, rough: W, pos: V3(side * -0.005, -0.035, 0), scale: V3(1, 1.25, 1) },   // deltoid
-        { geo: new THREE.CapsuleGeometry(0.052 * bulk, 0.2, 3, seg), color: skin, rough: W, pos: V3(0, -0.14, 0), scale: V3(1, 1, 0.95) },
-        { geo: new THREE.SphereGeometry(0.042 * bulk, seg, seg), color: skin, rough: W, pos: V3(0, -0.13, 0.03), scale: V3(0.9, 1.6, 0.8) },          // biceps
-        { geo: new THREE.SphereGeometry(0.046 * bulk, seg, seg), color: skin, rough: W, pos: V3(0, -0.28, 0) },                                         // elbow
+        { geo: upperArm, color: skin, rough: W },
+        { geo: new THREE.SphereGeometry(0.037 * bulk, seg, seg), color: skin, rough: W, pos: V3(0, -0.28, 0) },   // elbow
       ], sh);
       const el = bone(sh); el.position.set(0, -0.28, 0);
       const handParts = [
-        { geo: new THREE.CapsuleGeometry(0.041 * bulk, 0.18, 3, seg), color: skin, rough: W, pos: V3(0, -0.12, 0) },
+        { geo: foreArm, color: skin, rough: W },
         { geo: new THREE.SphereGeometry(0.045, seg, seg), color: skin, rough: W, pos: V3(0, -0.27, 0), scale: V3(0.95, 1.25, 0.5) },                    // palm
         { geo: new THREE.CapsuleGeometry(0.012, 0.035, 2, 5), color: skin, rough: W, pos: V3(side * -0.035, -0.255, 0.018), quat: Q(0.3, 0, side * 0.7) }, // thumb
       ];
@@ -205,15 +316,19 @@ export class Athlete {
     };
     this.armR = arm(1); this.armL = arm(-1);
 
-    // --- legs (under water: simpler, shaded by the water tint)
+    // --- legs (under water, shaded by the water tint): quadriceps, knee, calf
+    const legSeg = seg + 2, legRows = seg + 2;
+    const thigh = sculptLathe([[0, -0.46], [0.04 * bulk, -0.45], [0.05 * bulk, -0.41], [0.058 * bulk, -0.32], [0.07 * bulk, -0.18], [0.078 * bulk, -0.06], [0.075 * bulk, 0], [0.06, 0.04], [0, 0.06]], legRows, legSeg,
+      (v) => { v.z += 0.01 * bulk * gs(v.y + 0.12, 0.1) * front(v); });
+    const shin = sculptLathe([[0, -0.38], [0.03, -0.36], [0.032, -0.3], [0.044 * bulk, -0.2], [0.052 * bulk, -0.1], [0.05 * bulk, -0.04], [0.044, 0.02], [0, 0.04]], legRows, legSeg,
+      (v) => { v.z -= 0.012 * bulk * gs(v.y + 0.11, 0.06) * back(v); });
     const leg = (side) => {
       const hip = bone(this.torso); hip.position.set(side * 0.092 * sw, -0.6, 0);
-      mesh([{ geo: new THREE.CapsuleGeometry(0.068 * bulk, 0.26, 3, seg), color: skin, rough: W, pos: V3(0, -0.2, 0) },
-        { geo: new THREE.SphereGeometry(0.056 * bulk, seg, seg), color: skin, rough: W, pos: V3(0, -0.42, 0) }], hip);   // knee
+      mesh([{ geo: thigh, color: skin, rough: W }], hip);
       const kn = bone(hip); kn.position.set(0, -0.42, 0);
       mesh([
-        { geo: new THREE.CapsuleGeometry(0.048 * bulk, 0.27, 3, seg), color: skin, rough: W, pos: V3(0, -0.19, 0) },
-        { geo: new THREE.BoxGeometry(0.075, 0.05, 0.2), color: skin, rough: W, pos: V3(0, -0.4, 0.05) },
+        { geo: shin, color: skin, rough: W },
+        { geo: new THREE.SphereGeometry(0.05, seg, seg), color: skin, rough: W, pos: V3(0, -0.395, 0.045), scale: V3(0.8, 0.5, 2.1) },   // foot
       ], kn);
       return { hip, kn };
     };

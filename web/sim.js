@@ -114,7 +114,7 @@ export class Match {
   constructor(cfg, home, away) {
     this.cfg = Object.assign({
       length: 25, width: 20, goalW: 3, goalH: 0.9, goalDepth: 0.4, periodDuration: 120, periods: 4, shotClock: 30, shotClockRebound: 20,
-      goalPause: 3, deadPause: 1.2, periodBreak: 3, dt: 1 / 50, seed: 12345, humanTeam: 0, assist: 'STANDARD', timing: true, cpu: 1,
+      goalPause: 3, deadPause: 1.2, periodBreak: 3, dt: 1 / 50, seed: 12345, humanTeam: 0, autoSwitch: true, assist: 'STANDARD', timing: true, cpu: 1,
     }, cfg);
     const c = this.cfg; c.hl = c.length / 2; c.hw = c.width / 2;
     this.rng = new Rng(c.seed);
@@ -197,7 +197,7 @@ export class Match {
   setHuman(p, emit) {
     if (this.human === p) return;
     if (this.human) { this.human.human = false; this.human.charging = false; this.human.charge = 0; }
-    this.human = p; p.human = true; this.humanCmd = {};
+    this.human = p; p.human = true; this.humanCmd = {}; this.lastSwitch = this.time;
     if (emit) this.emit(Ev.SWITCH, p.team, p.id);
   }
   switchHuman() {
@@ -211,6 +211,23 @@ export class Match {
       if (s < bs) { bs = s; best = p; }
     }
     if (best) this.setHuman(best, true);
+  }
+  /** Automatic switch: the controlled player follows the ball (loose ball, opponent attack, own pass in flight). */
+  autoSwitch() {
+    const h = this.human; if (!h || !this.cfg.autoSwitch) return;
+    const b = this.ball, team = this.teams[h.team];
+    if (this.time - this.lastSwitch < 0.6) return;
+    if (b.owner) { if (b.owner.team === h.team) return; }
+    else if (b.state === 'PASSED' && b.possTeam === h.team) {
+      if (b.receiver && b.receiver !== h && !b.receiver.isGK) { this.setHuman(b.receiver, true); this.lastSwitch = this.time; }
+      return;
+    } else if (b.state === 'SHOT' && b.possTeam === h.team) return;
+    // Defensive/loose ball: the field player best placed to act on the ball (or the receiver of an opponent pass).
+    const target = !b.owner && b.state === 'PASSED' && b.receiver ? b.receiver.pos : b.pos, og = this.ownGoal(h.team);
+    const score = (p) => fdist(p.pos, target) + (fdist(p.pos, og) <= fdist(target, og) + 0.5 ? 0 : 2);
+    let best = null, bs = 1e9;
+    for (const p of team.field) { const s = score(p); if (s < bs) { bs = s; best = p; } }
+    if (best && best !== h && bs < score(h) - 1.5) { this.setHuman(best, true); this.lastSwitch = this.time; }
   }
   setTactic(team, style) { this.teams[team].tactic = style; this.teams[team].tp = tacticParams(style); }
 
@@ -237,6 +254,7 @@ export class Match {
       this.consumeOneShots();
       return;
     }
+    this.autoSwitch();
     for (const p of this.players) {
       // Copy (C# PlayerCommand is a struct): consumeOneShots() below must not wipe this tick's actions.
       if (p.human) p.cmd = { ...this.humanCmd };
@@ -719,17 +737,33 @@ export class Match {
     for (const o of this.teams[1 - p.team].field) { const r = distToSegment(o.pos, p.pos, goal); if (r.t > 0.05 && r.t < 0.9 && r.d < 0.8) blockers++; }
     return clamp01(df * 0.8 + (1 - af) * 0.25 - this.pressure(p) * 0.25 - blockers * 0.18);
   }
+  // Positions ("postes"): slot 0 right wing, 1 right flat (driver), 2 point (playmaker), 3 left flat,
+  // 4 left wing, 5 centre-forward (2 m). In defence each player marks the opponent in the same slot;
+  // the slot-5 defender is the 2 m defender. The slot sets WHERE a player plays, his role HOW.
   thinkField(p) {
     const cmd = {}, b = this.ball, tp = this.teams[p.team].tp;
     const intel = N(p.stats.intelligence) * this.skill(p.team);
     const decide = this.time >= p.nextDecision;
     if (decide) p.nextDecision = this.time + lerp(0.4, 0.15, intel) + (p.id % 3) * 0.02;
     const loose = b.state === 'FREE' || b.state === 'DEFLECTED' || b.state === 'BLOCKED';
+    // Loose ball: only the closest player goes for it (plus a second one if he is right there);
+    // everybody else keeps his position instead of swarming.
+    const chase = loose && (this.amongClosest(p, 1) || (this.amongClosest(p, 2) && fdist(p.pos, b.pos) < 2.5));
     if (b.owner === p) this.carrier(p, cmd, decide, tp, intel);
-    else if (loose && this.amongClosest(p, 2)) { cmd.move = this.steer(p, add(flat(b.pos), mul(flat(b.vel), 0.35)), 0.1); cmd.sprint = true; }
+    else if (chase) { cmd.move = this.steer(p, add(flat(b.pos), mul(flat(b.vel), 0.35)), 0.1); cmd.sprint = true; }
     else if (this.possessionTeam === p.team) this.support(p, cmd, decide, tp);
     else this.defend(p, cmd, decide, tp);
     p.cmd = cmd;
+  }
+  /** Push a target spot away from team-mates that already occupy the space (spacing). */
+  spread(p, spot, radius, strength) {
+    let out = { ...spot };
+    for (const q of this.teams[p.team].field) {
+      if (q === p) continue;
+      const d = fdist(q.pos, spot);
+      if (d < radius) { const away = d > 1e-3 ? norm(flat(sub(spot, q.pos))) : V(0, 0, p.id % 2 ? 1 : -1); out = add(out, mul(away, (radius - d) * strength)); }
+    }
+    return out;
   }
   carrier(p, cmd, decide, tp, intel) {
     const c = this.cfg, goal = this.targetGoal(p.team);
@@ -758,25 +792,36 @@ export class Match {
         }
       }
     }
-    let dest = dg > 9 ? goal : this.attackSpot(p.team, p.slot, tp);
+    // Counter-attack: swim the ball up the own lane; settled: work from the own position, attack space.
+    let dest = dg > 9 ? V(goal.x, 0, clamp(p.pos.z, -4, 4)) : this.attackSpot(p.team, p.slot, tp);
     if (dg < 7 && pr < 0.3) dest = goal;
     cmd.move = this.steer(p, dest, 1.2);
     cmd.sprint = dg > 9 && p.stamina > 0.4 && this.rng.chance(tp.trans);
   }
   support(p, cmd, decide, tp) {
+    const b = this.ball, goal = this.targetGoal(p.team);
     let spot;
     if (tp.safety > 0 && p.slot === 2) spot = V(this.sign(p.team) * -1.5, 0, 0);
     else {
       spot = this.attackSpot(p.team, p.slot, tp);
-      if (Math.sin(this.time * 0.7 + p.id * 1.7) > 0.6) spot = add(spot, mul(norm(flat(sub(this.targetGoal(p.team), spot))), 1.2));
-      const m = this.closestOpp(p);
-      if (m.p && m.d < 1.1) spot = add(spot, norm(flat(sub(p.pos, m.p.pos))));
-      const e = (1 - N(p.stats.positioning)) * 1.2;
-      spot = add(spot, V(Math.sin(p.id * 3.1) * e, 0, Math.cos(p.id * 2.3) * e));
+      // The whole shape slides toward the ball side (keeps passing lanes short).
+      if (p.slot !== 5) spot.z = clamp(spot.z + clamp(b.pos.z * 0.25, -1.4, 1.4), -this.cfg.hw + 1, this.cfg.hw - 1);
+      if (p.slot === 5) {
+        // Centre-forward: fights for position at 2 m in front of the goal, never drifts away from it.
+        spot = V(goal.x - this.sign(p.team) * 2.0, 0, clamp(b.pos.z * 0.15, -0.8, 0.8));
+      } else {
+        // "Appel": periodic drive toward goal, then back to the position.
+        if (Math.sin(this.time * 0.7 + p.id * 1.7) > 0.6) spot = add(spot, mul(norm(flat(sub(goal, spot))), 1.2));
+        const m = this.closestOpp(p);
+        if (m.p && m.d < 1.1) spot = add(spot, mul(norm(flat(sub(p.pos, m.p.pos))), 0.8));   // get open
+        const e = (1 - N(p.stats.positioning)) * 1.0;
+        spot = add(spot, V(Math.sin(p.id * 3.1) * e, 0, Math.cos(p.id * 2.3) * e));
+        spot = this.spread(p, spot, 2.4, 0.9);
+      }
     }
     const d = fdist(p.pos, spot);
     cmd.move = this.steer(p, spot, 0.4);
-    if (decide) p.wantSprint = d > 4 && p.stamina > 0.35 && this.rng.chance(tp.trans);
+    if (decide) p.wantSprint = d > 4 && p.stamina > 0.35 && this.rng.chance(Math.max(tp.trans, 0.6));
     cmd.sprint = p.wantSprint && d > 2;
   }
   defend(p, cmd, decide, tp) {
@@ -786,18 +831,28 @@ export class Match {
     const hasBall = b.owner === mark, md = tp.mark * (hasBall ? 0.75 : 1);
     const toGoal = flat(sub(og, mark.pos)), tgl = len(toGoal);
     const goalSide = add(mark.pos, mul(norm(toGoal), Math.min(md, tgl * 0.5)));
-    const toBall = flat(sub(b.pos, mark.pos));
-    const ballSide = add(mark.pos, mul(norm(toBall), Math.min(md, len(toBall) * 0.5)));
-    const denial = tp.denial * invLerp(5, 8, tgl);
-    const man = hasBall ? goalSide : vlerp(goalSide, ballSide, denial);
-    const zone = add(og, mul(norm(flat(sub(mark.pos, og))), Math.min(4, tgl)));
-    let target = vlerp(man, zone, hasBall ? tp.zone * 0.3 : tp.zone);
-    if (b.state === 'PASSED' && b.possTeam !== p.team) {
-      const ahead = add(flat(b.pos), mul(flat(b.vel), 0.3));
-      if (fdist(p.pos, ahead) < 2.5) target = ahead;
+    // Beaten (the mark is closer to our goal than we are): recover goal-side first, at full speed.
+    const beaten = fdist(p.pos, og) > tgl + 0.3;
+    let target;
+    if (beaten) {
+      target = add(mark.pos, mul(norm(toGoal), Math.min(1.6, tgl * 0.6)));
+      cmd.move = this.steer(p, target, 0.1); cmd.sprint = p.stamina > 0.15;
+    } else {
+      const toBall = flat(sub(b.pos, mark.pos));
+      const ballSide = add(mark.pos, mul(norm(toBall), Math.min(md, len(toBall) * 0.5)));
+      const denial = tp.denial * invLerp(5, 8, tgl);
+      const man = hasBall ? goalSide : vlerp(goalSide, ballSide, denial);
+      const zone = add(og, mul(norm(flat(sub(mark.pos, og))), Math.min(4, tgl)));
+      target = vlerp(man, zone, hasBall ? tp.zone * 0.3 : tp.zone);
+      // Read the pass only when it is meant for my man.
+      if (b.state === 'PASSED' && b.possTeam !== p.team && b.receiver === mark) {
+        const ahead = add(flat(b.pos), mul(flat(b.vel), 0.3));
+        if (fdist(p.pos, ahead) < 2.5) target = ahead;
+      }
+      if (p.slot !== 5 && !hasBall) target = this.spread(p, target, 1.6, 0.6);
+      const d = fdist(p.pos, target);
+      cmd.move = this.steer(p, target, 0.15); cmd.sprint = d > 2.5 && p.stamina > 0.25;
     }
-    const d = fdist(p.pos, target);
-    cmd.move = this.steer(p, target, 0.15); cmd.sprint = d > 3 && p.stamina > 0.25;
     if (decide) {
       const tc = hasBall ? fdist(p.pos, mark.pos) : 99;
       if (hasBall && mark.charging && tc < 2.5) cmd.defend = true;

@@ -47,6 +47,7 @@ menu.difficulty = Dificultad
 menu.assist = Asistencia
 menu.duration = Duración del periodo
 menu.timing = Timing de tiro
+menu.autoswitch = Cambio de jugador auto
 menu.language = Idioma
 menu.minutes = {0} min
 menu.controls_hint = Joystick: nadar (borde = sprint) · A: tiro (mantener) / defensa · B: pase / cambiar · Deslizar: apuntar · Doble toque: acción
@@ -78,3 +79,9 @@ amb.evening = TARDE
 amb.night = NOCHE
 hud.replay = REPETICIÓN
 hud.skip = Toca para saltar
+pos.0 = Extremo derecho
+pos.1 = Lateral derecho
+pos.2 = Boya exterior
+pos.3 = Lateral izquierdo
+pos.4 = Extremo izquierdo
+pos.5 = Boya

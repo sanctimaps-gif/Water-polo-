@@ -47,6 +47,7 @@ menu.difficulty = Schwierigkeit
 menu.assist = Hilfe
 menu.duration = Viertellänge
 menu.timing = Wurf-Timing
+menu.autoswitch = Auto-Spielerwechsel
 menu.language = Sprache
 menu.minutes = {0} Min.
 menu.controls_hint = Joystick: schwimmen (Rand = Sprint) · A: Wurf (halten) / Abwehr · B: Pass / Wechsel · Wischen: zielen · Doppeltipp: Aktion
@@ -78,3 +79,9 @@ amb.evening = ABEND
 amb.night = NACHT
 hud.replay = WIEDERHOLUNG
 hud.skip = Tippen zum Überspringen
+pos.0 = Rechter Flügel
+pos.1 = Rechter Halbspieler
+pos.2 = Rückraum Mitte
+pos.3 = Linker Halbspieler
+pos.4 = Linker Flügel
+pos.5 = Center

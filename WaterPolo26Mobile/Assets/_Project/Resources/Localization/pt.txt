@@ -47,6 +47,7 @@ menu.difficulty = Dificuldade
 menu.assist = Assistência
 menu.duration = Duração do período
 menu.timing = Timing do remate
+menu.autoswitch = Troca de jogador auto
 menu.language = Idioma
 menu.minutes = {0} min
 menu.controls_hint = Joystick: nadar (borda = sprint) · A: remate (manter) / defesa · B: passe / trocar · Deslizar: apontar · Toque duplo: ação
@@ -78,3 +79,9 @@ amb.evening = FIM DE TARDE
 amb.night = NOITE
 hud.replay = REPETIÇÃO
 hud.skip = Toque para saltar
+pos.0 = Ponta direita
+pos.1 = Meia direita
+pos.2 = Armador
+pos.3 = Meia esquerda
+pos.4 = Ponta esquerda
+pos.5 = Pivô

@@ -22,4 +22,15 @@ const run = (m, n) => { for (let i = 0; i < n; i++) m.step(); return m.drain().m
   ok(me.pos.z - z0 > 2, `joystick moves the player (${(me.pos.z - z0).toFixed(2)} m in 2 s)`); ok(me.stamina < 1, 'sprint uses stamina'); }
 { const m = setup(); const me = m.human; me.pos = { x: 6, y: 0, z: 0 }; m.give(me, false); m.drain();
   m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, quickShot: true }); ok(run(m, 2).includes('ShotTaken'), 'double tap = quick shot'); }
+// Auto switch: opponent attacks far from me → control goes to my player nearest the ball (goal side).
+{ const m = setup(); const me = m.slot(0, 2); m.setHuman(me, false); me.pos = { x: -11, y: 0, z: 9 };
+  const c = m.slot(1, 2); c.pos = { x: -4, y: 0, z: 0 }; const d = m.slot(0, 3); d.pos = { x: -6, y: 0, z: 0.5 }; m.give(c, false); m.drain();
+  m.lastSwitch = -9; run(m, 2); ok(m.human === d, 'auto switch → defender nearest the ball carrier');
+  const h = m.human; run(m, 10); ok(m.human === h, 'no flicker right after a switch'); }
+// Own pass in flight → control follows the ball to the receiver.
+{ const m = setup(); const me = m.human; me.pos = { x: 0, y: 0, z: 0 }; const r = m.slot(0, 3); r.pos = { x: 5, y: 0, z: 2 }; m.give(me, false); m.drain();
+  m.lastSwitch = -9; m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, pass: true }); let sw = false;
+  for (let i = 0; i < 40 && !sw; i++) { m.step(); sw = m.human !== me; } ok(sw, 'auto switch → pass receiver'); }
+{ const m = new Match({ seed: 3, humanTeam: 0, autoSwitch: false }, HOME(), AWAY()); m.start(); const h = m.human; for (let i = 0; i < 500; i++) m.step();
+  ok(m.human === h || (m.ball.owner && m.ball.owner === m.human), 'autoSwitch off = manual only'); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

@@ -96,6 +96,39 @@ Décisions toutes les 0,4 → 0,15 s (INTELLIGENCE × difficulté CPU), pilotage
   tentatives de vol (agressivité × tactique).
 * **Ballon libre** : les 2 joueurs les plus proches de chaque équipe le disputent en sprint.
 
+### Version web (`web/sim.js`) — placement retravaillé (pas encore reporté dans le C#)
+
+* **Chaque joueur a un poste** (affiché dans le HUD pour le joueur contrôlé) : 1 ailier droit (2 m),
+  2 demi droit, 3 pointe, 4 demi gauche, 5 ailier gauche (2 m), 6 pivot. Le défenseur du poste N
+  marque l'attaquant du poste N.
+* **Ballon libre** : un seul joueur par équipe va au ballon (deux s'il est à moins de 2,5 m), les
+  autres gardent leur poste.
+* **Espacement** : chaque position cible est repoussée des coéquipiers à moins de 2,4 m.
+* **Attaque placée** : le bloc glisse vers le côté du ballon, le pivot reste fixe à 2 m devant le
+  but, les autres font des appels et se démarquent. **Contre-attaque** : couloirs de nage.
+* **Défense** : un défenseur battu nage d'abord se replacer côté but ; il ne lit une passe que si
+  elle va vers son attaquant.
+* **Changement de joueur automatique** (réglage, activé par défaut) : quand l'adversaire a le
+  ballon, que le ballon est libre ou que l'adversaire fait une passe, le contrôle passe au joueur de
+  champ le mieux placé (le plus proche du ballon ou du receveur, côté but). Une passe de son équipe
+  donne le contrôle au receveur dès le départ du ballon. Anti-clignotement : 0,6 s minimum entre deux
+  changements et 1,5 m d'avance requis. Le bouton CHANGER reste disponible.
+
+Mesures `node tools/web-tests/positioning.mjs 6` (6 matchs IA, 4 × 2 min, avant → après) :
+
+| | Avant | Après |
+|---|---|---|
+| Joueurs collés (coéquipier à < 1,8 m) | 58,7 % | 43,6 % |
+| Joueurs à < 3 m du ballon | 5,64 | 5,44 |
+| Écart au poste en attaque placée | 2,97 m | 2,40 m |
+| Défenseurs côté but de leur attaquant | 56 % | 73 % |
+| Pivot à moins de 3 m du but | 7,8 % | 32,7 % |
+| Buts par match (IA contre IA) | 7,7 | 4,2 |
+| Réussite au tir | 26,4 % | 25,3 % |
+
+La baisse des buts vient de la défense mieux placée (moins de tirs ouverts), pas de la réussite.
+Ces mesures sont vérifiées en CI avec des seuils.
+
 ### Personnalités (`PersonalityProfile`)
 
 | | Seuil de tir | Risque de passe | Patience | Agressivité | Préférence passe |

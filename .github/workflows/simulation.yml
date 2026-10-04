@@ -23,3 +23,5 @@ jobs:
         run: node tools/web-tests/human-actions.mjs
       - name: Web build — game state rules (TOTAL, league, rewards, shop, events)
         run: node tools/web-tests/state.mjs
+      - name: Web build — AI positioning (spacing, postes, goal-side defence)
+        run: node tools/web-tests/positioning.mjs 6

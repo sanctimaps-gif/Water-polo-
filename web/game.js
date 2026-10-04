@@ -39,7 +39,7 @@ const L = (k, ...a) => {
 };
 
 // ------------------------------------------------------------------ options (persisted per device)
-const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
+const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
 let opts = { ...DEFAULT_OPTS };
 try { Object.assign(opts, JSON.parse(localStorage.getItem('wp26.opts') || '{}')); } catch { /* private mode */ }
 const saveOpts = () => { try { localStorage.setItem('wp26.opts', JSON.stringify(opts)); } catch { /* ignore */ } };
@@ -318,7 +318,7 @@ function buildView(a, b, t) {
 }
 
 // ------------------------------------------------------------------ match lifecycle
-let match = null, acc = 0, userPan = 0;
+let match = null, acc = 0, userPan = 0, lastWho = null;
 // Diagnostics hook (read-only): window.__wp26() returns the controlled player's state.
 window.__wp26log = [];
 window.__wp26match = () => match; // test hook
@@ -331,7 +331,7 @@ let replay = null, pendingReplay = null;
 let matchCtx = null, paused = false;
 function startMatch(ctx) {
   matchCtx = ctx; paused = false;
-  const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: 0, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing };
+  const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: 0, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing, autoSwitch: opts.autoSwitch !== false };
   match = new Match(cfg, state.userTeamDef(), state.opponentTeamDef(ctx.opponent, ctx.rating));
   tacticIdx = Math.max(0, TACTICS.indexOf(state.data.club.tactic));
   match.start();
@@ -601,8 +601,11 @@ function frame(now) {
   } else if (showcase) {
     // Debug / presentation: athletes side by side in each animation state, slow orbit.
     showcase.forEach((a, i) => a.update(fdt, a.showcaseState(time)));
-    const ang = time * 0.25;
-    camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10);
+    const ang = time * 0.25, focus = new URLSearchParams(location.search).get('focus');
+    if (focus !== null) {   // ?showcase&focus=i : face close-up of athlete i
+      const fx = (+focus - 2.5) * 0.85, fa = Math.sin(time * 0.5) * 0.7, fy = showcase[+focus].morph.height;
+      camera.position.set(fx + Math.sin(fa) * 0.9, 0.5 * fy, -Math.cos(fa) * 0.9); camera.lookAt(fx, 0.33 * fy, 0); setFov(40, fdt, 10);
+    } else { camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10); }
     ballMesh.position.set(0, -5, 0); selRing.visible = selArrow.visible = passRing.visible = false;
   } else {
     // Menu: the hero treads water in front of a slow orbit of the arena.
@@ -629,6 +632,10 @@ function updateHud(dt) {
   $('shotclock').textContent = Math.ceil(Math.max(0, m.shotClockLeft));
   const me = m.human;
   if (me) {
+    if (me !== lastWho) {   // controlled player + his poste
+      lastWho = me; const w = $('who'), i = document.createElement('i'); i.textContent = L('pos.' + me.slot);
+      w.textContent = `#${me.number} ${me.name || ''} · `; w.appendChild(i);
+    }
     const st = $('stamina'); st.style.width = me.stamina * 100 + '%'; st.style.background = me.sprintLocked ? '#e5533d' : '#4de683';
     $('charge-wrap').style.visibility = me.charging ? 'visible' : 'hidden';
     $('charge').style.width = me.charge * 100 + '%';
@@ -664,6 +671,7 @@ const settingsDef = () => [
   ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist'],
   ['menu.duration', L('menu.minutes', opts.minutes), 'minutes'],
   ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), 'timing'],
+  ['menu.autoswitch', L(opts.autoSwitch !== false ? 'value.on' : 'value.off'), 'autoSwitch'],
   ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound'],
   ['menu.language', L('lang.name'), 'lang'],
 ];
@@ -687,8 +695,9 @@ const app = new App($('app'), {
       case 'assist': opts.assist = cycle(ASSISTS, opts.assist); break;
       case 'minutes': opts.minutes = cycle(MINUTES, opts.minutes); break;
       case 'timing': opts.timing = !opts.timing; break;
+      case 'autoSwitch': opts.autoSwitch = opts.autoSwitch === false; if (match) match.cfg.autoSwitch = opts.autoSwitch; break;
       case 'sound': opts.sound = !opts.sound; audio.setEnabled(opts.sound); break;
-      case 'lang': lang = cycle(LANGS, lang); await loadLang(lang); break;
+      case 'lang': lang = cycle(LANGS, lang); await loadLang(lang); lastWho = null; break;
     }
     saveOpts();
   },

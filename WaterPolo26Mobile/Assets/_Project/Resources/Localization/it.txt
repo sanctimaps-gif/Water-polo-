@@ -47,6 +47,7 @@ menu.difficulty = Difficoltà
 menu.assist = Assistenza
 menu.duration = Durata del tempo
 menu.timing = Timing del tiro
+menu.autoswitch = Cambio giocatore auto
 menu.language = Lingua
 menu.minutes = {0} min
 menu.controls_hint = Joystick: nuotare (bordo = sprint) · A: tiro (tieni) / difesa · B: passaggio / cambia · Swipe: mira · Doppio tocco: azione
@@ -78,3 +79,9 @@ amb.evening = SERA
 amb.night = NOTTE
 hud.replay = REPLAY
 hud.skip = Tocca per saltare
+pos.0 = Ala destra
+pos.1 = Mezzala destra
+pos.2 = Punta
+pos.3 = Mezzala sinistra
+pos.4 = Ala sinistra
+pos.5 = Centroboa

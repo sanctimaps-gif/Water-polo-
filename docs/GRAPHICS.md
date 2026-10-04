@@ -16,13 +16,21 @@ Unity/URP est à faire.
   sommet, un matériau partagé) ⇒ 1 draw call par joueur (+1 pour le numéro du bonnet en MEDIUM+).
 * Morphologie par poste et par graine : taille, largeur d'épaules, carrure (gardien et pointe plus
   grands, pivot plus massif, ailier plus fin).
-* Visage paramétrique : forme du crâne, mâchoire, nez, yeux (sclérotique + iris, couleur variable),
-  sourcils inclinés, bouche, barbe ou non ; 6 teintes de peau, 6 couleurs de cheveux.
+* **Tête sculptée** : une sphère déformée par sommet (visage allongé, largeur de mâchoire, menton,
+  pommettes, arcade sourcilière, orbites creusées, arête et bout du nez, lèvres), paramètres tirés par
+  joueur. Couleurs par sommet : lèvres, barbe ou barbe de 3 jours, ombrage des orbites et sous le
+  menton. Yeux (sclérotique + iris) posés sur la surface avec paupière supérieure, sourcils
+  inclinés ; 6 teintes de peau, 6 couleurs de cheveux.
+* **Corps sculpté** : buste, cou, bras et jambes sont des profils lissés (spline) déformés pour les
+  muscles : pectoraux, abdominaux, ligne blanche, dorsaux en V, omoplates, sillon de la colonne,
+  deltoïdes, biceps / triceps, avant-bras effilés jusqu'au poignet aplati, quadriceps, mollets.
+  Ombre peinte par sommet dans les creux (sous les pectoraux, entre les abdominaux). Normales
+  soudées sur les coutures (pas de ligne visible).
 * Bonnet : coque en tissu, couture centrale et de bord, protège-oreilles rigides percés, jugulaire,
   numéro au dos. Bonnet rouge pour les gardiens. Équipe à domicile en couleur, visiteurs en blanc.
 * Maillot de bain aux couleurs de l'équipe avec liseré. Peau mouillée (rugosité basse + reflets
   de l'environnement). Les parties immergées prennent la teinte de l'eau selon la profondeur.
-* NON IMPLÉMENTÉ : cheveux longs visibles, textures de peau / tissu, modèles sculptés ou capturés.
+* NON IMPLÉMENTÉ : cheveux longs visibles, textures de peau / tissu, modèles capturés ou faits par un artiste.
 
 ## Animations — IMPLÉMENTÉ (procédural, mélangé)
 
@@ -98,8 +106,10 @@ pendant 4 s. LOW et MEDIUM visent 30 FPS en n'affichant qu'une image sur deux.
 | | LOW | MEDIUM | ULTRA |
 |---|---|---|---|
 | Draw calls | 57 | 71 | 72 |
-| Triangles | 104 k | 169 k | 299 k |
+| Triangles | 122 k | 229 k | 400 k |
 
+Triangles avant les joueurs sculptés : 104 k / 169 k / 299 k (la densité de la tête et du buste suit
+la qualité ; en LOW la tête n'a pas de détails du visage).
 Avant optimisation : 237–243 draw calls (skinning des joueurs et fusion de l'arène = ÷4).
 **Non mesuré : le FPS réel sur téléphone.** Les FPS affichés dans ce test viennent d'un rendu
 logiciel sans GPU et ne sont pas représentatifs. Le test sur appareils réels reste à faire.

@@ -125,7 +125,7 @@ export class Match {
       const team = { index: ti, def, players: [], field: [], gk: null, score: 0, tactic: def.tactic, tp: tacticParams(def.tactic) };
       for (const pd of def.players) {
         const p = {
-          id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, look: pd.look || null, isGK: pd.role === Role.GK,
+          id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, look: pd.look || null, pid: pd.playerId || null, isGK: pd.role === Role.GK,
           prof: PERSONALITY[pd.personality], stats: pd.stats, slot: pd.role === Role.GK ? -1 : pd.slot,
           pos: V(), vel: V(), facing: V(1, 0, 0), stamina: 1, sprinting: false, sprintLocked: false, human: false, cmd: {},
           charge: 0, charging: false, heldAtMax: 0, actionCd: 0, stealCd: 0, stun: 0, block: 0, possTime: 0, nextDecision: 0, wantSprint: false, aiCharge: -1,
@@ -138,6 +138,7 @@ export class Match {
     this.ball = { pos: V(0, BALL_R, 0), vel: V(), state: 'FREE', owner: null, lastTouch: null, passer: null, receiver: null, shooter: null, possTeam: -1, stateTime: 0, saveDone: false, tried: new Set() };
     this.stats = { teams: [0, 1].map(() => ({ goals: 0, shots: 0, onTarget: 0, passes: 0, passesOk: 0, saves: 0, interceptions: 0, steals: 0, blocks: 0, fouls: 0, possession: 0 })) };
     this.phase = 'NOT_STARTED'; this.period = 0; this.periodLeft = 0; this.shotClockLeft = 0; this.phaseTimer = 0;
+    this.pstats = this.players.map(() => ({ goals: 0, assists: 0, shots: 0, steals: 0, saves: 0, passes: 0 }));
     this.restart = null; this.humanCmd = {}; this.human = null; this.assistCand = [null, null];
     if (c.humanTeam === 0 || c.humanTeam === 1) this.setHuman(this.slot(c.humanTeam, 2), false);
   }
@@ -149,7 +150,17 @@ export class Match {
   sign(t) { return t === 0 ? 1 : -1; }
   isHuman(p) { return p && p.human; }
   skill(t) { return this.cfg.humanTeam >= 0 && t !== this.cfg.humanTeam ? this.cfg.cpu : 1; }
-  emit(type, team, player = -1, other = -1, pos = V(), value = 0) { this.events.push({ type, team, player, other, pos: { ...pos }, value, time: this.time }); }
+  emit(type, team, player = -1, other = -1, pos = V(), value = 0) {
+    this.events.push({ type, team, player, other, pos: { ...pos }, value, time: this.time });
+    // Per-player match statistics (career stats of the squad players).
+    const ps = this.pstats, P = ps && player >= 0 ? ps[player] : null;
+    if (!P) return;
+    if (type === Ev.GOAL) { P.goals++; if (other >= 0) ps[other].assists++; }
+    else if (type === Ev.SHOT) P.shots++;
+    else if (type === Ev.STEAL || type === Ev.INTERCEPT) P.steals++;
+    else if (type === Ev.SAVE) P.saves++;
+    else if (type === Ev.PASS_OK) P.passes++;
+  }
   drain() { const e = this.events; this.events = []; return e; }
   get finished() { return this.phase === 'ENDED'; }
   get possessionTeam() { return this.ball.owner ? this.ball.owner.team : this.ball.possTeam; }

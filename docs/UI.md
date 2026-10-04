@@ -26,6 +26,31 @@ l'appareil) : aucune valeur décorative. Règles vérifiées par `node tools/web
 rapide), objectifs, événements, cadeau du jour, titre de champion. Gemmes : objectifs, événements,
 cadeaux des jours 4 et 7, titre. Achats en argent réel, publicité, passe saisonnier : NON IMPLÉMENTÉ.
 
+## Progression des joueurs (inspirée des jeux de sport mobiles) — IMPLÉMENTÉ
+
+Chaque effet est réel (appliqué dans le match) et testé (`tools/web-tests/state.mjs`).
+
+| Action (fiche joueur, onglet STANDARD) | Coût | Effet |
+|---|---|---|
+| ENTRAÎNEMENT / ENTRAÎNEMENT MAXIMAL | points d'entraînement (60 + 40 × niveau) | +1 niveau = +1 à toutes les stats, jusqu'au plafond de la qualité (10 / 15 / 20 / 25) |
+| AMÉLIORER LA QUALITÉ | 1 jeton du palier, au niveau max | bronze → argent → or → violet : +2 à toutes les stats, plafond +5, compétence +1 niveau |
+| EN FORME POUR LE MATCH | 1 trousse de soins | +50 forme. Un titulaire perd 12 par match, un remplaçant récupère 15 ; à 0, stats −8 % |
+| PHYSIQUE MAXIMAL | 1 boisson énergétique | +4 vitesse, accélération, endurance, physique pendant 1 match |
+
+* **Compétences** (2 par poste, niveaux 1 à 3) : bonus de stats réels (Tireur d'élite, Canon, Meneur,
+  Mur, Pilier, Sprinteur, Réflexes, Infatigable, Vision du jeu).
+* **Statistiques de carrière** par joueur : matchs, victoires, nuls, buts, passes décisives, tirs,
+  ballons récupérés, arrêts / passes réussies — comptées dans chaque match joué.
+* **ÉCHANGER** (onglet de Mon équipe) : des remplaçants contre des points d'entraînement
+  (titulaires et effectif de 9 conservés). **OBTENIR PLUS DE JOUEURS** : recrutement contre des pièces
+  (effectif max 18).
+* **Ressources**, toutes gagnées en jouant (aucun achat réel) : points d'entraînement (chaque match,
+  échanges, cadeau du jour), trousses (victoires en compétition, cadeau), boissons (cadeau, événement
+  du week-end), jetons (événements : bronze, argent, or, violet ; titre de champion : or).
+* **Cartes en écusson** : cadre du palier de qualité, portrait 3D, note, poste, jauge de niveau,
+  flèche de forme, éclair si PHYSIQUE actif, nom, pays, numéro.
+* **Paramètres en onglets** : MATCH, CONTRÔLES, AUDIO, GRAPHISMES, AUTRES.
+
 ## Données sportives réelles — choix actuel
 
 Clubs, joueurs et compétitions sont **fictifs**. Le fait qu'un nom de joueur ou de club soit public ne

@@ -108,6 +108,13 @@ Décisions toutes les 0,4 → 0,15 s (INTELLIGENCE × difficulté CPU), pilotage
   but, les autres font des appels et se démarquent. **Contre-attaque** : couloirs de nage.
 * **Défense** : un défenseur battu nage d'abord se replacer côté but ; il ne lit une passe que si
   elle va vers son attaquant.
+* **DÉFENSE maintenue = pression automatique** : sans le ballon, tant que le bouton DÉFENSE est
+  maintenu, le défenseur contrôlé nage seul vers le côté but du porteur, à bout de bras (ou vers le
+  receveur d'une passe adverse, ou vers un ballon libre), sprinte s'il est loin et tente le vol quand
+  il est au contact (même règle de vol / faute qu'un appui). Le joystick infléchit la course.
+* **Toute la largeur du bassin** : en attaque placée, ailiers à 7 m de l'axe (près des lignes de
+  côté) et demis à 4,4 m. Largeur occupée mesurée : 8,1 → 12,0 m, joueurs collés 44 % → 28 %,
+  buts par match (IA contre IA) 4,2 → 6,3. Seuil CI : largeur > 10 m.
 * **Changement de joueur automatique** (réglage, activé par défaut) : quand l'adversaire a le
   ballon, que le ballon est libre ou que l'adversaire fait une passe, le contrôle passe au joueur de
   champ le mieux placé (le plus proche du ballon ou du receveur, côté but). Une passe de son équipe

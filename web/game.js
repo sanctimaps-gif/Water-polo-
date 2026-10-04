@@ -39,7 +39,7 @@ const L = (k, ...a) => {
 };
 
 // ------------------------------------------------------------------ options (persisted per device)
-const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
+const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, zoom: 5, radar: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
 let opts = { ...DEFAULT_OPTS };
 try { Object.assign(opts, JSON.parse(localStorage.getItem('wp26.opts') || '{}')); } catch { /* private mode */ }
 const saveOpts = () => { try { localStorage.setItem('wp26.opts', JSON.stringify(opts)); } catch { /* ignore */ } };
@@ -47,7 +47,9 @@ const DIFF = [0.75, 1, 1.15], DIFF_KEYS = ['difficulty.easy', 'difficulty.normal
 const ASSISTS = ['ASSISTED', 'STANDARD', 'PRO'];
 const MINUTES = [1, 2, 4, 8];
 const GRAPHICS = ['AUTO', ...TIERS];
-const CAMERAS = ['STANDARD', 'DYNAMIC', 'TACTICAL'];
+// Match cameras (Settings > Match, and the CAM chip in the match): broadcast, wide, close, dynamic side,
+// tactical (high), behind the controlled player (end-on), pool deck (low side).
+const CAMERAS = ['STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK'];
 const AMBIENCES = ['EVENT', 'DAY', 'EVENING', 'NIGHT'];
 const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIVE: 'tactic.offensive', DEFENSIVE: 'tactic.defensive', PRESSURE: 'tactic.pressure', CENTER: 'tactic.center', COUNTER: 'tactic.counter' };
 const cycle = (list, v) => list[(list.indexOf(v) + 1) % list.length];
@@ -245,8 +247,9 @@ function pollInput(m) {
       cmd.shootReleased = true;
       const sw = A.swipe, sl = Math.hypot(sw.x, sw.y);
       if (sl > 40) {
-        const s = me.team === 0 ? 1 : -1, n = innerHeight * 0.25;
-        cmd.hasAim = true; cmd.aimX = Math.max(-1.2, Math.min(1.2, -s * (-sw.y / n))); cmd.aimY = Math.max(0, Math.min(1, 0.4 + (sw.x / n) * s * 0.6));
+        // Swipe -> aim, in world space (works with every camera angle): lateral = across the goal, toward the goal = higher.
+        const s = me.team === 0 ? 1 : -1, n = innerHeight * 0.25, w = screenToWorld(sw.x / n, -sw.y / n);
+        cmd.hasAim = true; cmd.aimX = Math.max(-1.2, Math.min(1.2, -s * w.z)); cmd.aimY = Math.max(0, Math.min(1, 0.4 + w.x * s * 0.6));
         if (A.dur < 0.2) cmd.quickShot = true;
       }
       aCtx = false;
@@ -430,7 +433,7 @@ function endReplay() {
 }
 
 // ------------------------------------------------------------------ camera director
-const tmp = new THREE.Vector3();
+const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 function updateCamera(dt, v) {
   const m = match, c = camState;
   const ball = ballMesh.position;
@@ -444,28 +447,42 @@ function updateCamera(dt, v) {
     return;
   }
   const target = ball.clone();
-  if (m.human) target.lerp(athletes[m.human.id].root.position, 0.25);
-  const team = m.possessionTeam;
-  const lead = opts.camera === 'DYNAMIC' ? 3 : 2;
+  if (m.human) target.lerp(athletes[m.human.id].root.position, opts.camera === 'CLOSE' || opts.camera === 'BEHIND' ? 0.55 : 0.25);
+  const team = m.possessionTeam, cam = opts.camera;
+  const zoom = 1.3 - ((opts.zoom ?? 5) - 1) / 9 * 0.55;   // zoom 1 (far) .. 10 (near)
+  const lead = cam === 'DYNAMIC' ? 3 : cam === 'CLOSE' ? 1 : 2;
   if (team >= 0) target.x += (team === 0 ? 1 : -1) * lead;
   if (c.shotT > 0) { c.shotT -= dt; target.x += (c.shotGoalX - target.x) * 0.35; }   // follow the shot toward goal
   const near = Math.min(1, Math.max(0, (Math.abs(ball.x) - 6) / 5));
-  let height, back, sideX = 0;
-  if (opts.camera === 'TACTICAL') { height = 16; back = 10 + 9; fov = 50; target.x *= 0.7; }
-  else if (opts.camera === 'DYNAMIC') { height = 6.2 - 1 * near; back = 10 + 4.8 - 1 * near; fov = 52 - 4 * near; sideX = team >= 0 ? -(team === 0 ? 1 : -1) * 2.5 : 0; }
+  let height, back, sideX = 0, clampX = 6, zk = 0.35, lookY = 0.5;
+  if (cam === 'BEHIND' && m.human && c.goalT <= 0) {
+    // End-on view from behind the controlled player, looking at the goal he attacks.
+    const dir = m.human.team === 0 ? 1 : -1, h = athletes[m.human.id].root.position;
+    c.focus.lerp(tmp2.set(h.x + dir * 4, 0, h.z * 0.85), 1 - Math.exp(-dt / 0.25));
+    camera.position.lerp(tmp.set(Math.max(-30, Math.min(30, c.focus.x - dir * (9 * zoom))), 4.2 * zoom, c.focus.z * 0.9), 1 - Math.exp(-dt * 4));
+    camera.lookAt(c.focus.x, 0.3, c.focus.z); setFov(52, dt, 3); userPan = 0;
+    return;
+  }
+  if (cam === 'TACTICAL') { height = 13.5; back = 10 + 3.5; fov = 58; target.x *= 0.7; zk = 0.1; }
+  else if (cam === 'WIDE') { height = 12; back = 10 + 11; fov = 44; target.x *= 0.6; zk = 0.2; }
+  else if (cam === 'CLOSE') { height = 4.6 - 0.8 * near; back = 10 + 1.5; fov = 50; clampX = 3; zk = 0.75; }
+  else if (cam === 'DYNAMIC') { height = 6.2 - 1 * near; back = 10 + 4.8 - 1 * near; fov = 52 - 4 * near; sideX = team >= 0 ? -(team === 0 ? 1 : -1) * 2.5 : 0; zk = 0.55; }
+  else if (cam === 'DECK') { height = 1.9; back = 10 + 2.6; fov = 46; clampX = 4; zk = 0.5; lookY = 0.2; }
   else { height = 9.5 - 1.5 * near; back = 10 + 7.5 - 1.5 * near; fov = 48 - 6 * near; }
+  height *= zoom; back = 10 + (back - 10) * zoom;
   if (c.shotT > 0) fov -= 4;
-  target.x = Math.max(-12.5 + 6, Math.min(12.5 - 6, target.x + userPan));
-  target.z = Math.max(-2.5, Math.min(2.5, target.z * (opts.camera === 'DYNAMIC' ? 0.55 : 0.35))); target.y = 0;
+  target.x = Math.max(-12.5 + clampX, Math.min(12.5 - clampX, target.x + userPan));
+  target.z = Math.max(-3.5, Math.min(3.5, target.z * zk)); target.y = 0;
   if (c.goalT > 0) {
     // Goal camera: close, low, 3/4 view of the net and the celebration.
     c.goalT -= dt; target.set(c.goalPoint.x - c.goalSide * 2.5, 0, c.goalPoint.z * 0.5);
-    height = 3.2; back = 7.5; fov = 40; sideX = -c.goalSide * 3;
+    height = 3.2; back = 7.5; fov = 40; sideX = -c.goalSide * 3; lookY = 0.5;
   }
   c.focus.lerp(target, 1 - Math.exp(-dt / 0.25));
-  pos = tmp.set(c.focus.x + sideX, height, c.focus.z - back);
+  // Stay inside the hall: under the roof (15 m) and in front of the near wall (z = -23.5).
+  pos = tmp.set(c.focus.x + sideX, Math.min(height, 14.2), Math.max(c.focus.z - back, -22.8));
   camera.position.lerp(pos, 1 - Math.exp(-dt * 4));
-  camera.lookAt(c.focus.x, 0.5, c.focus.z);
+  camera.lookAt(c.focus.x, lookY, c.focus.z);
   setFov(fov, dt, 3);
   userPan += (0 - userPan) * Math.min(1, dt * 0.8);
 }
@@ -529,7 +546,9 @@ function finishMatch(forfeit) {
   let hs = m.teams[0].score, as = m.teams[1].score;
   const stats = { ...m.stats.teams[0] }, statsOpp = { ...m.stats.teams[1] };
   if (forfeit) { hs = 0; as = 5; }
-  const summary = ctx.mode === 'quick' && forfeit ? null : state.applyResult(ctx, { hs, as, stats });
+  const players = {};   // career stats of the squad players who played
+  m.players.forEach((p, i) => { if (p.team === 0 && p.pid) players[p.pid] = m.pstats[i]; });
+  const summary = ctx.mode === 'quick' && forfeit ? null : state.applyResult(ctx, { hs, as, stats, players });
   leaveMatch();
   if (summary) { audio.whistle(false); app.show('results', { summary, hs, as, stats, statsOpp, opponent: m.teams[1].def.short }, false); }
   else app.home();
@@ -637,8 +656,27 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+// Radar: the whole pool seen from above (players, ball, controlled player), redrawn at ~15 Hz.
+let radarT = 0;
+function drawRadar(m) {
+  const cv = $('radar'); cv.hidden = opts.radar === false || !!replay; if (cv.hidden) return;
+  const W = cv.width, H = cv.height, g = cv.getContext('2d'), sx = W / 27, sz = H / 21, X = (x) => W / 2 + x * sx, Z = (z) => H / 2 - z * sz;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = 'rgba(8, 40, 70, 0.62)'; g.fillRect(X(-12.5), Z(10), 25 * sx, 20 * sz);
+  g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 1; g.strokeRect(X(-12.5), Z(10), 25 * sx, 20 * sz);
+  g.beginPath(); g.moveTo(X(0), Z(10)); g.lineTo(X(0), Z(-10)); g.stroke();
+  for (const gx of [-12.5, 12.5]) { g.fillStyle = '#fff'; g.fillRect(X(gx) - 1.5, Z(1.5), 3, 3 * sz); }
+  const col = [hexCss(m.teams[0].def.color), '#f2f4f7'];
+  for (const p of m.players) {
+    g.fillStyle = p.isGK ? '#d81a1f' : col[p.team]; g.beginPath(); g.arc(X(p.pos.x), Z(p.pos.z), p.human ? 5 : 3.8, 0, 7); g.fill();
+    if (p.human) { g.strokeStyle = '#ffe14a'; g.lineWidth = 1.5; g.stroke(); }
+  }
+  g.fillStyle = '#ffd21a'; g.beginPath(); g.arc(X(m.ball.pos.x), Z(m.ball.pos.z), 3, 0, 7); g.fill();
+}
+const hexCss = (c) => '#' + c.toString(16).padStart(6, '0');
 function updateHud(dt) {
   const m = match;
+  radarT -= dt; if (radarT <= 0) { radarT = 1 / 15; drawRadar(m); }
   $('home-score').textContent = m.teams[0].score; $('away-score').textContent = m.teams[1].score;
   const t = Math.max(0, m.periodLeft);
   $('clock').textContent = `${L('hud.period', m.period)}  ${String((t / 60) | 0).padStart(2, '0')}:${String((t | 0) % 60).padStart(2, '0')}`;
@@ -678,7 +716,7 @@ function resize() {
 const portraitCache = new Map();
 let portraitRig = null;
 function portraitFor(p, capColor) {
-  const key = `${p.id}|${capColor}|${p.number}`;
+  const key = `${p.id}|${capColor}|${p.number}|2`;
   if (portraitCache.has(key)) return portraitCache.get(key);
   if (!portraitRig) {
     const sc = new THREE.Scene();
@@ -698,7 +736,7 @@ function portraitFor(p, capColor) {
   for (let i = 0; i < 30; i++) a.update(1 / 30, st);
   a.root.updateMatrixWorld(true);
   const h = a.head.getWorldPosition(new THREE.Vector3());
-  R.cam.position.set(h.x + 0.1, h.y + 0.04, h.z + 0.95); R.cam.lookAt(h.x, h.y - 0.02, h.z);
+  R.cam.position.set(h.x + 0.1, h.y + 0.12, h.z + 1.0); R.cam.lookAt(h.x, h.y + 0.03, h.z);   // head bone = neck pivot: the face is ~0.1 m above
   const prevT = renderer.getRenderTarget(), prevC = renderer.getClearColor(new THREE.Color()), prevA = renderer.getClearAlpha();
   renderer.setRenderTarget(R.rt); renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(R.sc, R.cam);
   renderer.readRenderTargetPixels(R.rt, 0, 0, 160, 200, R.buf);
@@ -716,17 +754,19 @@ function portraitFor(p, capColor) {
 const state = new GameState();
 let heroVisible = true;
 const settingsDef = () => [
-  ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, 'graphics'],
-  ['menu.camera', L('cam.' + opts.camera.toLowerCase()), 'camera'],
-  ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience'],
-  ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), 'replays'],
-  ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty'],
-  ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist'],
-  ['menu.duration', L('menu.minutes', opts.minutes), 'minutes'],
-  ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), 'timing'],
-  ['menu.autoswitch', L(opts.autoSwitch !== false ? 'value.on' : 'value.off'), 'autoSwitch'],
-  ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound'],
-  ['menu.language', L('lang.name'), 'lang'],
+  ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, 'graphics', 'graphics'],
+  ['menu.camera', `${CAMERAS.indexOf(opts.camera) + 1}. ${L('cam.' + opts.camera.toLowerCase())}`, 'camera', 'match'],
+  ['menu.zoom', `${opts.zoom ?? 5} / 10`, 'zoom', 'match'],
+  ['menu.radar', L(opts.radar !== false ? 'value.on' : 'value.off'), 'radar', 'match'],
+  ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience', 'audio'],
+  ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), 'replays', 'match'],
+  ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty', 'match'],
+  ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist', 'controls'],
+  ['menu.duration', L('menu.minutes', opts.minutes), 'minutes', 'match'],
+  ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), 'timing', 'controls'],
+  ['menu.autoswitch', L(opts.autoSwitch !== false ? 'value.on' : 'value.off'), 'autoSwitch', 'controls'],
+  ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound', 'audio'],
+  ['menu.language', L('lang.name'), 'lang', 'other'],
 ];
 const app = new App($('app'), {
   L, state,
@@ -738,11 +778,13 @@ const app = new App($('app'), {
     if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
     lockLandscape(); audio.start(); startMatch(ctx);
   },
-  settingsRows: () => settingsDef().map(([k, v, key]) => [L(k), v, key]),
+  settingsRows: () => settingsDef().map(([k, v, key, group]) => [L(k), v, key, group]),
   changeSetting: async (key) => {
     switch (key) {
       case 'graphics': opts.graphics = cycle(GRAPHICS, opts.graphics); applyQuality(opts.graphics === 'AUTO' ? autoTier : opts.graphics); break;
       case 'camera': opts.camera = cycle(CAMERAS, opts.camera); break;
+      case 'zoom': opts.zoom = ((opts.zoom ?? 5) % 10) + 1; break;
+      case 'radar': opts.radar = opts.radar === false; break;
       case 'ambience': opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); break;
       case 'replays': opts.replays = !opts.replays; break;
       case 'difficulty': opts.difficulty = (opts.difficulty + 1) % 3; break;

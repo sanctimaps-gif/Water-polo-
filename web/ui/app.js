@@ -1,5 +1,5 @@
 // WATER POLO 26 MOBILE — front-end screens (landscape only). Every value comes from GameState.
-import { EVENTS, SHOP_ITEMS, CLUBS, POOLS, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey } from '../state.js';
+import { EVENTS, SHOP_ITEMS, CLUBS, POOLS, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
 import { TACTICS } from '../sim.js';
 import { logoSvg, icon, trophySvg, LOGO_SHAPES, LOGO_SYMBOLS } from './art.js';
 
@@ -60,18 +60,24 @@ export class App {
         <span><b>${esc(d.club.name)}</b><small>${this.L('ui.total')} <em id="hdr-total">${t}</em></small></span></button>
       <div class="lvl"><span>${this.L('ui.level')} <b>${pr.level}</b></span><i><u style="width:${Math.round((pr.xp / need) * 100)}%"></u></i></div>
       <div class="spacer"></div>
+      <button class="cur mini" data-act="cur" data-arg="tp">${icon('dumbbell', 20)}<b id="hdr-tp">${d.currencies.tp.toLocaleString('fr-FR')}</b></button>
+      <button class="cur mini" data-act="cur" data-arg="medkits">${icon('medkit', 20)}<b id="hdr-med">${d.currencies.medkits}</b></button>
+      <button class="cur mini" data-act="cur" data-arg="energy">${icon('bolt', 20)}<b id="hdr-en">${d.currencies.energy}</b></button>
       <button class="cur coins" data-act="cur" data-arg="coins">${icon('coin', 22)}<b id="hdr-coins">${d.currencies.coins.toLocaleString('fr-FR')}</b>${icon('plus', 16)}</button>
       <button class="cur gems" data-act="cur" data-arg="gems">${icon('gem', 22)}<b id="hdr-gems">${d.currencies.gems.toLocaleString('fr-FR')}</b>${icon('plus', 16)}</button>
     </header>`;
   }
   refreshHeader() {
     const d = this.st.data, set = (id, v) => { const el = this.root.querySelector('#' + id); if (el && el.textContent !== String(v)) { el.textContent = v; el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); } };
-    set('hdr-coins', d.currencies.coins.toLocaleString('fr-FR')); set('hdr-gems', d.currencies.gems.toLocaleString('fr-FR')); set('hdr-total', this.st.teamTotal().total);
+    set('hdr-coins', d.currencies.coins.toLocaleString('fr-FR')); set('hdr-tp', d.currencies.tp.toLocaleString('fr-FR')); set('hdr-med', d.currencies.medkits); set('hdr-en', d.currencies.energy); set('hdr-gems', d.currencies.gems.toLocaleString('fr-FR')); set('hdr-total', this.st.teamTotal().total);
   }
   backBtn() { return `<button class="btn back" data-act="back">${icon('back', 18)} ${this.L('ui.back')}</button>`; }
   badge(n) { return n > 0 ? `<span class="badge">${n}</span>` : ''; }
   timer(until, fmt) { return `<span data-until="${until}" data-fmt="${fmt}">${this.L(fmt, formatDuration(until - Date.now()))}</span>`; }
-  reward(r) { return [r.coins ? `${icon('coin', 16)}${r.coins}` : '', r.gems ? `${icon('gem', 16)}${r.gems}` : ''].join(' '); }
+  reward(r) {
+    return [r.coins ? `${icon('coin', 16)}${r.coins}` : '', r.gems ? `${icon('gem', 16)}${r.gems}` : '', r.tp ? `${icon('dumbbell', 16)}${r.tp}` : '',
+      r.medkits ? `${icon('medkit', 16)}${r.medkits}` : '', r.energy ? `${icon('bolt', 16)}${r.energy}` : '', r.token !== undefined ? `${icon('token' + r.token, 16)}1` : ''].filter(Boolean).join(' ');
+  }
   portrait(p, capColor) {
     const url = this.api.portrait && this.api.portrait(p, capColor);
     if (url) return `<img class="portrait p3d" src="${url}" alt="" draggable="false">`;
@@ -84,21 +90,26 @@ export class App {
       <circle cx="27" cy="31" r="1.6" fill="#222"/><circle cx="37" cy="31" r="1.6" fill="#222"/><path d="M28 39 Q32 41 36 39" stroke="#7a3d33" stroke-width="1.5" fill="none"/>
       ${n % 3 === 0 ? '<path d="M21 36 Q32 50 43 36 Q42 44 32 46 Q22 44 21 36Z" fill="#2a1a10" opacity=".75"/>' : ''}</svg>`;
   }
+  /** Player card: shield frame of the quality tier (bronze / silver / gold / purple), 3D portrait, rating,
+   *  poste, level gauge (level / cap), form arrow, name, country, club. */
   card(p, slot, opts = {}) {
-    const ovr = overall(p), rar = rarity(ovr), bonus = slot === undefined ? 0 : this.st.slotBonus(p, slot);
+    const ovr = overall(p), q = QUALITIES[p.quality || 0], bonus = slot === undefined ? 0 : this.st.slotBonus(p, slot);
     const keyStats = p.role === 'GOALKEEPER' ? [['GB', p.stats.goalkeeping], ['RÉA', p.stats.reaction], ['PLA', p.stats.positioning]]
       : [['TIR', p.stats.shooting], ['PAS', p.stats.passing], ['DÉF', p.stats.defense]];
     const fit = slot === undefined ? '' : bonus > 0 ? `<i class="fit good">+${bonus}</i>` : bonus < 0 ? `<i class="fit bad">${bonus}</i>` : '';
-    return `<button class="pcard r-${rar} ${opts.small ? 'small' : ''} ${this.sel === p.id ? 'sel' : ''}" data-act="card" data-arg="${p.id}" style="${opts.style || ''}">
-      <span class="ovr">${ovr}</span><span class="role">${ROLE_ABBR[p.role]}</span><span class="num">#${p.number}</span>${fit}
+    const form = p.form >= 70 ? 'up' : p.form >= 40 ? 'mid' : 'down';
+    return `<button class="pcard q-${q} ${opts.small ? 'small' : ''} ${opts.picked ? 'picked' : ''} ${this.sel === p.id ? 'sel' : ''}" data-act="${opts.act || 'card'}" data-arg="${p.id}" style="${opts.style || ''}">
+      <div class="pc-in">
+      <span class="lvl-g" title="${p.level}/${maxLevel(p)}"><u style="height:${Math.round((p.level / maxLevel(p)) * 100)}%"></u></span>
       ${this.portrait(p, this.st.equippedColor('cap') ?? this.st.data.club.color)}
+      <span class="ovr">${ovr}</span><span class="role">${ROLE_ABBR[p.role]}</span>${fit}
+      <span class="form f-${form}" title="${p.form}">${icon('up', 12)}</span>${p.boost > 0 ? `<span class="boost">${icon('bolt', 12)}</span>` : ''}
       <span class="nm">${esc(p.firstName[0])}. ${esc(p.lastName)}</span>
-      <span class="ct">${flag(p.nationality)} ${p.nationality} · ${esc(this.st.data.club.short || '')}${opts.small ? '' : ` · Nv ${p.level}`}</span>
+      <span class="ct">${flag(p.nationality)} ${p.nationality} · #${p.number}</span>
       ${opts.small ? '' : `<span class="ks">${keyStats.map(([k, v]) => `<b>${v}</b><small>${k}</small>`).join('')}</span>`}
-    </button>`;
+      </div></button>`;
   }
 
-  // ------------------------------------------------------------------ screens
   scr_home() {
     const st = this.st, nm = st.nextLeagueMatch(), me = st.clubInfo('user');
     const opp = nm ? st.clubInfo(nm.opponent) : null, pool = POOLS[(nm ? nm.round : 0) % POOLS.length];
@@ -140,7 +151,16 @@ export class App {
     // Formation seen from the pool deck: attacking goal on top (wings and centre at 2 m), flats, point, goalkeeper.
     const pos = { 4: [6, 1], 5: [41, 0], 0: [76, 1], 3: [16, 33.5], 2: [41, 33.5], 1: [66, 33.5] };
     const tabs = `<div class="tabs"><button class="${this.teamTab === 'starters' ? 'on' : ''}" data-act="team-tab" data-arg="starters">${this.L('ui.starters')}</button>
-      <button class="${this.teamTab === 'tactics' ? 'on' : ''}" data-act="team-tab" data-arg="tactics">${this.L('ui.tactics')}</button></div>`;
+      <button class="${this.teamTab === 'tactics' ? 'on' : ''}" data-act="team-tab" data-arg="tactics">${this.L('ui.tactics')}</button>
+      <button class="${this.teamTab === 'trade' ? 'on' : ''}" data-act="team-tab" data-arg="trade">${this.L('ui.trade')}</button></div>`;
+    // ÉCHANGER: release reserve players for training points (starters and a squad of 9 are kept).
+    this.picked = this.picked || new Set();
+    const tradable = st.bench().filter((p) => st.canTrade(p.id) || this.picked.has(p.id));
+    const value = [...this.picked].reduce((a, id) => a + (st.player(id) ? tradeValue(st.player(id)) : 0), 0);
+    const trade = `<div class="trade"><p class="hint2">${this.L('ui.trade_hint')}</p>
+      <div class="trade-grid">${tradable.length ? tradable.map((p) => this.card(p, undefined, { act: 'pick', picked: this.picked.has(p.id) })).join('') : `<p class="ni">${this.L('ui.trade_none')}</p>`}</div>
+      <div class="trade-bar"><span>${this.L('ui.trade_value')} <b>${icon('dumbbell', 18)} ${value}</b></span>
+      <button class="btn ${this.picked.size ? 'gold' : 'off'}" data-act="do-trade">${icon('swap', 18)} ${this.L('ui.trade')}</button></div></div>`;
     const tactics = `<div class="tactics">${TACTICS.map((t) => `<button class="tac ${st.data.club.tactic === t ? 'on' : ''}" data-act="tactic" data-arg="${t}">
       <b>${this.L('tactic.' + (t === 'COUNTER' ? 'counter' : t.toLowerCase()))}</b><small>${this.L('tdesc.' + t)}</small></button>`).join('')}</div>`;
     const field = `<div class="pool-field"><div class="goal-top"></div><div class="line2"></div><div class="line5"></div>
@@ -152,8 +172,8 @@ export class App {
         <small>${this.L('ui.avg_rating')}</small><b>${tot.base.toFixed(1)}</b>
         <small>${this.L('ui.pos_bonus')}</small><b class="${tot.bonus >= 0 ? 'pos' : 'neg'}">${tot.bonus >= 0 ? '+' : ''}${tot.bonus.toFixed(2)}</b>
         <button class="btn cyan" data-act="best">${this.L('ui.best_total')}</button></aside>
-      <div class="team-main">${tabs}${this.teamTab === 'starters' ? field : tactics}</div>
-      <aside class="bench"><h3>${this.L('ui.bench')}</h3>${st.bench().map((p) => this.card(p, undefined, { small: true })).join('')}</aside>
+      <div class="team-main">${tabs}${this.teamTab === 'starters' ? field : this.teamTab === 'trade' ? trade : tactics}</div>
+      <aside class="bench"><button class="btn cyan small" data-act="recruit">${this.L('ui.more_players')}<small>${icon('coin', 14)} ${st.recruitCost()}</small></button><h3>${this.L('ui.bench')}</h3>${st.bench().map((p) => this.card(p, undefined, { small: true })).join('')}</aside>
       <footer class="bar">${this.backBtn()}<div class="spacer"></div><button class="btn play" data-act="prematch-league">${icon('play', 18)} ${this.L('ui.play')}</button></footer>
     </div>`;
   }
@@ -202,7 +222,7 @@ export class App {
   scr_rewards() {
     const g = this.st.data.gift, avail = this.st.giftAvailable(), cur = g.streak % 7;
     const gifts = [0, 1, 2, 3, 4, 5, 6].map((i) => {
-      const r = [{ coins: 100 }, { coins: 150 }, { coins: 200 }, { coins: 250, gems: 1 }, { coins: 300 }, { coins: 350 }, { coins: 400, gems: 5 }][i];
+      const r = DAILY_GIFTS[i];
       const state = i < cur ? 'got' : i === cur && avail ? 'now' : '';
       return `<div class="gift ${state}"><small>${this.L('ui.day', i + 1)}</small>${icon(i === 6 ? 'gem' : 'gift', 34)}<b>${this.reward(r)}</b></div>`;
     }).join('');
@@ -250,9 +270,12 @@ export class App {
   }
 
   scr_settings() {
-    const rows = this.api.settingsRows().map(([label, value, key]) => `<div class="row"><span>${label}</span><button class="btn cyan" data-act="setting" data-arg="${key}">${value}</button></div>`).join('');
-    return `<div class="panel-screen"><h1>${this.L('ui.settings')}</h1><div class="settings">${rows}</div>
-      <p class="sub">${this.L('ui.save_local')}</p><button class="btn danger" data-act="reset">${this.L('ui.reset')}</button>
+    // Tabs like a console sports game: MATCH (camera, zoom, radar...), CONTROLS, AUDIO, GRAPHICS, OTHER.
+    const tab = this.setTab || 'match', all = this.api.settingsRows();
+    const tabs = ['match', 'controls', 'audio', 'graphics', 'other'].map((t) => `<button class="${tab === t ? 'on' : ''}" data-act="set-tab" data-arg="${t}">${this.L('set.' + t)}</button>`).join('');
+    const rows = all.filter((r) => r[3] === tab).map(([label, value, key]) => `<div class="row"><span>${label}</span><button class="btn cyan" data-act="setting" data-arg="${key}">${value}</button></div>`).join('');
+    return `<div class="panel-screen"><h1>${this.L('ui.settings')}</h1><div class="tabs">${tabs}</div><div class="settings">${rows}</div>
+      ${tab === 'other' ? `<p class="sub">${this.L('ui.save_local')}</p><button class="btn danger" data-act="reset">${this.L('ui.reset')}</button>` : ''}
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
@@ -282,7 +305,7 @@ export class App {
     return `<div class="results ${hs > as ? 'win' : hs < as ? 'loss' : 'draw'}"><h1>${this.L(title)}</h1>
       <div class="res-score"><span>${esc(this.st.data.club.short)}</span><b>${hs} - ${as}</b><span>${esc(opponent)}</span></div>
       <div class="res-body"><div class="res-stats">${rows.map(([x, k, y]) => `<div class="sr"><b>${x}</b><span>${this.L(k)}</span><b>${y}</b></div>`).join('')}</div>
-      <div class="res-rew"><div class="rw">${icon('coin', 30)}<b>+${s.coins}</b></div><div class="rw">${icon('star', 30)}<b>+${s.xp} ${this.L('ui.xp')}</b></div>
+      <div class="res-rew"><div class="rw">${icon('coin', 30)}<b>+${s.coins}</b></div><div class="rw">${icon('star', 30)}<b>+${s.xp} ${this.L('ui.xp')}</b></div><div class="rw">${icon('dumbbell', 30)}<b>+${s.tp}</b></div>${s.medkits ? `<div class="rw">${icon('medkit', 30)}<b>+${s.medkits}</b></div>` : ''}
       ${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div></div>
       <button class="btn play big" data-act="home">${this.L('ui.continue')}</button></div>`;
   }
@@ -296,14 +319,31 @@ export class App {
       case 'home': this.home(); break;
       case 'team-tab': this.teamTab = arg; this.sel = null; this.render(); break;
       case 'rank-tab': this.rankTab = arg; this.render(); break;
+      case 'set-tab': this.setTab = arg; this.render(); break;
       case 'card': {
         if (this.sel === arg) { this.sel = null; this.playerSheet(st.player(arg)); return; }
         if (this.sel) { st.swap(this.sel, arg); this.sel = null; this.api.haptic(15); } else this.sel = arg;
         this.render(); break;
       }
+      case 'pick': { if (this.picked.has(arg)) this.picked.delete(arg); else if (st.canTrade(arg)) this.picked.add(arg); this.render(); break; }
+      case 'do-trade': {
+        if (!this.picked.size) return;
+        if (await this.confirm(this.L('ui.trade_confirm', this.picked.size))) { const tp = st.trade([...this.picked]); this.picked.clear(); this.rewardPopup({ tp }); this.render(); }
+        break;
+      }
+      case 'recruit': {
+        if (st.squad.length >= 18) { this.toast(this.L('ui.squad_full')); return; }
+        if (!st.canAfford({ coins: st.recruitCost() })) { this.toast(this.L('ui.not_enough')); return; }
+        if (await this.confirm(this.L('ui.recruit_confirm', st.recruitCost()))) {
+          const p = st.recruit(); if (!p) return;
+          this.api.rewardSound(); this.render();
+          this.modal(this.L('ui.new_player'), `<div class="reveal">${this.card(p, undefined, { act: 'noop' })}</div>`);
+        }
+        break;
+      }
       case 'best': st.autoLineup(); this.sel = null; this.render(); this.toast(this.L('ui.done')); break;
       case 'tactic': st.data.club.tactic = arg; st.save(); this.render(); break;
-      case 'cur': this.modal(this.L(arg === 'coins' ? 'ui.coins' : 'ui.gems'), `<p>${this.L(arg === 'coins' ? 'ui.coins_how' : 'ui.gems_how')}</p>`); break;
+      case 'cur': this.modal(this.L('ui.' + arg), `<p>${this.L('ui.' + arg + '_how')}</p>`); break;
       case 'claim-gift': { const r = st.claimGift(); if (r) this.rewardPopup(r); this.render(); break; }
       case 'claim-obj': { const r = st.claimObjective(arg); if (r) this.rewardPopup(r); this.render(); break; }
       case 'claim-event': { const r = st.claimEvent(EVENTS.find((e) => e.id === arg)); if (r) this.rewardPopup(r); this.render(); break; }
@@ -334,17 +374,54 @@ export class App {
   }
 
   // ------------------------------------------------------------------ overlays
-  playerSheet(p) {
-    const ovr = overall(p), cost = this.st.upgradeCost(p), max = p.level >= 20;
-    const stats = STAT_KEYS.filter((k) => k !== 'goalkeeping' || p.role === 'GOALKEEPER').map((k) => `<div class="stat"><span>${this.L('stat.' + k)}</span><i><u style="width:${p.stats[k]}%"></u></i><b>${p.stats[k]}</b></div>`).join('');
-    this.modal(`${esc(p.firstName)} ${esc(p.lastName)}`, `<div class="sheet"><div class="sheet-left r-${rarity(ovr)}">${this.portrait(p, this.st.equippedColor('cap') ?? this.st.data.club.color)}
-        <b class="ovr">${ovr}</b><span>${this.L('role.' + p.role)} · ${this.L('rar.' + rarity(ovr))}</span><span>${flag(p.nationality)} ${p.nationality}</span>
-        <span>${this.L('ui.age')} ${new Date().getFullYear() - p.birthYear} · ${this.L('ui.height')} ${p.height} cm</span><span>${this.L('ui.level')} ${p.level}</span></div>
-        <div class="sheet-stats">${stats}<small class="src">${this.L('ui.source')}</small></div></div>`,
-      [max ? [this.L('ui.max_level'), null] : [`${icon('up', 16)} ${this.L('ui.upgrade')} · ${icon('coin', 16)} ${cost}`, () => {
-        if (!this.st.upgrade(p.id)) { this.toast(this.L('ui.not_enough')); return false; }
-        this.api.haptic(25); this.render(); this.playerSheet(p); return true;
-      }]]);
+  /**
+   * Player sheet (progression): front card + back card (stat groups, height / weight, skills), STANDARD tab
+   * with the 4 progression actions (form, physique, training, quality) and the tokens, ADVANCED tab with
+   * every stat, career statistics underneath.
+   */
+  playerSheet(p, tab = 'std') {
+    const st = this.st, c = st.data.currencies, q = p.quality || 0, ml = maxLevel(p), cost = st.upgradeCost(p);
+    const G = (ks) => Math.round(ks.reduce((a, k) => a + p.stats[k], 0) / ks.length);
+    const groups = [['VIT', G(['speed', 'accel'])], ['END', G(['stamina', 'physical'])], ['TIR', G(['shooting', 'power', 'accuracy'])],
+      ['PAS', G(['passing', 'technique'])], ['DÉF', G(['defense', 'positioning'])], p.role === 'GOALKEEPER' ? ['GB', p.stats.goalkeeping] : ['INT', G(['intelligence', 'reaction'])]];
+    const back = `<div class="pcard q-${QUALITIES[q]} back"><div class="pc-in"><div class="grp">${groups.map(([k, v]) => `<span><small>${k}</small><b>${v}</b></span>`).join('')}</div>
+      <div class="hw"><span>${p.weight} kg</span><span>${p.height} cm</span></div>
+      ${p.skills.map((sk) => `<div class="skill ${sk.level ? '' : 'off'}">${this.L('skill.' + sk.id)} · ${sk.level ? this.L('ui.lvl', sk.level) : '🔒'}</div>`).join('')}</div></div>`;
+    const tile = (title, val, btn, act, on) => `<div class="act-tile"><b>${title}</b><div class="at-val">${val}</div>
+      <button class="btn ${on ? 'play' : 'off'} small" data-sact="${act}">${btn}</button></div>`;
+    const formBar = `<i class="gauge"><u style="width:${p.form}%;background:${p.form >= 70 ? '#4de683' : p.form >= 40 ? '#f2c81a' : '#e5533d'}"></u></i><small>${p.form} / 100</small>`;
+    const std = `<div class="act-grid">
+        ${tile(this.L('ui.form'), formBar, `${icon('medkit', 16)} +50 · ${c.medkits}`, 'heal', p.form < 100 && c.medkits > 0)}
+        ${tile(this.L('ui.physique'), p.boost ? `<small class="on">${this.L('ui.boost_on')}</small>` : `<small>${this.L('ui.boost_desc')}</small>`, `${icon('bolt', 16)} 1 · ${c.energy}`, 'energize', !p.boost && c.energy > 0)}
+        ${tile(this.L('ui.training'), `<i class="gauge"><u style="width:${(p.level / ml) * 100}%"></u></i><small>${this.L('ui.level')} ${p.level} / ${ml}</small>`,
+          p.level >= ml ? this.L('ui.max_level') : `${icon('dumbbell', 16)} ${cost}`, 'train', p.level < ml && c.tp >= cost)}
+        ${tile(this.L('ui.quality'), `<small>${this.L('rar.q.' + QUALITIES[q])}${q < 3 ? ' → ' + this.L('rar.q.' + QUALITIES[q + 1]) : ''}</small><small>${q < 3 ? (st.qualityReady(p) ? this.L('ui.quality_ready') : this.L('ui.quality_need', ml)) : this.L('ui.max_level')}</small>`,
+          q < 3 ? `${icon('token' + q, 16)} 1 · ${c.tokens[q]}` : '—', 'quality', st.qualityReady(p) && c.tokens[q] > 0)}
+      </div>
+      <div class="train-max"><button class="btn ${p.level < ml && c.tp >= cost ? 'cyan' : 'off'} small" data-sact="trainmax">${this.L('ui.train_max')}</button></div>
+      <div class="tokens">${QUALITIES.map((qq, i) => `<span>${icon('token' + i, 18)} ${c.tokens[i]}</span>`).join('')}</div>`;
+    const adv = `<div class="sheet-stats">${STAT_KEYS.filter((k) => k !== 'goalkeeping' || p.role === 'GOALKEEPER').map((k) => `<div class="stat"><span>${this.L('stat.' + k)}</span><i><u style="width:${p.stats[k]}%"></u></i><b>${p.stats[k]}</b></div>`).join('')}</div>`;
+    const cr = p.career, career = [['ui.c_matches', cr.matches], ['ui.c_wins', cr.wins], ['ui.c_draws', cr.draws], ['ui.c_goals', cr.goals], ['ui.c_assists', cr.assists],
+      ['ui.c_shots', cr.shots], ['ui.c_steals', cr.steals], p.role === 'GOALKEEPER' ? ['ui.c_saves', cr.saves] : ['ui.c_passes', cr.passes]];
+    const html = `<div class="psheet">
+      <div class="ps-cards">${this.card(p, undefined, { act: 'noop' })}${back}
+        <div class="ps-info"><b>${this.L('role.' + p.role)}</b><span>${this.L('ui.age')} ${new Date().getFullYear() - p.birthYear}</span><span>#${p.number}</span></div></div>
+      <div class="ps-right"><div class="tabs small"><button class="${tab === 'std' ? 'on' : ''}" data-stab="std">${this.L('ui.standard')}</button><button class="${tab === 'adv' ? 'on' : ''}" data-stab="adv">${this.L('ui.advanced')}</button></div>
+        ${tab === 'std' ? std : adv}</div>
+      <div class="ps-career">${career.map(([k, v]) => `<span>${this.L(k)}<b>${v}</b></span>`).join('')}</div>
+      <small class="src">${this.L('ui.source')}</small></div>`;
+    const title = `<span>${esc(p.firstName)} ${esc(p.lastName)}</span><span class="ps-club">${flag(p.nationality)} ${esc(st.data.club.name)}</span>`;
+    document.querySelector('.modal.sheet-modal')?.remove();
+    const m = document.createElement('div'); m.className = 'modal sheet-modal';
+    m.innerHTML = `<div class="modal-box wide anim-pop"><h2 class="ps-title">${title}</h2><div class="modal-body">${html}</div><div class="modal-actions"><button class="btn" data-close>${this.L('ui.back')}</button></div></div>`;
+    m.addEventListener('click', (e) => {
+      if (e.target === m || e.target.closest('[data-close]')) { m.remove(); this.render(); return; }
+      const t = e.target.closest('[data-stab]'); if (t) { this.playerSheet(p, t.dataset.stab); return; }
+      const a = e.target.closest('[data-sact]'); if (!a) return;
+      const fn = { heal: () => st.heal(p.id), energize: () => st.energize(p.id), train: () => st.upgrade(p.id), trainmax: () => st.upgradeMax(p.id) > 0, quality: () => st.upgradeQuality(p.id) }[a.dataset.sact];
+      if (fn && fn()) { this.api.haptic(25); this.api.uiSound(); this.refreshHeader(); this.playerSheet(p, tab); } else this.toast(this.L('ui.not_enough'));
+    });
+    document.body.appendChild(m);
   }
   modal(title, html, buttons = []) {
     return new Promise((resolve) => {

@@ -45,10 +45,10 @@ export const SHOP_ITEMS = [
 ];
 
 export const EVENTS = [
-  { id: 'ocean_cup', name: 'event.ocean_cup', tier: 'standard', matches: 3, ratings: [68, 72, 76], reward: { coins: 450, gems: 5 }, schedule: 'weekly' },
-  { id: 'weekend', name: 'event.weekend', tier: 'special', matches: 2, ratings: [72, 78], reward: { coins: 350, gems: 10 }, schedule: 'weekend' },
-  { id: 'elite', name: 'event.elite', tier: 'major', matches: 4, ratings: [76, 79, 82, 85], reward: { coins: 900, gems: 20 }, schedule: 'weekly', minLevel: 5 },
-  { id: 'gala', name: 'event.gala', tier: 'premium', matches: 3, ratings: [82, 85, 88], reward: { coins: 1500, gems: 40 }, schedule: 'weekly', needTrophy: true },
+  { id: 'ocean_cup', name: 'event.ocean_cup', tier: 'standard', matches: 3, ratings: [68, 72, 76], reward: { coins: 450, gems: 5, token: 0 }, schedule: 'weekly' },
+  { id: 'weekend', name: 'event.weekend', tier: 'special', matches: 2, ratings: [72, 78], reward: { coins: 350, gems: 10, token: 1, energy: 2 }, schedule: 'weekend' },
+  { id: 'elite', name: 'event.elite', tier: 'major', matches: 4, ratings: [76, 79, 82, 85], reward: { coins: 900, gems: 20, token: 2 }, schedule: 'weekly', minLevel: 5 },
+  { id: 'gala', name: 'event.gala', tier: 'premium', matches: 3, ratings: [82, 85, 88], reward: { coins: 1500, gems: 40, token: 3 }, schedule: 'weekly', needTrophy: true },
 ];
 
 const OBJECTIVE_POOL = [
@@ -60,7 +60,43 @@ const OBJECTIVE_POOL = [
   { id: 'saves', n: 5, reward: { coins: 150 } },
   { id: 'shots', n: 12, reward: { coins: 120 } },
 ];
-const DAILY_GIFTS = [{ coins: 100 }, { coins: 150 }, { coins: 200 }, { coins: 250, gems: 1 }, { coins: 300 }, { coins: 350 }, { coins: 400, gems: 5 }];
+export const DAILY_GIFTS = [{ coins: 100, medkits: 1 }, { coins: 150, tp: 100 }, { coins: 200, energy: 1 }, { coins: 250, gems: 1, medkits: 1 }, { coins: 300, tp: 150 }, { coins: 350, energy: 1 }, { coins: 400, gems: 5, token: 0 }];
+
+// ---------------------------------------------------------------- progression
+// Quality tiers (card frame): bronze -> silver -> gold -> purple. Each tier raises the training cap.
+export const QUALITIES = ['bronze', 'silver', 'gold', 'purple'];
+export const maxLevel = (p) => 10 + 5 * (p.quality || 0);
+/** Skills: real stat bonuses in matches (per skill level). */
+export const SKILLS = {
+  sniper: { shooting: 2, accuracy: 2 }, cannon: { power: 3, shooting: 1 }, playmaker: { passing: 2, intelligence: 2 }, wall: { defense: 3, positioning: 1 },
+  anchor: { physical: 3, power: 1 }, sprinter: { speed: 2, accel: 2 }, reflex: { goalkeeping: 2, reaction: 2 }, engine: { stamina: 3, speed: 1 }, vision: { positioning: 2, intelligence: 2 },
+};
+const ROLE_SKILLS = { GOALKEEPER: ['reflex', 'vision'], CENTER: ['anchor', 'cannon'], DEFENDER: ['wall', 'anchor'], WINGER: ['sprinter', 'sniper'],
+  PLAYMAKER: ['playmaker', 'vision'], FINISHER: ['sniper', 'cannon'], ALL_ROUNDER: ['engine', 'vision'] };
+const BOOST_STATS = ['speed', 'accel', 'stamina', 'physical'];
+/** Fills the progression fields of a player (new players and old saves). */
+export function ensurePlayer(p) {
+  if (p.quality === undefined) p.quality = 0;
+  if (p.form === undefined) p.form = 100;
+  if (p.boost === undefined) p.boost = 0;
+  if (!p.skills) p.skills = (ROLE_SKILLS[p.role] || ROLE_SKILLS.ALL_ROUNDER).map((id, i) => ({ id, level: i === 0 ? 1 : 0 }));
+  if (!p.career) p.career = { matches: 0, wins: 0, draws: 0, goals: 0, assists: 0, shots: 0, steals: 0, saves: 0, passes: 0 };
+  if (!p.weight) p.weight = Math.round(p.height * 0.48 + (p.role === 'CENTER' ? 12 : p.role === 'WINGER' ? -4 : 2));
+  return p;
+}
+/** Stats used in a match: trained stats + skills + PHYSIQUE boost, scaled by form (0..100: -8 % .. 0 %). */
+export function matchStats(p) {
+  const st = {}, f = 0.92 + 0.08 * Math.max(0, Math.min(100, p.form ?? 100)) / 100;
+  for (const k of STAT_KEYS) {
+    let v = p.stats[k];
+    for (const sk of p.skills || []) if (sk.level > 0 && SKILLS[sk.id][k]) v += SKILLS[sk.id][k] * sk.level;
+    if (p.boost > 0 && BOOST_STATS.includes(k)) v += 4;
+    st[k] = Math.max(1, Math.min(99, Math.round(v * f)));
+  }
+  return st;
+}
+/** Value of a player when exchanged for training points. */
+export const tradeValue = (p) => Math.round(overall(p) * 3 + (p.level - 1) * 25 + (p.quality || 0) * 150);
 
 // ---------------------------------------------------------------- players
 export function overall(p) {
@@ -86,12 +122,12 @@ function makePlayer(rng, id, role, rating, slot, number) {
     PLAYMAKER: { passing: 10, intelligence: 10, technique: 5 }, FINISHER: { shooting: 10, power: 8, accuracy: 6 } }[role] || {};
   for (const k in boost) s[k] = R(boost[k]);
   const c = COUNTRIES[Math.floor(rng.f() * COUNTRIES.length)];
-  return {
+  return ensurePlayer({
     id, firstName: FIRST[Math.floor(rng.f() * FIRST.length)], lastName: LAST[Math.floor(rng.f() * LAST.length)],
     nationality: c[0], role, slot, number, level: 1, personality: PERSONALITIES[Math.floor(rng.f() * PERSONALITIES.length)],
     birthYear: 1994 + Math.floor(rng.f() * 12), height: 182 + Math.floor(rng.f() * 18) + (role === 'GOALKEEPER' || role === 'CENTER' ? 6 : 0),
     stats: s, ...DATA_SOURCE,
-  };
+  });
 }
 
 /** Squad of a club (7 starters + 4 bench), deterministic from the club id. */
@@ -143,7 +179,8 @@ function defaultState() {
   return {
     v: SAVE_VERSION, createdAt: Date.now(),
     profile: { level: 1, xp: 0, matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, trophies: [], history: [] },
-    currencies: { coins: 1000, gems: 10 },
+    currencies: { coins: 1000, gems: 10, tp: 300, medkits: 3, energy: 3, tokens: [1, 0, 0, 0] },
+    recruits: 0,
     club: { name: 'Aqua Lions', short: 'AQL', color: 0x1e5bd8, color2: 0xffffff, logo: { shape: 'shield', symbol: 'wave' }, pool: 'aqua', tactic: 'BALANCED' },
     squad: generateSquad('user', 70),
     lineup: null,
@@ -166,7 +203,12 @@ export class GameState {
   load() {
     try {
       const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
-      if (raw && raw.v === SAVE_VERSION) return raw;
+      if (raw && raw.v === SAVE_VERSION) {
+        // Saves made before the progression system: add the new fields.
+        const c = raw.currencies; c.tp ??= 300; c.medkits ??= 3; c.energy ??= 3; c.tokens ??= [1, 0, 0, 0]; raw.recruits ??= 0;
+        raw.squad.forEach(ensurePlayer);
+        return raw;
+      }
     } catch { /* corrupted or unavailable storage: start fresh */ }
     return defaultState();
   }
@@ -210,12 +252,66 @@ export class GameState {
     this.data.lineup = { gk: gk.id, slots };
     if (save) this.save();
   }
-  upgradeCost(p) { return 150 * p.level; }
+  // ------------------------------------------------ progression (training, quality, form, physique, trade)
+  /** ENTRAÎNEMENT: training points -> +1 level = +1 on every stat, up to the cap of the quality tier. */
+  upgradeCost(p) { return 60 + 40 * p.level; }
   upgrade(id) {
-    const p = this.player(id), cost = this.upgradeCost(p);
-    if (p.level >= 20 || !this.spend({ coins: cost })) return false;
+    const p = this.player(id), cost = this.upgradeCost(p), c = this.data.currencies;
+    if (p.level >= maxLevel(p) || c.tp < cost) return false;
+    c.tp -= cost;
     for (const k of STAT_KEYS) if (k !== 'goalkeeping' || p.role === 'GOALKEEPER') p.stats[k] = Math.min(99, p.stats[k] + 1);
     p.level++; this.save(); return true;
+  }
+  /** ENTRAÎNEMENT MAXIMAL: as many levels as the training points allow. Returns the levels gained. */
+  upgradeMax(id) {
+    const p = this.player(id); let n = 0;
+    while (p.level < maxLevel(p) && this.data.currencies.tp >= this.upgradeCost(p)) { this.upgrade(id); n++; }
+    return n;
+  }
+  /** AMÉLIORER LA QUALITÉ: at the level cap, one token of the current tier -> next tier, +2 all stats, skill level up. */
+  qualityReady(p) { return (p.quality || 0) < QUALITIES.length - 1 && p.level >= maxLevel(p); }
+  upgradeQuality(id) {
+    const p = this.player(id), q = p.quality || 0, t = this.data.currencies.tokens;
+    if (!this.qualityReady(p) || t[q] < 1) return false;
+    t[q]--; p.quality = q + 1;
+    for (const k of STAT_KEYS) if (k !== 'goalkeeping' || p.role === 'GOALKEEPER') p.stats[k] = Math.min(99, p.stats[k] + 2);
+    const sk = p.skills.find((x) => x.level < 3 && (x.level > 0 || p.quality >= 2)); if (sk) sk.level++;
+    this.save(); return true;
+  }
+  /** EN FORME POUR LE MATCH: a medical kit gives +50 form. */
+  heal(id) {
+    const p = this.player(id), c = this.data.currencies;
+    if (p.form >= 100 || c.medkits < 1) return false;
+    c.medkits--; p.form = Math.min(100, p.form + 50); this.save(); return true;
+  }
+  /** PHYSIQUE MAXIMAL: an energy drink = +4 speed, acceleration, stamina and physique for the next match. */
+  energize(id) {
+    const p = this.player(id), c = this.data.currencies;
+    if (p.boost > 0 || c.energy < 1) return false;
+    c.energy--; p.boost = 1; this.save(); return true;
+  }
+  /** ÉCHANGER: release players for training points (the 7 starters and a minimum squad of 9 are kept). */
+  canTrade(id) { const L = this.lineup; return this.squad.length > 9 && L.gk !== id && !L.slots.includes(id); }
+  trade(ids) {
+    let tp = 0;
+    for (const id of ids) {
+      if (!this.canTrade(id)) continue;
+      const p = this.player(id); tp += tradeValue(p);
+      this.data.squad = this.squad.filter((x) => x.id !== id);
+    }
+    this.data.currencies.tp += tp; this.save(); return tp;
+  }
+  /** OBTENIR PLUS DE JOUEURS: scout a new player (coins), rating around the club level. */
+  recruitCost() { return 800 + 200 * Math.min(10, this.data.recruits || 0); }
+  recruit() {
+    if (this.squad.length >= 18 || !this.spend({ coins: this.recruitCost() })) return null;
+    const n = ++this.data.recruits, rng = new Rng((Date.now() ^ (n * 2654435761)) >>> 0);
+    const roles = ['GOALKEEPER', 'CENTER', 'DEFENDER', 'WINGER', 'PLAYMAKER', 'FINISHER', 'ALL_ROUNDER'];
+    const lvl = this.teamTotal().total, role = roles[Math.floor(rng.f() * roles.length)];
+    const used = new Set(this.squad.map((p) => p.number));
+    let num = 2; while (used.has(num)) num++;
+    const p = makePlayer(rng, `r${Date.now().toString(36)}${n}`, role, lvl - 8 + Math.floor(rng.f() * 11), null, num);   // around the club level, rarely above
+    this.squad.push(p); this.save(); return p;
   }
 
   // ------------------------------------------------ currencies
@@ -224,7 +320,11 @@ export class GameState {
     if (!this.canAfford(price)) return false;
     this.data.currencies.coins -= price.coins || 0; this.data.currencies.gems -= price.gems || 0; return true;
   }
-  grant(r) { this.data.currencies.coins += r.coins || 0; this.data.currencies.gems += r.gems || 0; }
+  grant(r) {
+    const c = this.data.currencies;
+    c.coins += r.coins || 0; c.gems += r.gems || 0; c.tp += r.tp || 0; c.medkits += r.medkits || 0; c.energy += r.energy || 0;
+    if (r.token !== undefined) c.tokens[r.token]++;
+  }
 
   // ------------------------------------------------ XP / level
   xpForLevel(l) { return 400 + l * 100; }
@@ -249,8 +349,8 @@ export class GameState {
   userTeamDef() {
     const L = this.lineup, c = this.data.club;
     const toDef = (p, slot) => {
-      const b = this.slotBonus(p, slot), stats = {};
-      for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, p.stats[k] + b));
+      const b = this.slotBonus(p, slot), ms = matchStats(p), stats = {};
+      for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, ms[k] + b));
       return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id, look: lookOf(p) };
     };
     return { id: 'user', name: c.name, short: c.short, color: c.color, tactic: c.tactic,
@@ -366,9 +466,20 @@ export class GameState {
     const mult = ctx.mode === 'quick' ? 0.5 : 1;
     const coins = Math.round(((win ? 150 : draw ? 80 : 50) + res.hs * 10) * mult);
     const xp = Math.round(((win ? 120 : draw ? 70 : 40) + res.hs * 5) * mult);
-    this.grant({ coins });
+    const tp = Math.round((win ? 120 : draw ? 80 : 50) * mult), medkits = win && ctx.mode !== 'quick' ? 1 : 0;
+    this.grant({ coins, tp, medkits });
     const levelUps = this.addXp(xp);
-    const out = { coins, xp, levelUps, objectives: [], event: null, league: null };
+    const out = { coins, xp, tp, medkits, levelUps, objectives: [], event: null, league: null };
+    // Players: career stats, form (starters tire, the bench recovers), PHYSIQUE boost used.
+    const L = this.lineup, played = new Set([L.gk, ...L.slots]);
+    for (const p of this.squad) {
+      if (played.has(p.id)) {
+        const c = p.career, st = (res.players || {})[p.id];
+        c.matches++; if (win) c.wins++; else if (draw) c.draws++;
+        if (st) for (const k of ['goals', 'assists', 'shots', 'steals', 'saves', 'passes']) c[k] += st[k] || 0;
+        p.form = Math.max(0, p.form - 12); if (p.boost > 0) p.boost--;
+      } else p.form = Math.min(100, p.form + 15);
+    }
 
     // Objectives
     this.refreshDaily();
@@ -390,7 +501,7 @@ export class GameState {
       out.league = { position: pos, finished: lg.round >= lg.rounds.length };
       if (out.league.finished) {
         lg.champion = this.standings()[0].id;
-        if (lg.champion === 'user') { pr.trophies.push({ name: 'league', season: lg.season, date: Date.now() }); this.grant({ coins: 1000, gems: 25 }); out.league.champion = true; }
+        if (lg.champion === 'user') { pr.trophies.push({ name: 'league', season: lg.season, date: Date.now() }); this.grant({ coins: 1000, gems: 25, token: 2 }); out.league.champion = true; }
         this.data.league = newLeague(lg.season + 1);
       }
     }
@@ -408,4 +519,4 @@ export class GameState {
   }
 }
 
-export { STAT_KEYS, N };
+export { STAT_KEYS, N, makePlayer };

@@ -45,6 +45,14 @@ const I = {
   star: '<path d="M12 2l3 7 7 .6-5.3 4.7 1.6 7.2L12 17.8 5.7 21.5l1.6-7.2L2 9.6 9 9Z" fill="currentColor"/>',
   back: '<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
   pause: '<path d="M7 5h4v14H7zm6 0h4v14h-4z" fill="currentColor"/>',
+  dumbbell: '<path d="M2 10h2V8h2v8H4v-2H2Zm4-3h2v10H6Zm10 0h2v10h-2Zm2 1h2v2h2v4h-2v2h-2ZM8 11h8v2H8Z" fill="#35d0ff"/>',
+  medkit: '<path d="M8 4h8v3h4a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4Zm2 2v1h4V6Zm1 4v3H8v2h3v3h2v-3h3v-2h-3v-3Z" fill="#ff4fd8"/>',
+  bolt: '<path d="M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11Z" fill="#ff4d6d"/><path d="M13 7l-4 6h3l-1 5 4-7h-3Z" fill="#fff"/>',
+  token0: '<path d="M4 4h16v13l-8 4-8-4Z" fill="#c9824a"/><path d="M8 9l4-3 4 3M8 13l4-3 4 3" stroke="#fff" stroke-width="1.6" fill="none"/>',
+  token1: '<path d="M4 4h16v13l-8 4-8-4Z" fill="#aeb8c6"/><path d="M8 9l4-3 4 3M8 13l4-3 4 3" stroke="#fff" stroke-width="1.6" fill="none"/>',
+  token2: '<path d="M4 4h16v13l-8 4-8-4Z" fill="#e8b928"/><path d="M8 9l4-3 4 3M8 13l4-3 4 3" stroke="#fff" stroke-width="1.6" fill="none"/>',
+  token3: '<path d="M4 4h16v13l-8 4-8-4Z" fill="#b13cff"/><path d="M8 9l4-3 4 3M8 13l4-3 4 3" stroke="#fff" stroke-width="1.6" fill="none"/>',
+  swap: '<path d="M4 8h12l-3-3 1.4-1.4L20 9l-5.6 5.4L13 13l3-3H4Zm16 8H8l3 3-1.4 1.4L4 15l5.6-5.4L11 11l-3 3h12Z" fill="currentColor"/>',
   up: '<path d="M12 4l7 8h-4v8H9v-8H5Z" fill="currentColor"/>',
 };
 export const icon = (name, size = 22) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${I[name] || ''}</svg>`;

@@ -1,5 +1,5 @@
 // Run: node tools/web-tests/state.mjs — game state rules: every displayed value must be real.
-import { GameState, EVENTS, SHOP_ITEMS, overall } from '../../web/state.js';
+import { GameState, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue } from '../../web/state.js';
 import { Match } from '../../web/sim.js';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const st = new GameState();
@@ -17,13 +17,34 @@ st.autoLineup();
 ok(st.teamTotal().total >= t.total, `MEILLEUR TOTAL restores the best lineup (${st.teamTotal().total})`);
 // position bonus reaches the match engine
 const def = st.userTeamDef(), p0 = st.player(st.lineup.slots[5]);
-ok(def.players[6].stats.physical === Math.min(99, p0.stats.physical + st.slotBonus(p0, 5)), 'match stats include the position bonus');
+ok(def.players[6].stats.physical === Math.min(99, matchStats(p0).physical + st.slotBonus(p0, 5)), 'match stats include skills, form and the position bonus');
 const m = new Match({ seed: 1, humanTeam: 0 }, def, st.opponentTeamDef('sharks')); m.start(); for (let i = 0; i < 200; i++) m.step();
 ok(m.teams[0].def.name === st.data.club.name, 'match uses the club and its lineup');
 
-// upgrade costs coins and raises the rating
-const pl = st.player(st.lineup.slots[0]), before = overall(pl), coins = st.data.currencies.coins;
-ok(st.upgrade(pl.id) && overall(pl) > before - 0 && st.data.currencies.coins === coins - 150, 'player upgrade spends 150 coins and raises stats');
+// PROGRESSION — training costs training points and raises the rating, up to the cap of the quality tier
+const pl = st.player(st.lineup.slots[0]), before = overall(pl), tp0 = st.data.currencies.tp, cost = st.upgradeCost(pl);
+ok(st.upgrade(pl.id) && overall(pl) > before && st.data.currencies.tp === tp0 - cost, `training spends ${cost} TP and raises the rating (${before} -> ${overall(pl)})`);
+st.data.currencies.tp = 1e6; st.upgradeMax(pl.id);
+ok(pl.level === maxLevel(pl) && !st.upgrade(pl.id), `training stops at the quality cap (level ${pl.level})`);
+const q0 = pl.quality, ovq = overall(pl), tok = st.data.currencies.tokens[q0];
+ok(st.upgradeQuality(pl.id) && pl.quality === q0 + 1 && overall(pl) > ovq && st.data.currencies.tokens[q0] === tok - 1 && maxLevel(pl) > pl.level, 'quality upgrade uses a token, raises stats and the level cap');
+// form: low form really lowers the match stats; a medical kit restores it
+const fp = st.player(st.lineup.slots[1]); fp.form = 10; const low = matchStats(fp).shooting; const mk = st.data.currencies.medkits;
+ok(st.heal(fp.id) && fp.form === 60 && matchStats(fp).shooting >= low && st.data.currencies.medkits === mk - 1, 'medical kit: +50 form, stats back up');
+// PHYSIQUE MAXIMAL: +4 speed for one match
+const sp0 = matchStats(fp).speed; ok(st.energize(fp.id) && matchStats(fp).speed > sp0 && !st.energize(fp.id), 'energy drink: physique boost for the next match, not stackable');
+// trade: bench players -> training points; starters cannot be traded
+const benchP = st.bench()[0], val = tradeValue(benchP), tpb = st.data.currencies.tp, n0 = st.squad.length;
+ok(!st.canTrade(st.lineup.gk), 'starters cannot be traded');
+ok(st.trade([benchP.id]) === val && st.squad.length === n0 - 1 && st.data.currencies.tp === tpb + val, `trade a bench player for ${val} TP`);
+// career stats + form after a match: starters get the match stats and tire, the bench recovers
+{ const st = new GameState(); const sId = st.lineup.slots[2], s = st.player(sId), b = st.bench()[0], g0 = s.career.goals, m0 = s.career.matches, f0 = s.form, bf = (b.form = 50);
+  const zero = { goals: 0, passes: 0, passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 };
+  st.applyResult({ mode: 'quick', opponent: 'sharks' }, { hs: 2, as: 1, stats: zero, players: { [sId]: { goals: 2, assists: 1, shots: 3, steals: 0, saves: 0, passes: 4 } } });
+  ok(s.career.goals === g0 + 2 && s.career.matches === m0 + 1 && s.form === Math.max(0, f0 - 12) && b.form === bf + 15, 'career stats and form updated after a match'); }
+// recruit (coins) adds a player
+st.data.currencies.coins += 5000; const nr = st.squad.length, rec = st.recruit();
+ok(rec && st.squad.length === nr + 1 && rec.form === 100 && rec.skills.length === 2, 'scouting adds a new player with skills');
 
 // league season: 7 rounds, table consistent
 for (let r = 0; r < 7; r++) {

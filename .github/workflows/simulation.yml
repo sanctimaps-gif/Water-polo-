@@ -16,3 +16,8 @@ jobs:
         run: dotnet test tools/SimTests --configuration Release
       - name: Unity layer compile check (Runtime + Editor against the Unity API)
         run: dotnet build tools/UnityCompileCheck --configuration Release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Web build — human controls reach the simulation
+        run: node tools/web-tests/human-actions.mjs

@@ -238,7 +238,8 @@ export class Match {
       return;
     }
     for (const p of this.players) {
-      if (p.human) p.cmd = this.humanCmd;
+      // Copy (C# PlayerCommand is a struct): consumeOneShots() below must not wipe this tick's actions.
+      if (p.human) p.cmd = { ...this.humanCmd };
       else if (p.isGK) this.thinkGK(p);
       else this.thinkField(p);
     }

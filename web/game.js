@@ -136,7 +136,7 @@ function numberSprite(n) {
 }
 const skin = mat(0xedc29e);
 const ringGeo = new THREE.RingGeometry(0.45, 0.58, 28).rotateX(-Math.PI / 2);
-let actors = [], ballMesh, ballShadow, selRing, passRing, splashes = [];
+let actors = [], ballMesh, ballShadow, selRing, selArrow, passRing, splashes = [];
 
 function buildActors(m) {
   for (const a of actors) scene.remove(a.g);
@@ -157,7 +157,10 @@ function buildActors(m) {
   if (!ballMesh) {
     ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), mat(0xffd90f, 0.35)); ballMesh.castShadow = true; scene.add(ballMesh);
     ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.14, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x02283c, transparent: true, opacity: 0.5 })); scene.add(ballShadow);
-    selRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd91a })); scene.add(selRing);
+    selRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd91a })); selRing.scale.setScalar(1.35); scene.add(selRing);
+    // Big arrow above the controlled player: always visible, even when players overlap.
+    selArrow = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 4).rotateX(Math.PI), new THREE.MeshBasicMaterial({ color: 0xffd91a, depthTest: false }));
+    selArrow.renderOrder = 10; scene.add(selArrow);
     passRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x4dff73, transparent: true, opacity: 0.8 })); scene.add(passRing);
   }
 }
@@ -170,43 +173,84 @@ function splash(x, z, size = 1) {
 const input = { stick: { x: 0, y: 0, active: false }, A: btnState(), B: btnState(), S: btnState(), pan: 0, dbl: false, keys: new Set() };
 function btnState() { return { held: false, press: false, release: false, down: 0, dur: 0, sx: 0, sy: 0, swipe: { x: 0, y: 0 } }; }
 
-function setupInput() {
-  const zone = $('stick-zone'), base = $('stick'), knob = $('knob');
-  let sid = null, ox = 0, oy = 0;
-  const R = 70;
-  zone.addEventListener('pointerdown', (e) => {
-    sid = e.pointerId; try { zone.setPointerCapture(sid); } catch {} ox = e.clientX; oy = e.clientY;
-    const r = zone.getBoundingClientRect();
-    base.style.left = ox - r.left + 'px'; base.style.top = oy - r.top + 'px'; base.classList.add('on');
-    input.stick.active = true; moveStick(e);
-  });
-  const moveStick = (e) => {
-    if (e.pointerId !== sid) return;
-    let dx = e.clientX - ox, dy = e.clientY - oy; const l = Math.hypot(dx, dy);
-    if (l > R) { dx *= R / l; dy *= R / l; }
-    knob.style.transform = `translate(${dx}px, ${dy}px)`;
-    input.stick.x = dx / R; input.stick.y = -dy / R;
-    base.classList.toggle('sprint', Math.hypot(input.stick.x, input.stick.y) > 0.92);
-  };
-  zone.addEventListener('pointermove', moveStick);
-  const endStick = (e) => { if (e.pointerId !== sid) return; sid = null; input.stick = { x: 0, y: 0, active: false }; knob.style.transform = ''; base.classList.remove('on', 'sprint'); };
-  zone.addEventListener('pointerup', endStick); zone.addEventListener('pointercancel', endStick);
-
-  for (const [id, st] of [['btnA', input.A], ['btnB', input.B], ['btnS', input.S]]) {
-    const el = $(id); let pid = null, lx = 0, ly = 0;
-    el.addEventListener('pointerdown', (e) => { e.stopPropagation(); pid = e.pointerId; try { el.setPointerCapture(pid); } catch {} st.held = true; st.press = true; st.down = performance.now(); st.sx = lx = e.clientX; st.sy = ly = e.clientY; el.classList.add('down'); });
-    el.addEventListener('pointermove', (e) => { if (e.pointerId === pid) { lx = e.clientX; ly = e.clientY; } });
-    const up = (e) => { if (e.pointerId !== pid) return; pid = null; st.held = false; st.release = true; st.dur = (performance.now() - st.down) / 1000; st.swipe = { x: lx - st.sx, y: ly - st.sy }; el.classList.remove('down'); };
-    el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+// Unified contacts: every finger (touch) or mouse button is routed to a control by WHERE it starts,
+// using geometry (generous circles around the buttons) rather than the DOM target. This works the same
+// on iOS Safari, Android Chrome and desktop, and is immune to overlays stealing the event.
+const contacts = new Map(); // id -> { region, ox, oy, lx, ly }
+const STICK_R = 70;
+function hudActive() { return match && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
+function regionAt(x, y) {
+  for (const id of ['btnA', 'btnB', 'btnS']) {
+    const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (Math.hypot(x - cx, y - cy) <= (r.width / 2) * 1.25) return id;
   }
+  const t = $('tactic').getBoundingClientRect();
+  if (x >= t.left - 6 && x <= t.right + 6 && y >= t.top - 6 && y <= t.bottom + 6) return 'tactic';
+  return x < innerWidth * 0.45 ? 'stick' : 'right';
+}
+const BTN = { btnA: () => input.A, btnB: () => input.B, btnS: () => input.S };
+function contactStart(id, x, y) {
+  const region = regionAt(x, y);
+  contacts.set(id, { region, ox: x, oy: y, lx: x, ly: y, moved: 0 });
+  if (region === 'stick') {
+    const zone = $('stick-zone').getBoundingClientRect(), base = $('stick');
+    base.style.left = x - zone.left + 'px'; base.style.top = y - zone.top + 'px'; base.classList.add('on');
+    input.stick.active = true;
+  } else if (BTN[region]) {
+    const st = BTN[region]();
+    st.held = true; st.press = true; st.down = performance.now(); st.sx = x; st.sy = y; $(region).classList.add('down');
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+}
+function contactMove(id, x, y) {
+  const c = contacts.get(id); if (!c) return;
+  if (c.region === 'stick') {
+    let dx = x - c.ox, dy = y - c.oy; const l = Math.hypot(dx, dy);
+    if (l > STICK_R) { dx *= STICK_R / l; dy *= STICK_R / l; }
+    $('knob').style.transform = `translate(${dx}px, ${dy}px)`;
+    input.stick.x = dx / STICK_R; input.stick.y = -dy / STICK_R;
+    $('stick').classList.toggle('sprint', Math.hypot(input.stick.x, input.stick.y) > 0.92);
+  } else if (c.region === 'right') {
+    input.pan += x - c.lx;
+  }
+  c.moved += Math.abs(x - c.lx) + Math.abs(y - c.ly); c.lx = x; c.ly = y;
+}
+let lastRightTap = 0;
+function contactEnd(id) {
+  const c = contacts.get(id); if (!c) return; contacts.delete(id);
+  if (c.region === 'stick') {
+    input.stick = { x: 0, y: 0, active: false }; $('knob').style.transform = ''; $('stick').classList.remove('on', 'sprint');
+  } else if (BTN[c.region]) {
+    const st = BTN[c.region]();
+    st.held = false; st.release = true; st.dur = (performance.now() - st.down) / 1000; st.swipe = { x: c.lx - c.ox, y: c.ly - c.oy };
+    $(c.region).classList.remove('down');
+  } else if (c.region === 'tactic') {
+    cycleTactic();
+  } else if (c.region === 'right' && c.moved < 12) {
+    const now = performance.now(); if (now - lastRightTap < 320) { input.dbl = true; lastRightTap = 0; } else lastRightTap = now;
+  }
+}
 
-  const rz = $('right-zone'); let rid = null, rx = 0, lastTap = 0, moved = 0;
-  rz.addEventListener('pointerdown', (e) => { rid = e.pointerId; try { rz.setPointerCapture(rid); } catch {} rx = e.clientX; moved = 0; });
-  rz.addEventListener('pointermove', (e) => { if (e.pointerId !== rid) return; input.pan += e.clientX - rx; moved += Math.abs(e.clientX - rx); rx = e.clientX; });
-  rz.addEventListener('pointerup', (e) => {
-    if (e.pointerId !== rid) return; rid = null;
-    if (moved < 10) { const now = performance.now(); if (now - lastTap < 300) { input.dbl = true; lastTap = 0; } else lastTap = now; }
-  });
+function setupInput() {
+  const opts = { passive: false };
+  const onTouch = (fn) => (e) => {
+    if (!hudActive()) return;            // menus keep normal browser behaviour
+    e.preventDefault();                  // no scroll, zoom, magnifier, callout or emulated mouse events
+    for (const t of e.changedTouches) fn(t.identifier, t.clientX, t.clientY);
+  };
+  document.addEventListener('touchstart', onTouch(contactStart), opts);
+  document.addEventListener('touchmove', onTouch(contactMove), opts);
+  document.addEventListener('touchend', onTouch((id) => contactEnd(id)), opts);
+  document.addEventListener('touchcancel', onTouch((id) => contactEnd(id)), opts);
+  // Mouse (desktop): pointer events, mouse only so touches are never handled twice.
+  document.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && hudActive()) contactStart('m', e.clientX, e.clientY); });
+  document.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') contactMove('m', e.clientX, e.clientY); });
+  document.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') contactEnd('m'); });
+  // Safety: losing focus (notification, app switch) releases every control.
+  const releaseAll = () => { for (const id of [...contacts.keys()]) contactEnd(id); };
+  addEventListener('blur', releaseAll);
+  document.addEventListener('visibilitychange', releaseAll);
+
   addEventListener('keydown', (e) => { input.keys.add(e.code); if (e.code === 'KeyK' && !e.repeat) { input.A.held = true; input.A.press = true; input.A.down = performance.now(); input.A.swipe = { x: 0, y: 0 }; } if (e.code === 'KeyJ' && !e.repeat) { input.B.press = true; input.B.release = true; input.B.dur = 0; input.B.swipe = { x: 0, y: 0 }; } if (e.code === 'KeyL' || e.code === 'KeyQ') { input.A.press = e.code === 'KeyL'; if (e.code === 'KeyQ') input.B.press = true; } });
   addEventListener('keyup', (e) => { input.keys.delete(e.code); if (e.code === 'KeyK') { input.A.held = false; input.A.release = true; input.A.dur = (performance.now() - input.A.down) / 1000; } });
 }
@@ -263,6 +307,10 @@ let currentMove = { x: 0, y: 0, z: 0 };
 
 // ------------------------------------------------------------------ match lifecycle
 let match = null, prev = [], curr = [], prevBall = null, currBall = null, acc = 0, userPan = 0;
+// Diagnostics hook (read-only): window.__wp26() returns the controlled player's state.
+window.__wp26log = [];
+window.__wp26 = () => match && match.human ? { name: match.human.name, x: +match.human.pos.x.toFixed(2), z: +match.human.pos.z.toFixed(2),
+  hasBall: match.ball.owner === match.human, cmd: match.humanCmd, phase: match.phase, time: +match.time.toFixed(2) } : null;
 let focus = new THREE.Vector3(), goalCam = 0, goalPoint = new THREE.Vector3(), toastT = 0, timingT = 0, tacticIdx = 0;
 
 function startMatch() {
@@ -287,6 +335,7 @@ function snapshot() {
 }
 
 function onEvent(e) {
+  if (window.__wp26log.length < 500) window.__wp26log.push(e.type + ':' + e.team);
   const human = match.human ? match.human.team : -1;
   const toastMap = { [Ev.SAVE]: 'hud.save', [Ev.BLOCK]: 'hud.blocked', [Ev.FRAME]: 'hud.frame', [Ev.INTERCEPT]: 'hud.intercepted', [Ev.STEAL]: 'hud.steal', [Ev.FOUL]: 'hud.foul', [Ev.OUT]: 'hud.out', [Ev.SHOT_CLOCK]: 'hud.shotclock_violation', [Ev.SWIM_OFF]: 'hud.swimoff' };
   if (e.type === Ev.GOAL) {
@@ -319,6 +368,7 @@ function showEnd(winner, human) {
   $('end').classList.remove('hidden');
 }
 
+function cycleTactic() { if (!match || !match.human) return; tacticIdx = (tacticIdx + 1) % TACTICS.length; match.setTactic(match.human.team, TACTICS[tacticIdx]); refreshTactic(); }
 function refreshTactic() { if (match) $('tactic').textContent = `${L('btn.tactic')}: ${L(TACTIC_KEYS[TACTICS[tacticIdx]])}`; }
 
 // ------------------------------------------------------------------ frame
@@ -390,7 +440,11 @@ function updateActors(dt) {
   ballShadow.position.set(bp.x, 0.04, bp.z);
   const me = match.human;
   selRing.visible = !!me;
-  if (me) { const a = actors[me.id].g.position; selRing.position.set(a.x, 0.05, a.z); }
+  selArrow.visible = !!me;
+  if (me) {
+    const a = actors[me.id].g.position; selRing.position.set(a.x, 0.05, a.z);
+    selArrow.position.set(a.x, 1.55 + Math.sin(performance.now() / 180) * 0.12, a.z); selArrow.rotation.y += dt * 3;
+  }
   passRing.visible = false;
   if (me && match.ball.owner === me) {
     const tp = match.teams[me.team].tp;
@@ -465,6 +519,6 @@ function resize() {
   };
   addEventListener('pointerdown', lockLandscape, { once: true });
   $('again').onclick = () => { match = null; for (const a of actors) scene.remove(a.g); actors = []; $('end').classList.add('hidden'); $('hud').classList.add('hidden'); $('menu').classList.remove('hidden'); renderMenu(); };
-  $('tactic').onclick = (e) => { e.stopPropagation(); if (!match || !match.human) return; tacticIdx = (tacticIdx + 1) % TACTICS.length; match.setTactic(match.human.team, TACTICS[tacticIdx]); refreshTactic(); };
+  $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); }; // keyboard activation only; touch/mouse go through contacts
   requestAnimationFrame(frame);
 })();

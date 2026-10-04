@@ -1,0 +1,18 @@
+name: Simulation tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  simulation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Gameplay simulation tests (Core + Simulation, NUnit)
+        run: dotnet test tools/SimTests --configuration Release
+      - name: Unity layer compile check (Runtime + Editor against the Unity API)
+        run: dotnet build tools/UnityCompileCheck --configuration Release

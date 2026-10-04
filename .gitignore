@@ -1,0 +1,26 @@
+# Unity
+WaterPolo26Mobile/[Ll]ibrary/
+WaterPolo26Mobile/[Tt]emp/
+WaterPolo26Mobile/[Oo]bj/
+WaterPolo26Mobile/[Bb]uild/
+WaterPolo26Mobile/[Bb]uilds/
+WaterPolo26Mobile/[Ll]ogs/
+WaterPolo26Mobile/[Uu]ser[Ss]ettings/
+WaterPolo26Mobile/[Mm]emoryCaptures/
+WaterPolo26Mobile/*.csproj
+WaterPolo26Mobile/*.sln
+WaterPolo26Mobile/*.slnx
+WaterPolo26Mobile/.vs/
+WaterPolo26Mobile/.idea/
+*.apk
+*.aab
+*.ipa
+
+# .NET tooling (tools/)
+tools/**/bin/
+tools/**/obj/
+TestResults/
+
+# OS
+.DS_Store
+Thumbs.db

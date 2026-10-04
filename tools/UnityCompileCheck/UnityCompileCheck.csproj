@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Static compile check of the Unity-dependent code (Runtime + Editor) OUTSIDE Unity,
+    against reference assemblies from NuGet (Unity 2021 API + uGUI). It does not replace
+    opening the project in Unity: it only proves the code compiles against the Unity API.
+      dotnet build tools/UnityCompileCheck
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Legacy input path; the Input System path needs the package assemblies (checked in Unity). -->
+    <DefineConstants>UNITY_EDITOR;UNITY_2021_1_OR_NEWER;ENABLE_LEGACY_INPUT_MANAGER</DefineConstants>
+    <NoWarn>MSB3277;NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../WaterPolo26Mobile/Assets/_Project/Scripts/**/*.cs" />
+  </ItemGroup>
+
+  <!-- Packages are only downloaded; the DLLs are referenced explicitly to avoid two UnityEngine.dll versions. -->
+  <ItemGroup>
+    <PackageReference Include="Unity3D.SDK" Version="2021.1.14.1" ExcludeAssets="all" GeneratePathProperty="true" />
+    <PackageReference Include="Unity3D.UnityEngine.UI" Version="2018.3.5.1" ExcludeAssets="all" GeneratePathProperty="true" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="UnityEngine"><HintPath>$(PkgUnity3D_SDK)/lib/UnityEngine.dll</HintPath></Reference>
+    <Reference Include="UnityEditor"><HintPath>$(PkgUnity3D_SDK)/lib/UnityEditor.dll</HintPath></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(PkgUnity3D_UnityEngine_UI)/lib/UnityEngine.UI.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,19 @@
+{
+    "name": "WaterPolo.Runtime",
+    "rootNamespace": "WaterPolo.Runtime",
+    "references": [
+        "WaterPolo.Core",
+        "WaterPolo.Simulation",
+        "UnityEngine.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Compiles the engine-independent code of the Unity project (Core + Simulation)
+    and its EditMode tests outside Unity, so the gameplay core can be built and
+    tested in CI / on any machine with the .NET SDK:  dotnet test tools/SimTests
+    LangVersion is pinned to 9 to match what Unity's compiler accepts.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RootNamespace>WaterPolo.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../WaterPolo26Mobile/Assets/_Project/Scripts/Core/**/*.cs" />
+    <Compile Include="../../WaterPolo26Mobile/Assets/_Project/Scripts/Simulation/**/*.cs" />
+    <Compile Include="../../WaterPolo26Mobile/Assets/_Project/Tests/EditMode/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="NUnit" Version="3.14.0" />
+    <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
+  </ItemGroup>
+</Project>

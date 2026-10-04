@@ -20,6 +20,7 @@ C'est une démo jouable du gameplay ; le jeu final reste l'application Unity (An
 
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — analyse de la spec, choix du moteur, architecture,
   performance mobile, MVP, feuille de route, statut de chaque module.
+* [`docs/GRAPHICS.md`](docs/GRAPHICS.md) — présentation 3D du match : joueurs, eau, animations, arène, caméra, replay, qualité, mesures.
 * [`docs/GAMEPLAY.md`](docs/GAMEPLAY.md) — contrôles, assistance, nage, ballon, passes, tirs, timing,
   gardien, IA, tactiques, règles, effet de chaque statistique, équilibrage mesuré.
 

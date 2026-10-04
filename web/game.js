@@ -1,6 +1,13 @@
-// WATER POLO 26 MOBILE — web prototype: Three.js view + touch controls + HUD over the JS simulation.
+// WATER POLO 26 MOBILE — web build: match presentation (Three.js) + touch controls + HUD over the
+// deterministic JS simulation. Rendering modules live in web/render/.
 import * as THREE from './vendor/three.module.min.js';
-import { Match, HOME, AWAY, Ev, TACTICS, CHARGE_TIME, EXC_MIN, EXC_MAX } from './sim.js';
+import { Match, HOME, AWAY, Ev, TACTICS } from './sim.js';
+import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
+import { Water } from './render/water.js';
+import { Athlete } from './render/athlete.js';
+import { Arena } from './render/arena.js';
+import { Splashes } from './render/vfx.js';
+import { MatchAudio } from './render/audio.js';
 
 // ------------------------------------------------------------------ localization (same files as the Unity project)
 const LANGS = ['fr', 'en', 'es', 'de', 'it', 'pt'];
@@ -28,12 +35,19 @@ const L = (k, ...a) => {
   return s;
 };
 
-// ------------------------------------------------------------------ options
-const opts = { team: 0, difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true };
+// ------------------------------------------------------------------ options (persisted per device)
+const DEFAULT_OPTS = { team: 0, difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
+let opts = { ...DEFAULT_OPTS };
+try { Object.assign(opts, JSON.parse(localStorage.getItem('wp26.opts') || '{}')); } catch { /* private mode */ }
+const saveOpts = () => { try { localStorage.setItem('wp26.opts', JSON.stringify(opts)); } catch { /* ignore */ } };
 const DIFF = [0.75, 1, 1.15], DIFF_KEYS = ['difficulty.easy', 'difficulty.normal', 'difficulty.hard'];
 const ASSISTS = ['ASSISTED', 'STANDARD', 'PRO'];
 const MINUTES = [1, 2, 4, 8];
+const GRAPHICS = ['AUTO', ...TIERS];
+const CAMERAS = ['STANDARD', 'DYNAMIC', 'TACTICAL'];
+const AMBIENCES = ['EVENT', 'DAY', 'EVENING', 'NIGHT'];
 const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIVE: 'tactic.offensive', DEFENSIVE: 'tactic.defensive', PRESSURE: 'tactic.pressure', CENTER: 'tactic.center', COUNTER: 'tactic.counter' };
+const cycle = (list, v) => list[(list.indexOf(v) + 1) % list.length];
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,10 +56,14 @@ function renderMenu() {
   const rows = [
     ['menu.team', (opts.team === 0 ? home : away).name, () => (opts.team = 1 - opts.team)],
     ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), () => (opts.difficulty = (opts.difficulty + 1) % 3)],
-    ['menu.assist', L('assist.' + opts.assist.toLowerCase()), () => (opts.assist = ASSISTS[(ASSISTS.indexOf(opts.assist) + 1) % 3])],
-    ['menu.duration', L('menu.minutes', opts.minutes), () => (opts.minutes = MINUTES[(MINUTES.indexOf(opts.minutes) + 1) % MINUTES.length])],
+    ['menu.assist', L('assist.' + opts.assist.toLowerCase()), () => (opts.assist = cycle(ASSISTS, opts.assist))],
+    ['menu.duration', L('menu.minutes', opts.minutes), () => (opts.minutes = cycle(MINUTES, opts.minutes))],
+    ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, () => { opts.graphics = cycle(GRAPHICS, opts.graphics); applyQuality(opts.graphics === 'AUTO' ? autoTier : opts.graphics); }],
+    ['menu.camera', L('cam.' + opts.camera.toLowerCase()), () => (opts.camera = cycle(CAMERAS, opts.camera))],
+    ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), () => { opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); }],
+    ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), () => (opts.replays = !opts.replays)],
     ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), () => (opts.timing = !opts.timing)],
-    ['menu.language', L('lang.name'), async () => { lang = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length]; await loadLang(lang); }],
+    ['menu.language', L('lang.name'), async () => { lang = cycle(LANGS, lang); await loadLang(lang); }],
   ];
   $('menu-title').textContent = L('app.title');
   $('menu-sub').textContent = L('menu.quick_match');
@@ -57,116 +75,82 @@ function renderMenu() {
     const row = document.createElement('div');
     row.className = 'row';
     row.innerHTML = `<span>${L(k)}</span><button>${v}</button>`;
-    row.querySelector('button').onclick = async () => { await fn(); renderMenu(); };
+    row.querySelector('button').onclick = async () => { await fn(); saveOpts(); renderMenu(); };
     box.appendChild(row);
   }
 }
 
-// ------------------------------------------------------------------ three.js scene
-const renderer = new THREE.WebGLRenderer({ antialias: devicePixelRatio < 2, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
+// ------------------------------------------------------------------ renderer + world
+const detected = detectTier();
+const autoTier = detected.tier;
+let tier = opts.graphics === 'AUTO' ? autoTier : opts.graphics;
+let preset = PRESETS[tier];
+const renderer = new THREE.WebGLRenderer({ antialias: tier === 'HIGH' || tier === 'ULTRA', powerPreference: 'high-performance' });
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 $('view').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b1220);
-scene.fog = new THREE.Fog(0x0b1220, 45, 90);
-const camera = new THREE.PerspectiveCamera(46, 1, 0.3, 150);
-scene.add(new THREE.HemisphereLight(0xcfe6ff, 0x203040, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
-sun.position.set(-8, 20, -12);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -18, right: 18, top: 14, bottom: -14 });
-scene.add(sun);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 160);
+const water = new Water(scene, preset);
+const arena = new Arena(scene, renderer, preset, opts.ambience);
+const vfx = new Splashes(scene, water, preset.particles);
+const audio = new MatchAudio();
+audio.setEnabled(opts.sound);
+const governor = new FpsGovernor();
 
-const mat = (c, rough = 0.6, metal = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: metal });
-const box = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c)); m.position.set(x, y, z); m.receiveShadow = true; scene.add(m); return m; };
-const cyl = (r, h, c, x, y, z, rx = 0, rz = 0) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), mat(c, 0.4)); m.position.set(x, y, z); m.rotation.set(rx, 0, rz); scene.add(m); return m; };
-
-const HL = 12.5, HW = 10;
-// animated water
-const waterGeo = new THREE.PlaneGeometry(29, 22, 58, 44);
-waterGeo.rotateX(-Math.PI / 2);
-const water = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x0e6a9a, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.93 }));
-water.receiveShadow = true;
-scene.add(water);
-box(29, 2, 22, 0x06324d, 0, -1.05, 0); // pool basin (seen through the water)
-const waterBase = waterGeo.attributes.position.array.slice();
-// deck
-box(37, 0.4, 4, 0xd3d7dc, 0, 0.1, -13); box(37, 0.4, 4, 0xd3d7dc, 0, 0.1, 13);
-box(4, 0.4, 22, 0xd3d7dc, -16.5, 0.1, 0); box(4, 0.4, 22, 0xd3d7dc, 16.5, 0.1, 0);
-// lane ropes: red 0-2 m, yellow 2-5 m, green 5-6 m, white
-for (const z of [-HW, HW]) for (const s of [-1, 1]) {
-  const segs = [[0, 2, 0xd81a1a], [2, 5, 0xf2cc19], [5, 6, 0x19b340], [6, HL, 0xffffff]];
-  for (const [a, b, c] of segs) { const x0 = s * (HL - a), x1 = s * (HL - b); cyl(0.07, Math.abs(x1 - x0), c, (x0 + x1) / 2, 0.04, z, 0, Math.PI / 2); }
-}
-// goals
-for (const s of [-1, 1]) {
-  const x = s * HL;
-  cyl(0.05, 1.2, 0xffffff, x, 0.45, -1.5); cyl(0.05, 1.2, 0xffffff, x, 0.45, 1.5); cyl(0.05, 3.1, 0xffffff, x, 0.9, 0, Math.PI / 2);
-  const net = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, wireframe: true });
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.9, 10, 4), net); back.position.set(x + s * 0.7, 0.45, 0); back.rotation.y = Math.PI / 2; scene.add(back);
-  const top = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 3, 3, 10), net); top.position.set(x + s * 0.35, 0.9, 0); top.rotation.x = -Math.PI / 2; scene.add(top);
-  for (const z of [-1.5, 1.5]) { const sd = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.9, 3, 4), net); sd.position.set(x + s * 0.35, 0.45, z); scene.add(sd); }
-}
-// stands + low-cost crowd (one instanced mesh)
-for (let r = 0; r < 5; r++) box(36, 0.7, 1.3, 0x222a3a - r * 0x020202, 0, 0.6 + r * 0.75, 16.5 + r * 1.3);
-const crowdCount = 360;
-const crowd = new THREE.InstancedMesh(new THREE.BoxGeometry(0.35, 0.6, 0.3), new THREE.MeshLambertMaterial(), crowdCount);
-const crowdBase = [];
-{
-  const m = new THREE.Matrix4(), col = new THREE.Color();
-  for (let i = 0; i < crowdCount; i++) {
-    const r = i % 5, x = -17 + ((i / 5) | 0) * 0.47;
-    crowdBase.push([x, 1.25 + r * 0.75, 16.4 + r * 1.3]);
-    m.setPosition(x, crowdBase[i][1], crowdBase[i][2]); crowd.setMatrixAt(i, m);
-    crowd.setColorAt(i, col.setHSL(Math.random(), 0.5, 0.35 + Math.random() * 0.3));
+function applyQuality(t) {
+  tier = t; preset = PRESETS[t];
+  renderer.setPixelRatio(Math.min(devicePixelRatio, preset.pixelRatio));
+  if (renderer.shadowMap.enabled !== preset.shadows) {
+    renderer.shadowMap.enabled = preset.shadows; arena.key.castShadow = preset.shadows;
+    scene.traverse((o) => { if (o.material) [].concat(o.material).forEach((m) => (m.needsUpdate = true)); });
   }
+  water.setQuality(preset);
+  lastW = 0; // force a resize pass (pixel ratio)
 }
-scene.add(crowd);
-let crowdExcite = 0;
 
-// ------------------------------------------------------------------ actors
-function numberSprite(n) {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.strokeStyle = 'rgba(0,0,0,.7)'; g.lineWidth = 6; g.strokeText(n, 32, 34); g.fillText(n, 32, 34);
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
-  s.scale.set(0.45, 0.45, 1); s.position.y = 0.95; return s;
+// ------------------------------------------------------------------ ball (detailed: grooved rubber, grip texture)
+function ballTextures() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#ffd21a'); grd.addColorStop(1, '#f2b705');
+  g.fillStyle = grd; g.fillRect(0, 0, 512, 256);
+  for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(120,80,0,${Math.random() * 0.12})`; g.fillRect(Math.random() * 512, Math.random() * 256, 2, 2); } // grip
+  g.strokeStyle = '#0d2a6b'; g.lineWidth = 9;
+  for (let k = 0; k < 3; k++) {             // curved grooves (panel lines)
+    g.beginPath();
+    for (let x = 0; x <= 512; x += 4) { const y = 128 + Math.sin((x / 512) * Math.PI * 4 + k * 2.1) * 70 * (k === 1 ? -1 : 1); x ? g.lineTo(x, y) : g.moveTo(x, y); }
+    g.stroke();
+  }
+  const map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+  const b = document.createElement('canvas'); b.width = 512; b.height = 256; const bg = b.getContext('2d');
+  bg.drawImage(c, 0, 0); const id = bg.getImageData(0, 0, 512, 256);
+  for (let i = 0; i < id.data.length; i += 4) { const v = id.data[i + 2] < 120 ? 40 : 200 + Math.random() * 30; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; }
+  bg.putImageData(id, 0, 0);
+  return { map, bump: new THREE.CanvasTexture(b) };
 }
-const skin = mat(0xedc29e);
-const ringGeo = new THREE.RingGeometry(0.45, 0.58, 28).rotateX(-Math.PI / 2);
-let actors = [], ballMesh, ballShadow, selRing, selArrow, passRing, splashes = [];
+const bt = ballTextures();
+const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshStandardMaterial({ map: bt.map, bumpMap: bt.bump, bumpScale: 0.8, roughness: 0.32, envMapIntensity: 1.3 }));
+ballMesh.castShadow = true; scene.add(ballMesh);
+const ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.15, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x021c2c, transparent: true, opacity: 0.45, depthWrite: false }));
+ballShadow.renderOrder = 4; scene.add(ballShadow);
 
-function buildActors(m) {
-  for (const a of actors) scene.remove(a.g);
-  actors = [];
-  for (const p of m.players) {
-    const team = m.teams[p.team].def;
-    const g = new THREE.Group();
-    const body = new THREE.Group(); g.add(body);
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.45, 4, 10), mat(team.color, 0.5)); torso.position.y = -0.25; body.add(torso);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 10), skin); head.position.y = 0.3; head.castShadow = true; body.add(head);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(p.isGK ? 0xd81a1f : team.color, 0.4)); cap.position.y = 0.31; body.add(cap);
-    const armPivot = new THREE.Group(); armPivot.position.set(0.2, 0.12, 0); body.add(armPivot);
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.45, 3, 6), skin); arm.position.y = 0.3; arm.castShadow = true; armPivot.add(arm);
-    g.add(numberSprite(p.number));
-    scene.add(g);
-    actors.push({ p, g, body, armPivot, phase: p.id * 0.77 });
-  }
-  if (!ballMesh) {
-    ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), mat(0xffd90f, 0.35)); ballMesh.castShadow = true; scene.add(ballMesh);
-    ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.14, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x02283c, transparent: true, opacity: 0.5 })); scene.add(ballShadow);
-    selRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd91a })); selRing.scale.setScalar(1.35); scene.add(selRing);
-    // Big arrow above the controlled player: always visible, even when players overlap.
-    selArrow = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.5, 4).rotateX(Math.PI), new THREE.MeshBasicMaterial({ color: 0xffd91a, depthTest: false }));
-    selArrow.renderOrder = 10; scene.add(selArrow);
-    passRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x4dff73, transparent: true, opacity: 0.8 })); scene.add(passRing);
-  }
-}
-function splash(x, z, size = 1) {
-  const s = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.18, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }));
-  s.position.set(x, 0.03, z); scene.add(s); splashes.push({ s, t: 0, size });
+// Markers: controlled player (ring + arrow), pass target.
+const ringGeo = new THREE.RingGeometry(0.45, 0.58, 32).rotateX(-Math.PI / 2);
+const selRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd91a, transparent: true, opacity: 0.9, depthWrite: false }));
+selRing.scale.setScalar(1.35); selRing.renderOrder = 5; scene.add(selRing);
+const selArrow = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.42, 4).rotateX(Math.PI), new THREE.MeshBasicMaterial({ color: 0xffd91a, depthTest: false }));
+selArrow.renderOrder = 10; scene.add(selArrow);
+const passRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x4dff73, transparent: true, opacity: 0.8, depthWrite: false }));
+passRing.renderOrder = 5; scene.add(passRing);
+
+// Menu hero: one athlete treading water in front of the camera while the quick-match screen is shown.
+let hero = null;
+function buildHero() {
+  if (hero) scene.remove(hero.root);
+  hero = new Athlete({ teamColor: 0x1e5bd8, capColor: 0x1e5bd8, trimColor: 0xffffff, number: 7, role: 'CENTER', isGK: false, seed: 7, preset });
+  hero.root.scale.multiplyScalar(1); scene.add(hero.root);
 }
 
 // ------------------------------------------------------------------ input
@@ -184,12 +168,15 @@ function regionAt(x, y) {
     const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (Math.hypot(x - cx, y - cy) <= (r.width / 2) * 1.25) return id;
   }
-  const t = $('tactic').getBoundingClientRect();
-  if (x >= t.left - 6 && x <= t.right + 6 && y >= t.top - 6 && y <= t.bottom + 6) return 'tactic';
+  for (const id of ['tactic', 'camBtn', 'soundBtn']) {
+    const t = $(id).getBoundingClientRect();
+    if (x >= t.left - 6 && x <= t.right + 6 && y >= t.top - 6 && y <= t.bottom + 6) return id;
+  }
   return x < innerWidth * 0.45 ? 'stick' : 'right';
 }
 const BTN = { btnA: () => input.A, btnB: () => input.B, btnS: () => input.S };
 function contactStart(id, x, y) {
+  if (replay) { endReplay(); return; }      // any touch skips the replay
   const region = regionAt(x, y);
   contacts.set(id, { region, ox: x, oy: y, lx: x, ly: y, moved: 0 });
   if (region === 'stick') {
@@ -226,6 +213,10 @@ function contactEnd(id) {
     $(c.region).classList.remove('down');
   } else if (c.region === 'tactic') {
     cycleTactic();
+  } else if (c.region === 'camBtn') {
+    opts.camera = cycle(CAMERAS, opts.camera); saveOpts(); refreshChips();
+  } else if (c.region === 'soundBtn') {
+    opts.sound = !opts.sound; audio.setEnabled(opts.sound); saveOpts(); refreshChips();
   } else if (c.region === 'right' && c.moved < 12) {
     const now = performance.now(); if (now - lastRightTap < 320) { input.dbl = true; lastRightTap = 0; } else lastRightTap = now;
   }
@@ -305,53 +296,238 @@ function screenToWorld(x, y, normalize) {
 }
 let currentMove = { x: 0, y: 0, z: 0 };
 
+// ------------------------------------------------------------------ actors
+let athletes = [];
+const capColorFor = (m, p) => (p.isGK ? 0xd81a1f : p.team === 0 ? m.teams[0].def.color : 0xf2f4f7);
+const trimFor = (m, p) => (p.team === 0 ? 0xffffff : m.teams[1].def.color);
+function buildActors(m) {
+  for (const a of athletes) scene.remove(a.root);
+  athletes = m.players.map((p) => {
+    const a = new Athlete({ teamColor: m.teams[p.team].def.color, capColor: capColorFor(m, p), trimColor: trimFor(m, p), number: p.number,
+      role: p.role, isGK: p.isGK, seed: p.id * 31 + p.team * 977 + 5, preset });
+    a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
+    scene.add(a.root);
+    return a;
+  });
+  if (hero) hero.root.visible = false;
+}
+
+// ------------------------------------------------------------------ view state (live or replay)
+// One snapshot per simulation tick, kept for the replay system (6 s ring buffer).
+const PF = 12, REPLAY_TICKS = 300;
+const tape = [];
+function record(m, events) {
+  const players = new Float32Array(m.players.length * PF);
+  m.players.forEach((p, i) => {
+    players.set([p.pos.x, p.pos.z, p.facing.x, p.facing.z, p.vel.x, p.vel.z, p.charge, p.charging ? 1 : 0, p.block > 0 ? 1 : 0, p.sprinting ? 1 : 0, p.stamina, p.human ? 1 : 0], i * PF);
+  });
+  const b = m.ball;
+  tape.push({ players, ball: [b.pos.x, b.pos.y, b.pos.z], owner: b.owner ? b.owner.id : -1, receiver: b.state === 'PASSED' && b.receiver ? b.receiver.id : -1, events });
+  if (tape.length > REPLAY_TICKS) tape.shift();
+}
+const view = { players: [], ball: new THREE.Vector3(), owner: -1, receiver: -1 };
+function buildView(a, b, t) {
+  view.players.length = 0;
+  for (let i = 0; i < athletes.length; i++) {
+    const o = i * PF, A = a.players, B = b.players;
+    const lerp = (k) => A[o + k] + (B[o + k] - A[o + k]) * t;
+    view.players.push({ x: lerp(0), z: lerp(1), fx: B[o + 2], fz: B[o + 3], vx: B[o + 4], vz: B[o + 5], charge: B[o + 6], charging: B[o + 7] > 0,
+      block: B[o + 8], sprint: B[o + 9] > 0, stamina: B[o + 10], human: B[o + 11] > 0 });
+  }
+  const far = Math.hypot(b.ball[0] - a.ball[0], b.ball[2] - a.ball[2]) > 3;
+  view.ball.set(far ? b.ball[0] : a.ball[0] + (b.ball[0] - a.ball[0]) * t, far ? b.ball[1] : a.ball[1] + (b.ball[1] - a.ball[1]) * t, far ? b.ball[2] : a.ball[2] + (b.ball[2] - a.ball[2]) * t);
+  view.owner = b.owner; view.receiver = b.receiver;
+  return view;
+}
+
 // ------------------------------------------------------------------ match lifecycle
-let match = null, prev = [], curr = [], prevBall = null, currBall = null, acc = 0, userPan = 0;
+let match = null, acc = 0, userPan = 0;
 // Diagnostics hook (read-only): window.__wp26() returns the controlled player's state.
 window.__wp26log = [];
+window.__wp26match = () => match; // test hook
 window.__wp26 = () => match && match.human ? { name: match.human.name, x: +match.human.pos.x.toFixed(2), z: +match.human.pos.z.toFixed(2),
-  hasBall: match.ball.owner === match.human, cmd: match.humanCmd, phase: match.phase, time: +match.time.toFixed(2) } : null;
-let focus = new THREE.Vector3(), goalCam = 0, goalPoint = new THREE.Vector3(), toastT = 0, timingT = 0, tacticIdx = 0;
+  hasBall: match.ball.owner === match.human, cmd: match.humanCmd, phase: match.phase, time: +match.time.toFixed(2), tier, replaying: !!replay } : null;
+let toastT = 0, timingT = 0, tacticIdx = 0;
+const camState = { focus: new THREE.Vector3(), goalT: 0, goalPoint: new THREE.Vector3(), goalSide: 1, shotT: 0, shotGoalX: 0 };
+let replay = null, pendingReplay = null;
 
 function startMatch() {
   const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: opts.team, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing };
   match = new Match(cfg, HOME(), AWAY());
   match.start();
-  snapshot(); snapshot();
+  tape.length = 0; record(match, []); record(match, []);
   buildActors(match);
-  tacticIdx = 0;
+  tacticIdx = 0; replay = null; pendingReplay = null; camState.goalT = 0;
   $('menu').classList.add('hidden'); $('end').classList.add('hidden'); $('hud').classList.remove('hidden');
   $('home-name').textContent = match.teams[0].def.short; $('away-name').textContent = match.teams[1].def.short;
   $('home-chip').style.background = hex(match.teams[0].def.color); $('away-chip').style.background = hex(match.teams[1].def.color);
-  refreshTactic();
+  refreshTactic(); refreshChips();
   lockLandscape();
+  audio.start(); audio.whistle(true);
 }
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
-function snapshot() {
-  prev = curr; prevBall = currBall;
-  curr = match.players.map((p) => ({ ...p.pos }));
-  currBall = { ...match.ball.pos };
-  if (!prev.length) { prev = curr; prevBall = currBall; }
+
+// ------------------------------------------------------------------ event reactions
+/** Visual + audio reactions shared by live play and replays. */
+function react(e) {
+  const a = e.player >= 0 ? athletes[e.player] : null;
+  switch (e.type) {
+    case Ev.PASS: if (a) a.playThrow('pass'); vfx.burst(e.pos.x, e.pos.z, 0.35); audio.ballHit(0.5); break;
+    case Ev.SHOT:
+      if (a) a.playThrow('shot'); vfx.burst(e.pos.x, e.pos.z, 0.9); audio.ballHit(1.2);
+      if (e.gk >= 0 && athletes[e.gk]) setTimeout(() => athletes[e.gk] && athletes[e.gk].playDive(e.diveDir), 160);
+      arena.cheer(e.pos.x < -7 ? 0 : e.pos.x > 7 ? 2 : 1, 0.35);
+      break;
+    case Ev.SAVE: vfx.burst(e.pos.x, e.pos.z, 1.6); audio.splash(1.4); audio.ballHit(1); arena.cheer(-1, 0.6); break;
+    case Ev.BLOCK: vfx.burst(e.pos.x, e.pos.z, 0.8); audio.ballHit(0.8); break;
+    case Ev.FRAME: vfx.burst(e.pos.x, e.pos.z, 0.6); audio.post(); arena.cheer(-1, 0.5); break;
+    case Ev.INTERCEPT: case Ev.STEAL: vfx.burst(e.pos.x, e.pos.z, 0.5); audio.splash(0.5); break;
+    case Ev.GOAL: {
+      arena.netHit(e.pos.x, e.pos.z, e.pos.y, 1.6); vfx.burst(e.pos.x, e.pos.z, 2.6); audio.netHit(); audio.roar(1.2);
+      arena.cheer(-1, 1.5);
+      if (a) a.playCelebrate(e.player % 2 ? 'splash' : 'arms');
+      break;
+    }
+  }
 }
 
 function onEvent(e) {
   if (window.__wp26log.length < 500) window.__wp26log.push(e.type + ':' + e.team);
-  const human = match.human ? match.human.team : -1;
+  const m = match, human = m.human ? m.human.team : -1;
+  // Enrich shots with the defending keeper's dive side (stored for replays too).
+  if (e.type === Ev.SHOT) {
+    const gk = m.teams[1 - e.team].gk, cr = m.predictCrossing(gk.pos.x);
+    e.gk = gk.id; e.diveDir = 1;
+    if (cr) { const right = { x: gk.facing.z, z: -gk.facing.x }; e.diveDir = (cr.z - gk.pos.z) * right.z + 0 * right.x >= 0 ? 1 : -1; }
+    camState.shotT = 1.2; camState.shotGoalX = m.targetGoal(e.team).x;
+  }
+  react(e);
   const toastMap = { [Ev.SAVE]: 'hud.save', [Ev.BLOCK]: 'hud.blocked', [Ev.FRAME]: 'hud.frame', [Ev.INTERCEPT]: 'hud.intercepted', [Ev.STEAL]: 'hud.steal', [Ev.FOUL]: 'hud.foul', [Ev.OUT]: 'hud.out', [Ev.SHOT_CLOCK]: 'hud.shotclock_violation', [Ev.SWIM_OFF]: 'hud.swimoff' };
+  if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
+  if ([Ev.FOUL, Ev.OUT, Ev.SHOT_CLOCK].includes(e.type)) audio.whistle(false);
+  if (e.type === Ev.PERIOD_START) audio.whistle(true);
   if (e.type === Ev.GOAL) {
-    toast(L('hud.goal'), 2.5); goalCam = 2.4; goalPoint.set(e.pos.x, 0, e.pos.z); crowdExcite = 2.5; splash(e.pos.x, e.pos.z, 2);
+    toast(L('hud.goal'), 2.5);
+    camState.goalT = 1.5; camState.goalPoint.set(e.pos.x, 0, e.pos.z); camState.goalSide = Math.sign(e.pos.x) || 1;
+    if (opts.replays) pendingReplay = { at: 1.5 };
+    // Team-mates close to the scorer join the celebration.
+    const scorer = e.player >= 0 ? m.players[e.player] : null;
+    if (scorer) for (const p of m.teams[scorer.team].field) if (p !== scorer && Math.hypot(p.pos.x - scorer.pos.x, p.pos.z - scorer.pos.z) < 5) athletes[p.id].playCelebrate('arms');
     if (e.team === human && navigator.vibrate) navigator.vibrate([60, 40, 120]);
-  } else if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
-  if (e.type === Ev.SAVE) crowdExcite = Math.max(crowdExcite, 1);
-  if (e.type === Ev.SHOT) splash(e.pos.x, e.pos.z, 0.8);
-  if (e.type === Ev.PERIOD_END) toast(L('hud.period_end', e.value), 2.5);
-  if (e.type === Ev.RESTART || e.type === Ev.PERIOD_START) goalCam = 0;
+  }
+  if (e.type === Ev.PERIOD_END) { toast(L('hud.period_end', e.value), 2.5); audio.whistle(true); arena.cheer(-1, 0.8); }
+  if (e.type === Ev.RESTART || e.type === Ev.PERIOD_START) camState.goalT = 0;
   if (e.type === Ev.SHOT && e.team === human && e.timing && e.timing !== 'NONE') {
     const el = $('timing'); el.textContent = L('hud.timing.' + e.timing.toLowerCase()); el.className = 't-' + e.timing.toLowerCase(); timingT = 1.2;
   }
-  if (e.type === Ev.END) showEnd(e.team, human);
+  if (e.type === Ev.END) { audio.whistle(true); audio.roar(1); arena.cheer(-1, 1.2); showEnd(e.team, human); }
 }
 function toast(t, s) { $('toast').textContent = t; toastT = s; }
+
+// ------------------------------------------------------------------ replay
+function startReplay() {
+  if (tape.length < 60) return;
+  const start = Math.max(0, tape.length - 50 * 5);
+  replay = { frames: tape.slice(start), t: 0, speed: 0.55, angle: 0 };
+  document.body.classList.add('replaying');
+  $('replay').classList.remove('hidden'); $('replay-title').textContent = L('hud.replay'); $('replay-skip').textContent = L('hud.skip');
+}
+function endReplay() {
+  replay = null;
+  document.body.classList.remove('replaying');
+  $('replay').classList.add('hidden');
+  camState.goalT = 0;
+}
+
+// ------------------------------------------------------------------ camera director
+const tmp = new THREE.Vector3();
+function updateCamera(dt, v) {
+  const m = match, c = camState;
+  const ball = ballMesh.position;
+  let pos, look, fov;
+  if (replay) {
+    // Two angles: behind the goal (low), then side-on at water level.
+    const u = replay.t / (replay.frames.length - 1), side = c.goalSide;
+    if (u < 0.55) { pos = tmp.set(side * 18.5, 2.4, ball.z * 0.4 + 1.5); look = ball.clone(); fov = 34; }
+    else { pos = tmp.set(ball.x - side * 4, 0.9, -7.5); look = ball.clone(); fov = 40; }
+    camera.position.lerp(pos, 1 - Math.exp(-dt * 6)); camera.lookAt(look); setFov(fov, dt, 6);
+    return;
+  }
+  const target = ball.clone();
+  if (m.human) target.lerp(athletes[m.human.id].root.position, 0.25);
+  const team = m.possessionTeam;
+  const lead = opts.camera === 'DYNAMIC' ? 3 : 2;
+  if (team >= 0) target.x += (team === 0 ? 1 : -1) * lead;
+  if (c.shotT > 0) { c.shotT -= dt; target.x += (c.shotGoalX - target.x) * 0.35; }   // follow the shot toward goal
+  const near = Math.min(1, Math.max(0, (Math.abs(ball.x) - 6) / 5));
+  let height, back, sideX = 0;
+  if (opts.camera === 'TACTICAL') { height = 16; back = 10 + 9; fov = 50; target.x *= 0.7; }
+  else if (opts.camera === 'DYNAMIC') { height = 6.2 - 1 * near; back = 10 + 4.8 - 1 * near; fov = 52 - 4 * near; sideX = team >= 0 ? -(team === 0 ? 1 : -1) * 2.5 : 0; }
+  else { height = 9.5 - 1.5 * near; back = 10 + 7.5 - 1.5 * near; fov = 48 - 6 * near; }
+  if (c.shotT > 0) fov -= 4;
+  target.x = Math.max(-12.5 + 6, Math.min(12.5 - 6, target.x + userPan));
+  target.z = Math.max(-2.5, Math.min(2.5, target.z * (opts.camera === 'DYNAMIC' ? 0.55 : 0.35))); target.y = 0;
+  if (c.goalT > 0) {
+    // Goal camera: close, low, 3/4 view of the net and the celebration.
+    c.goalT -= dt; target.set(c.goalPoint.x - c.goalSide * 2.5, 0, c.goalPoint.z * 0.5);
+    height = 3.2; back = 7.5; fov = 40; sideX = -c.goalSide * 3;
+  }
+  c.focus.lerp(target, 1 - Math.exp(-dt / 0.25));
+  pos = tmp.set(c.focus.x + sideX, height, c.focus.z - back);
+  camera.position.lerp(pos, 1 - Math.exp(-dt * 4));
+  camera.lookAt(c.focus.x, 0.5, c.focus.z);
+  setFov(fov, dt, 3);
+  userPan += (0 - userPan) * Math.min(1, dt * 0.8);
+}
+function setFov(fov, dt, rate) {
+  // Landscape screens narrower than 16:9 (4:3 tablets): keep the same horizontal view of the pool.
+  const aspect = innerWidth / innerHeight, ref = 16 / 9;
+  if (aspect < ref) fov = 2 * Math.atan(Math.tan((fov * Math.PI) / 360) * ref / aspect) * 180 / Math.PI;
+  camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * rate)); camera.updateProjectionMatrix();
+}
+
+// ------------------------------------------------------------------ per-frame presentation
+let prevBallY = 1, prevBallPos = new THREE.Vector3(), dripT = 0;
+const wakeList = [];
+function updateWorld(dt, v) {
+  // Athletes
+  for (let i = 0; i < athletes.length; i++) {
+    const s = v.players[i];
+    s.hasBall = v.owner === i; s.receive = v.receiver === i && Math.hypot(v.ball.x - s.x, v.ball.z - s.z) < 2.8; s.ball = v.ball;
+    athletes[i].update(dt, s);
+  }
+  // Ball: in the hand when held, simulated position otherwise.
+  if (v.owner >= 0) athletes[v.owner].handWorld(ballMesh.position); else ballMesh.position.copy(v.ball);
+  const bvx = (ballMesh.position.x - prevBallPos.x) / Math.max(dt, 1e-3), bvz = (ballMesh.position.z - prevBallPos.z) / Math.max(dt, 1e-3);
+  ballMesh.rotation.x += bvz * dt * 3.5; ballMesh.rotation.z -= bvx * dt * 3.5;
+  // Ball meets the water: splash scaled by its speed.
+  if (v.owner < 0 && prevBallY > 0.2 && ballMesh.position.y <= 0.16) {
+    const sp = Math.hypot(bvx, bvz); vfx.burst(ballMesh.position.x, ballMesh.position.z, Math.min(1.4, 0.2 + sp / 10)); audio.splash(Math.min(1, sp / 10));
+  }
+  prevBallY = ballMesh.position.y; prevBallPos.copy(ballMesh.position);
+  // Drops falling from the ball held up.
+  dripT -= dt; if (v.owner >= 0 && dripT <= 0) { dripT = 0.18; vfx.drip(ballMesh.position.x, ballMesh.position.y - 0.08, ballMesh.position.z); }
+  ballShadow.position.set(ballMesh.position.x, 0.03, ballMesh.position.z);
+  ballShadow.material.opacity = v.owner >= 0 ? 0 : Math.max(0, 0.45 - ballMesh.position.y * 0.12);
+  // Wakes in the water shader.
+  wakeList.length = 0;
+  for (const s of v.players) wakeList.push({ x: s.x, z: s.z, vx: s.vx, vz: s.vz });
+  water.setWakes(wakeList);
+  // Markers
+  const hi = v.players.findIndex((s) => s.human);
+  selRing.visible = selArrow.visible = hi >= 0 && !replay;
+  if (hi >= 0) {
+    const r = athletes[hi].root.position; selRing.position.set(r.x, 0.04, r.z);
+    selArrow.position.set(r.x, 1.75 + Math.sin(performance.now() / 180) * 0.1, r.z); selArrow.rotation.y += dt * 3;
+  }
+  passRing.visible = false;
+  const me = match.human;
+  if (!replay && me && match.ball.owner === me) {
+    const target = match.chooseTarget(me, currentMove, match.cfg.assist, me.prof.risk, match.teams[me.team].tp.center);
+    if (target) { const r = athletes[target.id].root.position; passRing.position.set(r.x, 0.04, r.z); passRing.visible = true; }
+  }
+  arena.focusShadows(camState.focus.x, camState.focus.z);
+}
 
 function showEnd(winner, human) {
   const m = match, a = m.stats.teams[0], b = m.stats.teams[1];
@@ -370,9 +546,8 @@ function showEnd(winner, human) {
 
 function cycleTactic() { if (!match || !match.human) return; tacticIdx = (tacticIdx + 1) % TACTICS.length; match.setTactic(match.human.team, TACTICS[tacticIdx]); refreshTactic(); }
 function refreshTactic() { if (match) $('tactic').textContent = `${L('btn.tactic')}: ${L(TACTIC_KEYS[TACTICS[tacticIdx]])}`; }
+function refreshChips() { $('camBtn').textContent = L('cam.' + opts.camera.toLowerCase()); $('soundBtn').textContent = opts.sound ? '🔊' : '🔇'; }
 
-// ------------------------------------------------------------------ frame
-let last = performance.now(), fpsAvg = 60;
 // ------------------------------------------------------------------ LANDSCAPE ONLY
 const isPortrait = () => innerHeight > innerWidth;
 function lockLandscape() {
@@ -386,94 +561,71 @@ function updateOrientationGate() {
   return portrait;
 }
 
+// ------------------------------------------------------------------ frame loop
+let last = performance.now(), fpsAvg = 60, sinceRender = 0, time = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  // Held vertically: show the rotate screen and freeze everything (the match is paused, nothing renders).
   if (updateOrientationGate()) { acc = 0; return; }
-  fpsAvg += (1 / Math.max(dt, 1e-3) - fpsAvg) * 0.05;
+  // 30 fps tiers: render every other display frame (battery / heat).
+  sinceRender += dt;
+  if (preset.targetFps === 30 && sinceRender < 1 / 32) return;
+  const fdt = sinceRender; sinceRender = 0;
+  fpsAvg += (1 / Math.max(fdt, 1e-3) - fpsAvg) * 0.05;
+  if (opts.graphics === 'AUTO' && governor.sample(fdt, preset.targetFps) && tier !== 'LOW') applyQuality(TIERS[TIERS.indexOf(tier) - 1]);
   resize();
-  animateWater(now / 1000);
-  if (match && !match.finished) {
-    pollInput(match);
-    acc += dt; let steps = 0;
-    while (acc >= match.cfg.dt && steps < 5) { match.step(); snapshot(); acc -= match.cfg.dt; steps++; for (const e of match.drain()) onEvent(e); }
-    if (steps === 5) acc = 0;
+  time += fdt;
+  water.update(time); arena.update(fdt, time); vfx.update(fdt);
+
+  if (match) {
+    let v;
+    if (replay) {
+      replay.t += fdt * 50 * replay.speed;
+      const i = Math.min(replay.frames.length - 2, Math.floor(replay.t));
+      if (Math.floor(replay.t - fdt * 50 * replay.speed) < i) for (const e of replay.frames[i].events) react(e);   // re-play visual reactions
+      v = buildView(replay.frames[i], replay.frames[i + 1], replay.t - i);
+      if (replay.t >= replay.frames.length - 1) endReplay();
+    } else {
+      if (!match.finished) {
+        pollInput(match);
+        if (pendingReplay) { pendingReplay.at -= fdt; if (pendingReplay.at <= 0) { pendingReplay = null; startReplay(); } }
+        if (!replay) {
+          acc += fdt; let steps = 0;
+          while (acc >= match.cfg.dt && steps < 5) {
+            match.step(); const evs = match.drain(); for (const e of evs) onEvent(e); record(match, evs);
+            acc -= match.cfg.dt; steps++;
+          }
+          if (steps === 5) acc = 0;
+        }
+      }
+      v = buildView(tape[tape.length - 2], tape[tape.length - 1], Math.min(1, acc / match.cfg.dt));
+    }
+    updateWorld(fdt, v);
+    updateCamera(fdt, v);
+    updateHud(fdt);
+    arena.drawScreen({ home: match.teams[0].def.short, away: match.teams[1].def.short, hs: match.teams[0].score, as: match.teams[1].score,
+      clock: `P${match.period}  ${String((Math.max(0, match.periodLeft) / 60) | 0).padStart(2, '0')}:${String(Math.max(0, match.periodLeft | 0) % 60).padStart(2, '0')}` });
+    audio.setCrowd(Math.max(...arena.excite));
+  } else if (showcase) {
+    // Debug / presentation: athletes side by side in each animation state, slow orbit.
+    showcase.forEach((a, i) => a.update(fdt, a.showcaseState(time)));
+    const ang = time * 0.25;
+    camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10);
+    ballMesh.position.set(0, -5, 0); selRing.visible = selArrow.visible = passRing.visible = false;
+  } else {
+    // Menu: the hero treads water in front of a slow orbit of the arena.
+    if (!hero) buildHero();
+    hero.root.visible = true;
+    hero.update(fdt, { x: 0, z: -6, fx: Math.sin(time * 0.3) * 0.3, fz: -1, vx: 0, vz: 0, hasBall: true, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 1, -12), receive: false });
+    hero.handWorld(ballMesh.position);
+    const ang = Math.sin(time * 0.15) * 0.5;
+    camera.position.set(Math.sin(ang) * 3.2, 1.0, -6 - Math.cos(ang) * 3.2);
+    camera.lookAt(0, 0.5, -6);
+    setFov(42, fdt, 10);
+    water.setWakes([{ x: 0, z: -6, vx: 0, vz: 0 }]);
+    selRing.visible = selArrow.visible = passRing.visible = false; ballShadow.material.opacity = 0;
   }
-  if (match) { updateActors(dt); updateCamera(dt); updateHud(dt); }
-  else { camera.position.set(Math.sin(now / 6000) * 14, 10, -22); camera.lookAt(0, 0, 0); }
-  // crowd jump
-  crowdExcite = Math.max(0, crowdExcite - dt);
-  if (crowdExcite > 0 || crowd.userData.dirty) {
-    const m4 = new THREE.Matrix4();
-    for (let i = 0; i < crowdCount; i++) { const b = crowdBase[i]; m4.setPosition(b[0], b[1] + (crowdExcite > 0 ? Math.abs(Math.sin(now / 120 + i)) * 0.25 : 0), b[2]); crowd.setMatrixAt(i, m4); }
-    crowd.instanceMatrix.needsUpdate = true; crowd.userData.dirty = crowdExcite > 0;
-  }
-  for (const s of splashes) { s.t += dt; const k = 1 + s.t * 6 * s.size; s.s.scale.set(k, 1, k); s.s.material.opacity = Math.max(0, 0.8 - s.t * 1.2); }
-  splashes = splashes.filter((s) => (s.t < 0.7 ? true : (scene.remove(s.s), false)));
   renderer.render(scene, camera);
-}
-function animateWater(t) {
-  const a = waterGeo.attributes.position.array;
-  for (let i = 0; i < a.length; i += 3) { const x = waterBase[i], z = waterBase[i + 2]; a[i + 1] = Math.sin(x * 0.9 + t * 1.6) * 0.025 + Math.cos(z * 1.3 + t * 1.1) * 0.02; }
-  waterGeo.attributes.position.needsUpdate = true;
-}
-const alpha = () => Math.min(1, acc / match.cfg.dt);
-const interp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t });
-
-function updateActors(dt) {
-  const t = alpha();
-  for (const a of actors) {
-    const p = a.p, pos = interp(prev[p.id], curr[p.id], t), speed = Math.hypot(p.vel.x, p.vel.z);
-    a.phase += dt * (2 + speed * 3);
-    let rise = p.charging ? 0.18 * p.charge : 0; if (p.isGK) rise += 0.08; if (p.block > 0) rise += 0.12;
-    a.g.position.set(pos.x, Math.sin(a.phase) * (0.02 + speed * 0.02) + rise, pos.z);
-    a.body.rotation.set(0, Math.atan2(p.facing.x, p.facing.z), 0);
-    a.body.children[0].rotation.x = Math.min(0.5, speed * 0.2);
-    const up = p.charging || p.block > 0 || match.ball.owner === p;
-    const target = up ? (p.charging ? -0.5 - 0.7 * p.charge : 0) : 2.7;
-    a.armPivot.rotation.x += (target - a.armPivot.rotation.x) * Math.min(1, dt * 14);
-  }
-  const bp = Math.hypot(currBall.x - prevBall.x, currBall.z - prevBall.z) > 3 ? currBall : interp(prevBall, currBall, t);
-  ballMesh.position.set(bp.x, bp.y, bp.z);
-  ballMesh.rotation.x += match.ball.vel.z * dt * 4; ballMesh.rotation.z -= match.ball.vel.x * dt * 4;
-  ballShadow.position.set(bp.x, 0.04, bp.z);
-  const me = match.human;
-  selRing.visible = !!me;
-  selArrow.visible = !!me;
-  if (me) {
-    const a = actors[me.id].g.position; selRing.position.set(a.x, 0.05, a.z);
-    selArrow.position.set(a.x, 1.55 + Math.sin(performance.now() / 180) * 0.12, a.z); selArrow.rotation.y += dt * 3;
-  }
-  passRing.visible = false;
-  if (me && match.ball.owner === me) {
-    const tp = match.teams[me.team].tp;
-    const target = match.chooseTarget(me, currentMove, match.cfg.assist, me.prof.risk, tp.center);
-    if (target) { const a = actors[target.id].g.position; passRing.position.set(a.x, 0.05, a.z); passRing.visible = true; }
-  }
-}
-
-function updateCamera(dt) {
-  const m = match;
-  const ball = ballMesh.position;
-  const target = ball.clone();
-  if (m.human) target.lerp(actors[m.human.id].g.position, 0.25);
-  const team = m.possessionTeam;
-  if (team >= 0) target.x += (team === 0 ? 1 : -1) * 2;
-  target.x = Math.max(-HL + 6, Math.min(HL - 6, target.x + userPan));
-  target.z = Math.max(-2, Math.min(2, target.z * 0.35)); target.y = 0;
-  const near = Math.min(1, Math.max(0, (Math.abs(ball.x) - 6) / 5));
-  let height = 9.5 - 1.5 * near, back = HW + 7.5 - 1.5 * near, fov = 48 - 6 * near;
-  if (goalCam > 0) { goalCam -= dt; target.set(goalPoint.x - Math.sign(goalPoint.x) * 3, 0, 0); height = 5; back = 9; fov = 38; }
-  focus.lerp(target, 1 - Math.exp(-dt / 0.25));
-  const desired = new THREE.Vector3(focus.x, height, focus.z - back);
-  camera.position.lerp(desired, 1 - Math.exp(-dt * 4));
-  camera.lookAt(focus.x, 0.5, focus.z);
-  // Landscape screens narrower than 16:9 (4:3 tablets): keep the same horizontal view of the pool.
-  const aspect = innerWidth / innerHeight, ref = 16 / 9;
-  if (aspect < ref) fov = 2 * Math.atan(Math.tan((fov * Math.PI) / 360) * ref / aspect) * 180 / Math.PI;
-  camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * 3)); camera.updateProjectionMatrix();
-  userPan += (0 - userPan) * Math.min(1, dt * 0.8);
 }
 
 function updateHud(dt) {
@@ -496,18 +648,39 @@ function updateHud(dt) {
   B.textContent = L(withBall ? 'btn.pass' : 'btn.switch'); B.dataset.mode = withBall ? 'pass' : 'switch';
   if (toastT > 0) { toastT -= dt; $('toast').style.opacity = Math.min(1, toastT * 2); }
   if (timingT > 0) { timingT -= dt; if (timingT <= 0) $('timing').textContent = ''; }
-  $('info').textContent = `${L('hud.prototype')} · ${fpsAvg.toFixed(0)} fps`;
+  const info = new URLSearchParams(location.search).has('debug') ? ` · ${renderer.info.render.calls} dc · ${(renderer.info.render.triangles / 1000).toFixed(0)}k tri` : '';
+  $('info').textContent = `${L('hud.prototype')} · ${tier} · ${fpsAvg.toFixed(0)} fps${info}`;
 }
 
 let lastW = 0, lastH = 0;
 function resize() {
   const w = innerWidth, h = innerHeight; if (w === lastW && h === lastH) return;
   lastW = w; lastH = h; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  vfx.setScale(h * Math.min(devicePixelRatio, preset.pixelRatio));
+}
+
+// ------------------------------------------------------------------ showcase (?showcase): close-up check of models & animations
+let showcase = null;
+function buildShowcase() {
+  const states = ['tread', 'swim', 'hold', 'wind', 'gk', 'celebrate'];
+  showcase = states.map((st, i) => {
+    const a = new Athlete({ teamColor: i % 2 ? 0xd8321e : 0x1e5bd8, capColor: st === 'gk' ? 0xd81a1f : i % 2 ? 0xf2f4f7 : 0x1e5bd8, trimColor: 0xffffff,
+      number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });
+    const x = (i - 2.5) * 0.85;
+    a.showcaseState = (t) => {
+      if (st === 'celebrate' && a.celebrateT <= 0) a.playCelebrate('arms');
+      return { x, z: 0, fx: 0, fz: -1, vx: st === 'swim' ? 0 : 0, vz: st === 'swim' ? -1.5 : 0, sprint: false, hasBall: st === 'hold', charging: st === 'wind',
+        charge: (t * 0.6) % 1, block: 0, stamina: 1, ball: new THREE.Vector3(x, 1, -3), receive: false };
+    };
+    scene.add(a.root); return a;
+  });
+  $('menu').classList.add('hidden');
 }
 
 // ------------------------------------------------------------------ boot
 (async () => {
   await Promise.all([loadLang('en'), loadLang(lang)]);
+  applyQuality(tier);
   renderMenu();
   setupInput();
   $('play').onclick = async () => {
@@ -518,7 +691,13 @@ function resize() {
     startMatch();
   };
   addEventListener('pointerdown', lockLandscape, { once: true });
-  $('again').onclick = () => { match = null; for (const a of actors) scene.remove(a.g); actors = []; $('end').classList.add('hidden'); $('hud').classList.add('hidden'); $('menu').classList.remove('hidden'); renderMenu(); };
-  $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); }; // keyboard activation only; touch/mouse go through contacts
+  $('again').onclick = () => {
+    match = null; endReplay();
+    for (const a of athletes) scene.remove(a.root);
+    athletes = [];
+    $('end').classList.add('hidden'); $('hud').classList.add('hidden'); $('menu').classList.remove('hidden'); renderMenu();
+  };
+  $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); };
+  if (new URLSearchParams(location.search).has('showcase')) buildShowcase();
   requestAnimationFrame(frame);
 })();

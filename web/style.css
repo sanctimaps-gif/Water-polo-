@@ -120,3 +120,16 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 
 /* touch layer: the HUD widgets are drawn only; fingers are routed in JS by position */
 #hud .action, #stick-zone, #right-zone { touch-action: none; }
+
+/* camera / sound chips + replay badge */
+.hud-chip { position: absolute; top: calc(56px + var(--safe-t)); min-height: 34px; padding: 6px 10px; border-radius: 9px; background: var(--panel); font-size: 12px; font-weight: 700; }
+#camBtn { right: calc(62px + var(--safe-r)); }
+#soundBtn { right: calc(10px + var(--safe-r)); width: 44px; }
+#replay { position: absolute; left: calc(14px + var(--safe-l)); top: calc(46px + var(--safe-t)); display: flex; flex-direction: column; gap: 2px; pointer-events: none; }
+#replay b { background: #e5402e; padding: 4px 12px; border-radius: 6px; font-size: 18px; letter-spacing: .12em; animation: blink 1s infinite; }
+#replay span { font-size: 12px; color: var(--muted); }
+@keyframes blink { 50% { opacity: .55; } }
+body.replaying #stick-zone, body.replaying .action, body.replaying #bars { opacity: 0.25; }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; src: url(assets/fonts/barlow-condensed-latin-600-normal.woff2) format("woff2"); font-display: swap; }
+@font-face { font-family: "Barlow Condensed"; font-weight: 800; src: url(assets/fonts/barlow-condensed-latin-800-normal.woff2) format("woff2"); font-display: swap; }
+#board, .action, #toast, #tactic, .hud-chip, #timing, .menu-card h1, #play, #again { font-family: "Barlow Condensed", -apple-system, sans-serif; }

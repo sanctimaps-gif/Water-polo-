@@ -7,6 +7,14 @@ Jeu mobile de water-polo en 3D (Android, iPhone, iPad, tablettes) — **Unity 6 
 > La présentation (piscine, joueurs, HUD) est un **PROTOTYPE** en primitives, destiné à être remplacé.
 > Carrière, boutique, online, audio, public : **NON IMPLÉMENTÉS** (volontairement, le match passe d'abord).
 
+## ▶ Jouer dans le navigateur (téléphone ou ordinateur)
+
+**https://sanctimaps-gif.github.io/Water-polo-/**
+
+Version web du prototype : même simulation de match (portée en JavaScript depuis le C#), rendu 3D
+Three.js, contrôles tactiles. Sur téléphone, tenir en **paysage**. Au clavier : WASD, Maj, J, K, L, Q.
+C'est une démo jouable du gameplay ; le jeu final reste l'application Unity (Android / iOS).
+
 ## Documentation
 
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — analyse de la spec, choix du moteur, architecture,
@@ -57,6 +65,7 @@ WaterPolo26Mobile/Assets/_Project/
   Resources/Localization/  fr en es de it pt
 tools/SimTests/          exécution des tests hors Unity
 tools/UnityCompileCheck/ vérification de compilation de la couche Unity
+index.html + web/          version jouable dans le navigateur (GitHub Pages)
 ```
 
 ## Principes non négociables

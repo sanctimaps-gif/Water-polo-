@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b1220">
+<title>Water Polo 26 Mobile</title>
+<link rel="stylesheet" href="web/style.css">
+</head>
+<body>
+<div id="view"></div>
+
+<!-- QUICK MATCH -->
+<div id="menu">
+  <div class="menu-card">
+    <h1 id="menu-title">WATER POLO 26 MOBILE</h1>
+    <h2 id="menu-sub">MATCH RAPIDE</h2>
+    <div id="menu-rows"></div>
+    <button id="play">JOUER</button>
+    <p id="menu-hint"></p>
+    <p class="proto">PROTOTYPE web · <a href="https://github.com/sanctimaps-gif/Water-polo-/tree/claude/water-polo-26-mobile-jfjpeh">code source</a></p>
+  </div>
+</div>
+
+<!-- MATCH HUD -->
+<div id="hud" class="hidden">
+  <div id="stick-zone"><div id="stick"><div id="knob"></div></div></div>
+  <div id="right-zone"></div>
+
+  <div id="board">
+    <div class="teams">
+      <span id="home-chip" class="chip"><span id="home-name">RIV</span></span>
+      <b id="home-score">0</b><i>-</i><b id="away-score">0</b>
+      <span id="away-chip" class="chip"><span id="away-name">NOR</span></span>
+    </div>
+    <div class="clocks"><span id="clock">P1 02:00</span><span id="shotclock">30</span></div>
+  </div>
+  <button id="tactic">TACTIQUE</button>
+  <div id="info"></div>
+
+  <div id="toast"></div>
+  <div id="bars">
+    <div id="timing"></div>
+    <div id="charge-wrap"><div id="zone"></div><div id="charge"></div></div>
+    <div id="stamina-wrap"><div id="stamina"></div></div>
+  </div>
+
+  <button id="btnB" class="action">PASSE</button>
+  <button id="btnA" class="action">TIR</button>
+</div>
+
+<div id="end" class="hidden">
+  <div class="menu-card">
+    <h1 id="end-title"></h1>
+    <div id="end-stats"></div>
+    <button id="again">REJOUER</button>
+  </div>
+</div>
+
+<div id="rotate" class="hidden">⟳ Tournez le téléphone en paysage · Rotate to landscape</div>
+
+<script type="module" src="web/game.js"></script>
+</body>
+</html>

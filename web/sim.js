@@ -100,7 +100,8 @@ export const AWAY = () => makeTeam('northshore', 'Northshore Orcas', 'NOR', 0xd8
 // ---------------------------------------------------------------- constants
 const BALL_R = 0.11, HOLD_H = 0.45, G = 9.81;
 export const CHARGE_TIME = 0.9, EXC_MIN = 0.72, EXC_MAX = 0.86;
-const ATT_D = [2.6, 5.2, 7.0, 5.2, 2.6, 2.0], ATT_Z = [-4.6, -3.0, 0, 3.0, 4.6, 0];
+// Attack shape over the full width of the pool: wings near the side lines at 2 m, flats at 5 m.
+const ATT_D = [2.6, 5.2, 7.0, 5.2, 2.6, 2.0], ATT_Z = [-7.0, -4.4, 0, 4.4, 7.0, 0];
 
 export const Ev = {
   PERIOD_START: 'PeriodStart', SWIM_OFF: 'SwimOff', POSSESSION: 'PossessionWon', PASS: 'PassMade', PASS_OK: 'PassCompleted',
@@ -431,10 +432,33 @@ export class Match {
       p.charging = false; p.charge = 0; p.heldAtMax = 0;
       if (cmd.defend && p.stun <= 0) this.doDefend(p);
     }
-    const move = p.charging ? mul(cmd.move || V(), 0.35) : cmd.move || V();
-    this.motor(p, move, !!cmd.sprint && !p.charging, hasBall, dt);
+    let move = p.charging ? mul(cmd.move || V(), 0.35) : cmd.move || V(), sprint = !!cmd.sprint && !p.charging;
+    if (cmd.defendHeld && !hasBall && p.stun <= 0) {
+      const pr = this.pressMove(p);
+      if (pr) {
+        // The joystick still steers: it bends the pressing run instead of being ignored.
+        move = len(move) > 0.3 ? norm(add(mul(pr.move, 0.6), mul(move, 0.4))) : pr.move; sprint = sprint || pr.sprint;
+        if (pr.tackle && p.stealCd <= 0) this.doDefend(p);
+      }
+    }
+    this.motor(p, move, sprint, hasBall, dt);
     if (p.charging) this.faceTo(p, this.targetGoal(p.team), dt);
     this.clampField(p);
+  }
+  /**
+   * Automatic pressing (DÉFENSE held): swim to the goal side of the ball carrier at arm's length
+   * (or to the receiver of an opponent pass, or to a loose ball), sprint when far, tackle when close.
+   */
+  pressMove(p) {
+    const b = this.ball, og = this.ownGoal(p.team);
+    let target, onMan = false;
+    if (b.owner && b.owner.team !== p.team) { target = b.owner.pos; onMan = true; }
+    else if (!b.owner && b.state === 'PASSED' && b.possTeam !== p.team && b.receiver) { target = b.receiver.pos; onMan = true; }
+    else if (!b.owner && b.state !== 'SHOT') target = b.pos;
+    else return null;
+    const spot = onMan ? add(target, mul(norm(flat(sub(og, target))), 0.85)) : V(target.x, 0, target.z);
+    const d = sub(flat(spot), flat(p.pos)), dl = len(d), gap = fdist(p.pos, target);
+    return { move: dl < 0.15 ? V() : mul(norm(d), Math.min(1, dl / 0.6)), sprint: dl > 2.5 && !p.sprintLocked, tackle: onMan && b.owner && gap < 1.1 };
   }
   takeShot(p, charge, q, cmd) { p.charging = false; p.charge = 0; p.heldAtMax = 0; p.aiCharge = -1; this.shoot(p, charge, q, cmd); }
   doPass(p, cmd) {

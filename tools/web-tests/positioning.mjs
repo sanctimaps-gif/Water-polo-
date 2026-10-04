@@ -6,9 +6,10 @@
 //  goalSide    defence: share of defenders between their mark and their own goal
 //  centerIn2m  settled attack: share of time the centre-forward is within 3 m of the opponent goal
 //  behindBall  defence: share of defenders behind the ball (on their goal side of it)
+//  width       settled attack: distance (m) between the widest attackers (pool is 20 m wide)
 import { Match, HOME, AWAY } from '../../web/sim.js';
 const args = process.argv.slice(2), N = +(args[0] || 6);
-const acc = { clump: [], nearBall: [], slotErr: [], goalSide: [], centerIn2m: [], behindBall: [], goals: 0, shots: 0 };
+const acc = { clump: [], nearBall: [], slotErr: [], goalSide: [], centerIn2m: [], behindBall: [], width: [], goals: 0, shots: 0 };
 const mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
 for (let s = 1; s <= N; s++) {
   const m = new Match({ seed: s, humanTeam: -1, periodDuration: 120 }, HOME(), AWAY()); m.start();
@@ -25,6 +26,7 @@ for (let s = 1; s <= N; s++) {
     if (settled) {
       const tp = m.teams[att].tp;
       for (const p of m.teams[att].field) if (p !== m.ball.owner) acc.slotErr.push(Math.hypot(p.pos.x - m.attackSpot(att, p.slot, tp).x, p.pos.z - m.attackSpot(att, p.slot, tp).z));
+      const zs = m.teams[att].field.map((p) => p.pos.z); acc.width.push(Math.max(...zs) - Math.min(...zs));
       const cf = m.teams[att].field.find((p) => p.slot === 5); acc.centerIn2m.push(Math.abs(cf.pos.x - goalX) < 3 ? 1 : 0);
     }
     const def = 1 - att, own = m.ownGoal(def);
@@ -36,10 +38,10 @@ for (let s = 1; s <= N; s++) {
   }
   for (const t of m.stats.teams) { acc.goals += t.goals; acc.shots += t.shots; }
 }
-const out = { clump: mean(acc.clump), nearBall: mean(acc.nearBall), slotErr: mean(acc.slotErr), goalSide: mean(acc.goalSide), centerIn2m: mean(acc.centerIn2m), behindBall: mean(acc.behindBall), goalsPerMatch: acc.goals / N, conversion: acc.goals / Math.max(1, acc.shots) };
+const out = { clump: mean(acc.clump), nearBall: mean(acc.nearBall), slotErr: mean(acc.slotErr), goalSide: mean(acc.goalSide), centerIn2m: mean(acc.centerIn2m), behindBall: mean(acc.behindBall), width: mean(acc.width), goalsPerMatch: acc.goals / N, conversion: acc.goals / Math.max(1, acc.shots) };
 for (const [k, v] of Object.entries(out)) console.log(k.padEnd(14), v.toFixed(3));
 // Regression limits (CI): spacing, goal-side defence, centre-forward at 2 m, matches still produce goals.
-const limits = [['clump', '<', 0.5], ['slotErr', '<', 2.8], ['goalSide', '>', 0.65], ['centerIn2m', '>', 0.25], ['goalsPerMatch', '>', 2.5]];
+const limits = [['clump', '<', 0.5], ['slotErr', '<', 2.8], ['goalSide', '>', 0.65], ['centerIn2m', '>', 0.25], ['goalsPerMatch', '>', 2.5], ['width', '>', 10]];
 let fail = 0;
 for (const [k, op, v] of limits) { const okk = op === '<' ? out[k] < v : out[k] > v; if (!okk) { console.log(`FAIL ${k} ${out[k].toFixed(3)} ${op} ${v}`); fail++; } }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exitCode = fail ? 1 : 0;

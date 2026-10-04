@@ -33,4 +33,13 @@ const run = (m, n) => { for (let i = 0; i < n; i++) m.step(); return m.drain().m
   for (let i = 0; i < 40 && !sw; i++) { m.step(); sw = m.human !== me; } ok(sw, 'auto switch → pass receiver'); }
 { const m = new Match({ seed: 3, humanTeam: 0, autoSwitch: false }, HOME(), AWAY()); m.start(); const h = m.human; for (let i = 0; i < 500; i++) m.step();
   ok(m.human === h || (m.ball.owner && m.ball.owner === m.human), 'autoSwitch off = manual only'); }
+// DÉFENSE held, no joystick: the defender presses the ball carrier automatically (goal side, arm's length).
+{ const m = setup(); m.cfg.autoSwitch = false; const me = m.slot(0, 2); m.setHuman(me, false); me.pos = { x: -9, y: 0, z: 4 };
+  const c = m.slot(1, 2); c.pos = { x: -5, y: 0, z: 0 }; m.give(c, false); m.drain();
+  c.stats.defense = 1; c.stats.physical = 99; c.stats.technique = 99;   // the carrier keeps the ball
+  const d0 = Math.hypot(me.pos.x - c.pos.x, me.pos.z - c.pos.z);
+  for (let i = 0; i < 200; i++) { c.nextDecision = 1e9; m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, defendHeld: true }); m.step(); if (m.ball.owner !== c) break; }
+  const d1 = Math.hypot(me.pos.x - c.pos.x, me.pos.z - c.pos.z), og = m.ownGoal(0);
+  const goalSide = Math.hypot(me.pos.x - og.x, me.pos.z - og.z) < Math.hypot(c.pos.x - og.x, c.pos.z - og.z) + 0.3;
+  ok(d1 < 1.6 && d1 < d0 && goalSide, `DÉFENSE held = auto press (${d0.toFixed(1)} m -> ${d1.toFixed(1)} m, goal side ${goalSide})`); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

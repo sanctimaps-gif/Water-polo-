@@ -238,6 +238,7 @@ function pollInput(m) {
   const A = input.A, B = input.B;
   if (A.press) { A.press = false; aCtx = hasBall; if (!hasBall) cmd.defend = true; }
   if (aCtx && hasBall) cmd.shootHeld = A.held;
+  if (!hasBall && !aCtx && A.held) cmd.defendHeld = true;   // DÉFENSE held: automatic pressing
   if (A.release) {
     A.release = false;
     if (aCtx) {

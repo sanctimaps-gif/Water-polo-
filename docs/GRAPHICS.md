@@ -144,7 +144,7 @@ coup de sifflet. ~7 s, la simulation est arrêtée pendant ce temps.
 
 **Autres caméras** (Paramètres > Match, ou bouton CAM pendant le match) : 1 Standard (TV), 2 Large,
 3 Courte portée, 4 Dynamique (parallèle qui suit l'attaque), 5 Tactique (haute), 6 Derrière le
-joueur (vue dans l'axe vers le but attaqué), 7 Bord du bassin (au ras de l'eau). **Zoom 1 à 10**.
+joueur (vue du dessus, depuis l'arrière : haute et plongeante, le but attaqué en haut de l'écran), 7 Bord du bassin (au ras de l'eau). **Zoom 1 à 10**.
 La caméra reste toujours dans la salle (sous le toit, devant le mur). Le joystick et la visée du tir
 sont calculés dans l'espace du monde ⇒ ils fonctionnent dans tous les angles. **Radar** (activable) :
 vue de dessus du bassin en haut à gauche (joueurs, gardiens, ballon, joueur contrôlé).

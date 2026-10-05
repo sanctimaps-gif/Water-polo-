@@ -530,11 +530,12 @@ function updateCamera(dt, v) {
     return;
   }
   if (cam === 'BEHIND' && m.human && c.goalT <= 0) {
-    // End-on view from behind the controlled player, looking at the goal he attacks.
+    // Seen from above, from behind the controlled player: high and steep (~60° down), the goal he
+    // attacks at the top of the screen, the player in the lower third.
     const dir = m.human.team === 0 ? 1 : -1, h = athletes[m.human.id].root.position;
-    c.focus.lerp(tmp2.set(h.x + dir * 4, 0, h.z * 0.85), 1 - Math.exp(-dt / 0.25));
-    camera.position.lerp(tmp.set(Math.max(-30, Math.min(30, c.focus.x - dir * (9 * zoom))), 4.2 * zoom, c.focus.z * 0.9), 1 - Math.exp(-dt * 4));
-    camera.lookAt(c.focus.x, 0.3, c.focus.z); setFov(52, dt, 3); userPan = 0;
+    c.focus.lerp(tmp2.set(h.x + dir * 3, 0, h.z), 1 - Math.exp(-dt / 0.25));
+    camera.position.lerp(tmp.set(c.focus.x - dir * 6.5 * zoom, Math.min(14, 11 * zoom), c.focus.z), 1 - Math.exp(-dt * 4));
+    camera.lookAt(c.focus.x, 0, c.focus.z); setFov(55, dt, 3); userPan = 0;
     return;
   }
   if (cam === 'TACTICAL') { height = 13.5; back = 10 + 3.5; fov = 58; target.x *= 0.7; zk = 0.1; }

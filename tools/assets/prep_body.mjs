@@ -131,7 +131,7 @@ for (const [name, V] of Object.entries(meshes)) {
 }
 // --- output
 const jointsOut = {};
-for (const [name, V] of Object.entries(meshes)) { const Jv = joints(o, V); jointsOut[name] = Object.fromEntries(['neck', 'head', 'l-shoulder', 'l-elbow', 'l-hand', 'r-shoulder', 'r-elbow', 'r-hand', 'l-upper-leg', 'l-knee', 'l-ankle', 'r-upper-leg', 'r-knee', 'r-ankle', 'l-finger-3-1', 'r-finger-3-1'].map((k) => [k, M(Jv[k]).map((x) => +x.toFixed(5))])); }
+for (const [name, V] of Object.entries(meshes)) { const Jv = joints(o, V); jointsOut[name] = Object.fromEntries(['neck', 'head', 'l-shoulder', 'l-elbow', 'l-hand', 'r-shoulder', 'r-elbow', 'r-hand', 'l-upper-leg', 'l-knee', 'l-ankle', 'r-upper-leg', 'r-knee', 'r-ankle', 'l-finger-3-1', 'r-finger-3-1', 'l-finger-1-2', 'r-finger-1-2', 'l-finger-5-1', 'r-finger-5-1', 'l-finger-3-4', 'r-finger-3-4'].map((k) => [k, M(Jv[k]).map((x) => +x.toFixed(5))])); }
 const posBufs = Object.keys(meshes).map((name) => { const a = new Float32Array(nv * 3); DEF[name].forEach((p, k) => a.set(M(p), k * 3)); return Buffer.from(a.buffer); });
 for (const [name, V] of Object.entries(meshes)) { const Jv = joints(o, V), e = M(Jv['l-eye']); jointsOut[name].headBone = [0, +(e[1] - 0.09).toFixed(5), +(e[2] - 0.091).toFixed(5)]; }
 const hyM = (J['l-upper-leg'][1] - OY) * S;

@@ -113,6 +113,10 @@ body.intro-on #hud > *:not(#intro) { visibility: hidden; }
 
 /* sprint button (right thumb, above PASS) */
 #btnS { right: calc(160px + var(--safe-r)); bottom: calc(128px + var(--safe-b)); width: 64px; height: 64px; font-size: 11px; background: rgba(242, 178, 38, 0.88); }
+/* "pass the player" (dribble past the marker), above SHOOT, active with the ball */
+#btnD { right: calc(44px + var(--safe-r)); bottom: calc(160px + var(--safe-b)); width: 72px; height: 72px; font-size: 10px; line-height: 1.1; padding: 4px; background: rgba(32, 196, 140, 0.9); }
+#btnD.off { opacity: 0.35; } #btnS.on { box-shadow: 0 0 0 4px #fff8, 0 0 18px #f2b226; }
+@media (max-height: 420px) { #btnD { right: calc(36px + var(--safe-r)); bottom: calc(140px + var(--safe-b)); width: 62px; height: 62px; } }
 @media (max-height: 420px) { #btnS { right: calc(140px + var(--safe-r)); bottom: calc(100px + var(--safe-b)); width: 56px; height: 56px; } }
 
 /* ---------- boot splash (logo) ---------- */

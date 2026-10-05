@@ -598,6 +598,21 @@ export class Athlete {
     };
     if (mhb) { this.legR = mhLeg(1); this.legL = mhLeg(-1); } else { this.legR = leg(1); this.legL = leg(-1); }
     for (const [b, q] of binds) b.quaternion.copy(q);   // bind pose = the mesh's A-pose
+    if (mhb) {
+      // Grip from the real hand geometry: palm centre (wrist .. middle knuckle) + one ball radius along the
+      // palm normal (thumb / little finger / curl of the fingers). Stored in the wrist frame, with the palm
+      // normal and the hand axis, for the forearm rotation (pronation) below.
+      rootBone.updateMatrixWorld(true);
+      for (const [arm, c] of [[this.armR, 'l'], [this.armL, 'r']]) {
+        const Jt = BODY.joints[build], v = (k) => new THREE.Vector3(...Jt[`${c}-${k}`]);
+        const w = v('hand'), m = v('finger-3-1'), t = v('finger-1-2'), L = v('finger-5-1'), tip = v('finger-3-4');
+        const n = m.clone().sub(w).cross(L.clone().sub(t)).normalize(); if (n.dot(tip.clone().sub(m)) < 0) n.negate();
+        const g = w.clone().lerp(m, 0.6).addScaledVector(n, 0.115);
+        const inv = arm.wr.matrixWorld.clone().invert(), qi = arm.wr.getWorldQuaternion(new THREE.Quaternion()).invert();
+        arm.hand.position.copy(g.applyMatrix4(inv));
+        arm.palmN = n.applyQuaternion(qi); arm.handAxis = m.clone().sub(w).normalize().applyQuaternion(qi);
+      }
+    }
 
     // ---- bake: parts -> mesh space at the bind pose, bound 100 % to their bone
     rootBone.updateMatrixWorld(true);
@@ -824,7 +839,7 @@ export class Athlete {
     }
     // ---- holding the ball (match footage): the ball stays on the water under the palm, arm forward,
     // body slightly forward; it is only lifted to shoot or pass.
-    if (w.hold > 0) mix(P, { shRx: -0.95, shRz: 0.32, elR: -0.15, chestX: 0.1, pitch: 0.15, rise: 0.05, headX: -0.08 }, w.hold);
+    if (w.hold > 0) mix(P, { shRx: -1.2, shRz: 0.32, elR: -0.15, chestX: 0.05, pitch: 0.08, rise: 0.16, headX: -0.08 }, w.hold);
     this.ballLow = w.hold > 0.5 && w.wind < 0.2 && this.throwT <= 0;
     // ---- shot wind-up: arm cocked back, torso twisted, rising out of the water
     if (w.wind > 0) {
@@ -894,12 +909,14 @@ export class Athlete {
     P.twist += look * 0.25 * (1 - w.swim) * (1 - w.throw) * (1 - w.wind);
     P.headX -= clamp(Math.atan2((L.y ?? 0.2) - 0.55, Math.max(hd, 0.5)), -0.5, 0.6) * 0.7 * (1 - w.swim);
 
-    // ---- smooth toward the target pose (shortest-angle) and apply
-    const sk = 1 - Math.exp(-dt * 14);
+    // ---- smooth toward the target pose (shortest-angle), within human joint limits, and apply
+    const sk = 1 - Math.exp(-dt * 14), circ = w.swim > 0.5;
+    limitPose(P, circ);
     for (const j of JOINTS) {
-      const fast = (j === 'shRx' || j === 'shLx') && w.swim > 0.5;
+      const fast = (j === 'shRx' || j === 'shLx') && circ;
       this.pose[j] += (j === 'rise' ? P[j] - this.pose[j] : wrap(P[j] - this.pose[j])) * (fast ? 1 : sk);
     }
+    limitPose(this.pose, circ);
     const q = this.pose;
     this.root.position.set(s.x, q.rise + Math.sin(this.tread * 2 + 1) * 0.008, s.z);
     this.root.rotation.y = yaw;
@@ -943,6 +960,31 @@ export class Athlete {
       this.armR.el.rotation.x *= 1 - w.receive;
     }
     this.updateShoulders(w.receive > 0.01);
+    // Forearm rotation: the palm faces down onto the ball held on the water, and faces the target when
+    // winding up and throwing (realistic body; the procedural hand is already oriented).
+    const pw = Math.max(w.hold, w.wind, w.throw);
+    if (this.armR.palmN) {
+      const arm = this.armR; arm.wr.quaternion.identity();
+      if (pw > 0.01) {
+        this.root.updateMatrixWorld(true);
+        const wq = arm.wr.getWorldQuaternion(tmpQ), n0 = tmpV.copy(arm.palmN).applyQuaternion(wq), A = tmpV2.copy(arm.handAxis).applyQuaternion(wq);
+        const yw = Math.atan2(s.fx, s.fz), D = w.hold > Math.max(w.wind, w.throw) ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(Math.sin(yw), 0.25, Math.cos(yw));
+        D.addScaledVector(A, -D.dot(A)); n0.addScaledVector(A, -n0.dot(A));
+        if (D.lengthSq() > 1e-4 && n0.lengthSq() > 1e-4) {
+          D.normalize(); n0.normalize();
+          const ang = clamp(Math.atan2(A.dot(n0.clone().cross(D)), n0.dot(D)), -1.6, 1.6);   // forearm pronation / supination range
+          arm.wr.quaternion.setFromAxisAngle(arm.handAxis, ang * pw);
+        }
+      }
+    }
+    // Held ball: the hand goes down to the water (small arm IK on the shoulder flexion).
+    if (this.ballLow) {
+      for (let it = 0; it < 3; it++) {
+        this.root.updateMatrixWorld(true); this.armR.hand.getWorldPosition(tmpV);
+        const err = tmpV.y - 0.11; if (Math.abs(err) < 0.01) break;
+        this.armR.sh.rotation.x = clamp(this.armR.sh.rotation.x + err * 1.6, -2.3, 0.2);
+      }
+    }
   }
 
   /**
@@ -981,6 +1023,13 @@ export class Athlete {
 
   /** World position of the right hand's grip point (where a held ball sits). */
   handWorld(out) { this.root.updateMatrixWorld(true); return this.armR.hand.getWorldPosition(out); }
+  /** Where the ball is when this athlete has it: in the right hand (grip point = ball centre against the
+   *  palm), or floating in front of the head when dribbling. */
+  ballWorld(out, time = 0) {
+    if (this.dribbling) { const r = this.root, yw = r.rotation.y; return out.set(r.position.x + Math.sin(yw) * 0.5, 0.11 + Math.sin(time * 9) * 0.01, r.position.z + Math.cos(yw) * 0.5); }
+    this.handWorld(out); if (this.ballLow) out.y = Math.max(out.y, 0.1);   // resting on the water under the palm
+    return out;
+  }
 }
 
 /** Concatenates geometries that share the same attribute layout. */
@@ -1009,5 +1058,32 @@ function crawlElbow(p) {
   return -1.55 * Math.max(0, Math.sin(q)) - 0.35 - 0.6 * Math.max(0, -Math.sin(q - 0.3)) + 0.35 * Math.max(0, Math.sin(q));
 }
 const ROLL_SIGN = 1;
+/**
+ * Human range of motion (radians, this rig's conventions: elbow / hip flexion negative, knee flexion
+ * positive, abduction outward = +z for the right side). The swim stroke is a shoulder circumduction, so
+ * the shoulder flexion angle is only limited out of the crawl.
+ */
+export const JOINT_LIMITS = {
+  elR: [-2.55, 0], elL: [-2.55, 0],                         // elbow: ~145° flexion, no hyperextension
+  knR: [0, 2.4], knL: [0, 2.4],                             // knee: ~140° flexion, no hyperextension
+  knRy: [-0.7, 0.7], knLy: [-0.7, 0.7],                     // tibial rotation (knee bent, eggbeater)
+  hipRx: [-2.2, 0.45], hipLx: [-2.2, 0.45],                 // hip: 125° flexion, 25° extension
+  hipRz: [-0.35, 0.9], hipLz: [-0.9, 0.35],                 // hip abduction 50°, adduction 20°
+  shRz: [-0.45, 3.1], shLz: [-3.1, 0.45],                   // shoulder abduction 180°, adduction 25°
+  chestX: [-0.45, 0.75], chestY: [-0.65, 0.65], chestZ: [-0.45, 0.45],   // thoracolumbar flex / ext, rotation, side bend
+  pelvisY: [-0.5, 0.5], pelvisZ: [-0.3, 0.3],
+  headY: [-1.3, 1.3],                                       // neck rotation 75°
+};
+const SH_FLEX = [-3.75, 1.05];                              // shoulder: 215° (arm overhead and behind, throwing) .. 60° extension
+function limitPose(P, circumduction) {
+  for (const k in JOINT_LIMITS) { const [a, b] = JOINT_LIMITS[k]; if (P[k] < a) P[k] = a; else if (P[k] > b) P[k] = b; }
+  const nk = P.neck + P.headX;                              // cervical flexion / extension, total ~ 50° / 70°
+  if (nk < -1.25) P.headX -= nk + 1.25; else if (nk > 0.9) P.headX -= nk - 0.9;
+  if (!circumduction) for (const k of ['shRx', 'shLx']) {
+    // allowed: [-3.75, 1.05]; once wrapped to (-π, π] the forbidden band is (1.05, 2.53): snap to the nearest end
+    const v = wrap(P[k]), hi = SH_FLEX[1], lo = SH_FLEX[0] + 2 * Math.PI;
+    if (v > hi && v < lo) P[k] = v - hi < lo - v ? hi : SH_FLEX[0];
+  }
+}
 function wrapPos(a) { const t = a % (Math.PI * 2); return t < 0 ? t + Math.PI * 2 : t; }
 function mix(P, o, w) { for (const k in o) P[k] += (o[k] - P[k]) * w; }

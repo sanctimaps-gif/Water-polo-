@@ -128,6 +128,21 @@ Ce qui a été ajouté pour y arriver :
 
 Mesures vérifiées en CI (`tools/web-tests/positioning.mjs`, seuils).
 
+### Règles appliquées, sprint, « passer le joueur »
+
+* **Coup franc dans les 5 m** : pas de tir direct ; il faut d'abord passer le ballon (message « PAS DE
+  TIR DIRECT DANS LES 5 M : PASSEZ ! » ; l'IA respecte la règle). Hors des 5 m, tir direct autorisé.
+* **Hors-jeu des 2 m** : un attaquant sans ballon dans la zone des 2 m adverse alors que le ballon
+  est dehors (plus de 0,3 s) ⇒ coup de sifflet, ballon à l'adversaire sur la ligne des 2 m. L'IA reste
+  hors de la zone (pivot à 2,5 m, poteaux en supériorité à 2,4 m).
+* **Sprint** : vitesse max ×1,42 et accélération ×1,6, pleine vitesse quel que soit l'angle du
+  joystick, endurance qui baisse plus vite ; le joueur n'est plus changé automatiquement pendant un
+  sprint ; bouton SPRINT entouré quand le sprint est actif.
+* **PASSER LE JOUEUR** (bouton vert au-dessus de TIR, touche E) : avec le ballon, accélération qui
+  contourne le défenseur le plus proche du côté opposé ; réussite selon VITESSE + TECHNIQUE contre
+  DÉFENSE + RÉACTION (le défenseur est battu 0,7 s), sinon petit déséquilibre ; 3 s de recharge,
+  coûte de l'endurance ; l'IA l'utilise quand elle est pressée.
+
 ### Passes en profondeur, posées et lobées (d'après des images de match)
 
 * **Passe en profondeur** : si le receveur nage vers le but, démarqué, le ballon est posé sur l'eau

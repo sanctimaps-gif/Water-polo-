@@ -106,6 +106,16 @@ Unity/URP est à faire.
 * **Crawl** : épaules hautes, tête fixe regardant devant (ne tourne jamais), roulis modéré, retour du
   bras coude haut près de la tête (coude ~90°), entrée courte devant l'épaule.
 
+**Articulations et limites humaines** (`JOINT_LIMITS`, vérifiées en CI dans tous les états) : coude
+0–145° sans hyperextension, genou 0–140°, hanche 125° de flexion / 25° d'extension, abduction 50°,
+épaule abduction 180° / flexion jusqu'à 215° (armé) / extension 60° (hors crawl, qui est une
+circumduction), colonne flexion / extension / rotation / inclinaison limitées, cou 50° / 70°,
+rotation 75°. **Avant-bras** : pronation / supination (±90°) pour que la paume se pose sur le ballon
+tenu sur l'eau et face à la cible à l'armé et au tir.
+**Ballon dans la main** : point de prise calculé sur la vraie main (centre de la paume + un rayon de
+ballon selon la normale de la paume, d'après le pouce, l'auriculaire et la courbure des doigts) ;
+ballon tenu sur l'eau : petite IK de l'épaule qui amène la main au niveau de l'eau.
+
 **Tronc en deux parties** : bassin (os `torso`, porte les jambes) et thorax (os `chest`, porte les
 bras et la tête, poids de peau répartis autour de la taille). Le thorax se penche, s'incline et tourne
 plus que le bassin.

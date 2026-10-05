@@ -133,7 +133,7 @@ function buildHero() {
 }
 
 // ------------------------------------------------------------------ input
-const input = { stick: { x: 0, y: 0, active: false }, A: btnState(), B: btnState(), S: btnState(), pan: 0, dbl: false, keys: new Set() };
+const input = { stick: { x: 0, y: 0, active: false }, A: btnState(), B: btnState(), S: btnState(), D: btnState(), pan: 0, dbl: false, keys: new Set() };
 function btnState() { return { held: false, press: false, release: false, down: 0, dur: 0, sx: 0, sy: 0, swipe: { x: 0, y: 0 } }; }
 
 // Unified contacts: every finger (touch) or mouse button is routed to a control by WHERE it starts,
@@ -143,7 +143,7 @@ const contacts = new Map(); // id -> { region, ox, oy, lx, ly }
 const STICK_R = 70;
 function hudActive() { return match && !intro && !paused && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
 function regionAt(x, y) {
-  for (const id of ['btnA', 'btnB', 'btnS']) {
+  for (const id of ['btnA', 'btnB', 'btnS', 'btnD']) {
     const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (Math.hypot(x - cx, y - cy) <= (r.width / 2) * 1.25) return id;
   }
@@ -153,7 +153,7 @@ function regionAt(x, y) {
   }
   return x < innerWidth * 0.45 ? 'stick' : 'right';
 }
-const BTN = { btnA: () => input.A, btnB: () => input.B, btnS: () => input.S };
+const BTN = { btnA: () => input.A, btnB: () => input.B, btnS: () => input.S, btnD: () => input.D };
 function contactStart(id, x, y) {
   if (replay) { endReplay(); return; }      // any touch skips the replay
   const region = regionAt(x, y);
@@ -238,6 +238,8 @@ function pollInput(m) {
   const l = Math.hypot(sx, sy); if (l > 1) { sx /= l; sy /= l; }
   const cmd = { move: screenToWorld(sx, sy), sprint: input.S.held || Math.hypot(sx, sy) > 0.92 || k.has('ShiftLeft') || k.has('ShiftRight') };
   input.S.press = input.S.release = false;
+  if (input.D.press || k.has('KeyE')) { input.D.press = false; if (hasBall) cmd.dodge = true; }
+  input.D.release = false;
   currentMove = cmd.move;
   const A = input.A, B = input.B;
   if (A.press) { A.press = false; aCtx = hasBall; if (!hasBall) cmd.defend = true; }
@@ -434,6 +436,8 @@ function react(e) {
     case Ev.SAVE: if (a) a.playSave(); vfx.burst(e.pos.x, e.pos.z, 1.6); audio.splash(1.4); audio.ballHit(1); arena.cheer(-1, 0.6); break;
     case Ev.BLOCK: vfx.burst(e.pos.x, e.pos.z, 0.8); audio.ballHit(0.8); break;
     case Ev.FRAME: vfx.burst(e.pos.x, e.pos.z, 0.6); audio.post(); arena.cheer(-1, 0.5); break;
+    case Ev.DODGE: if (a) { a.playReach(e.value || 1); vfx.burst(e.pos.x, e.pos.z, 0.6); audio.splash(0.5); } break;
+    case Ev.DODGE_FAIL: if (a) vfx.burst(e.pos.x, e.pos.z, 0.4); break;
     case Ev.INTERCEPT: case Ev.STEAL:
       if (a) { const r = a.root, dx = e.pos.x - r.position.x, dz = e.pos.z - r.position.z; a.playReach(Math.cos(r.rotation.y) * dx - Math.sin(r.rotation.y) * dz > 0 ? 1 : -1); }
       vfx.burst(e.pos.x, e.pos.z, 0.5); audio.splash(0.5); break;
@@ -460,6 +464,9 @@ function onEvent(e) {
   const toastMap = { [Ev.SAVE]: 'hud.save', [Ev.BLOCK]: 'hud.blocked', [Ev.FRAME]: 'hud.frame', [Ev.INTERCEPT]: 'hud.intercepted', [Ev.STEAL]: 'hud.steal', [Ev.FOUL]: 'hud.foul', [Ev.OUT]: 'hud.out', [Ev.SHOT_CLOCK]: 'hud.shotclock_violation', [Ev.SWIM_OFF]: 'hud.swimoff' };
   if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
   if ([Ev.FOUL, Ev.OUT, Ev.SHOT_CLOCK].includes(e.type)) audio.whistle(false);
+  if (e.type === Ev.OFFSIDE) { toast(L('hud.offside'), 1.8); audio.whistle(false); }
+  if (e.type === Ev.NO_SHOT_5M && match && match.players[e.player] && match.players[e.player].human) toast(L('hud.no_shot_5m'), 1.8);
+  if (e.type === Ev.DODGE && e.team === 0 && e.other >= 0) toast(L('hud.dodge'), 0.9);
   if (e.type === Ev.EXCLUSION) { const p = match && match.players[e.player]; toast(L('hud.exclusion', p ? p.number : ''), 2.2); audio.whistle(true); if (navigator.vibrate) navigator.vibrate(40); }
   if (e.type === Ev.REENTRY && match && match.players[e.player] && match.players[e.player].team === 0) toast(L('hud.reentry'), 1);
   if (e.type === Ev.PERIOD_START) audio.whistle(true);
@@ -583,15 +590,7 @@ function updateWorld(dt, v) {
     athletes[i].update(dt, s);
   }
   // Ball: in the hand when held, simulated position otherwise.
-  if (v.owner >= 0 && athletes[v.owner].dribbling) {
-    // Dribble: the ball floats just in front of the head, pushed by the bow wave between the arms.
-    const r = athletes[v.owner].root, yw = r.rotation.y;
-    ballMesh.position.set(r.position.x + Math.sin(yw) * 0.5, 0.11 + Math.sin(time * 9) * 0.01, r.position.z + Math.cos(yw) * 0.5);   // under the chin, between the arms
-  } else if (v.owner >= 0 && athletes[v.owner].ballLow) {
-    // Held: on the water under the right palm, in front of the shoulder.
-    const r = athletes[v.owner].root, yw = r.rotation.y;
-    ballMesh.position.set(r.position.x + Math.sin(yw) * 0.5 + Math.cos(yw) * 0.26, 0.11, r.position.z + Math.cos(yw) * 0.5 - Math.sin(yw) * 0.26);
-  } else if (v.owner >= 0) athletes[v.owner].handWorld(ballMesh.position); else ballMesh.position.copy(v.ball);
+  if (v.owner >= 0) athletes[v.owner].ballWorld(ballMesh.position, time); else ballMesh.position.copy(v.ball);
   const bvx = (ballMesh.position.x - prevBallPos.x) / Math.max(dt, 1e-3), bvz = (ballMesh.position.z - prevBallPos.z) / Math.max(dt, 1e-3);
   ballMesh.rotation.x += bvz * dt * 3.5; ballMesh.rotation.z -= bvx * dt * 3.5;
   // Ball meets the water: splash scaled by its speed.
@@ -731,15 +730,18 @@ function frame(now) {
   } else if (showcase) {
     // Debug / presentation: athletes side by side in each animation state, slow orbit.
     showcase.forEach((a, i) => a.update(fdt, a.showcaseState(time)));
-    const dr = showcase.find((a) => a.dribbling);
-    if (dr) { const r = dr.root; ballMesh.position.set(r.position.x + Math.sin(r.rotation.y) * 0.5, 0.11, r.position.z + Math.cos(r.rotation.y) * 0.5); }
+    showcase.forEach((a, i) => {   // a ball for each athlete holding one, placed exactly like in a match
+      const has = a.showcaseState(time).hasBall;
+      if (!a.ball) { a.ball = ballMesh.clone(); scene.add(a.ball); }
+      a.ball.visible = a.root.visible && (has || a.throwT > 0.2); if (a.ball.visible) a.ballWorld(a.ball.position, time);
+    });
     const ang = time * 0.25, focus = new URLSearchParams(location.search).get('focus');
     if (focus !== null) {   // ?showcase&focus=i : face close-up of athlete i
       const fx = (+focus - 2.5) * 0.85, fa = Math.sin(time * 0.5) * 0.7, fy = showcase[+focus].morph.height;
       if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.55, 0.6); camera.lookAt(fx, 0.35, 0); setFov(40, fdt, 10); }   // ?side: profile view
       else { camera.position.set(fx + Math.sin(fa) * 0.9, 0.5 * fy, -Math.cos(fa) * 0.9); camera.lookAt(fx, 0.33 * fy, 0); setFov(40, fdt, 10); }
     } else { camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10); }
-    if (!showcase.some((a) => a.dribbling)) ballMesh.position.set(0, -5, 0);
+    ballMesh.position.set(0, -5, 0);
     selRing.visible = selArrow.visible = passRing.visible = false;
   } else {
     // Menu: the hero treads water in front of a slow orbit of the arena.
@@ -803,6 +805,8 @@ function updateHud(dt) {
   $('btnS').textContent = L('btn.sprint');
   A.textContent = L(withBall ? 'btn.shoot' : 'btn.defend'); A.dataset.mode = withBall ? 'shoot' : 'defend';
   B.textContent = L(withBall ? 'btn.pass' : 'btn.switch'); B.dataset.mode = withBall ? 'pass' : 'switch';
+  $('btnD').textContent = L('btn.dodge'); $('btnD').classList.toggle('off', !withBall || (match.human && match.human.dodgeCd > 0));
+  $('btnS').classList.toggle('on', !!(match.human && match.human.sprinting));
   if (toastT > 0) { toastT -= dt; $('toast').style.opacity = Math.min(1, toastT * 2); }
   if (timingT > 0) { timingT -= dt; if (timingT <= 0) $('timing').textContent = ''; }
   const info = new URLSearchParams(location.search).has('debug') ? ` · ${renderer.info.render.calls} dc · ${(renderer.info.render.triangles / 1000).toFixed(0)}k tri` : '';
@@ -914,6 +918,7 @@ const app = new App($('app'), {
 let showcase = null;
 function buildShowcase() {
   const states = ['tread', 'swim', 'hold', 'wind', 'gk', 'celebrate'];
+  window.__showcase = () => showcase;
   showcase = states.map((st, i) => {
     const a = new Athlete({ teamColor: i % 2 ? 0xd8321e : 0x1e5bd8, capColor: st === 'gk' ? 0xd81a1f : i % 2 ? 0xf2f4f7 : 0x1e5bd8, trimColor: 0xffffff,
       number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });

@@ -52,7 +52,7 @@ const run = (m, n) => { for (let i = 0; i < n; i++) m.step(); return m.drain().m
 { const m = setup(); const d = m.slot(1, 3), a = m.slot(0, 5); m.give(a, false); m.exclude(d, a); m.drain(); m.onGoal(0);
   ok(d.excluded <= 0 && m.stats.teams[0].ppGoals === 1, 'a power-play goal ends the exclusion and is counted'); }
 // PASSE EN PROFONDEUR: team-mate swimming free toward goal -> ball laid on the water ahead of him, he swims onto it.
-{ const m = setup(); m.cfg.autoSwitch = false; const me = m.human; me.pos = { x: -2, y: 0, z: 0 }; const r = m.slot(0, 3); r.pos = { x: 2, y: 0, z: 3 }; r.vel = { x: 1.6, y: 0, z: 0 };
+{ const m = setup(); m.cfg.autoSwitch = false; const me = m.human; me.pos = { x: -2, y: 0, z: 0 }; const r = m.slot(0, me.slot === 3 ? 1 : 3); r.pos = { x: 2, y: 0, z: 3 }; r.vel = { x: 2.2, y: 0, z: 0 };
   m.give(me, false); m.drain(); m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, pass: true, passDir: { x: 0.8, y: 0, z: 0.6 } });
   let kind = null, got = null;
   for (let i = 0; i < 200 && !got; i++) { m.step(); for (const e of m.drain()) if (e.type === 'PassMade') kind = e.kind; if (m.ball.owner) got = m.ball.owner; }
@@ -62,4 +62,24 @@ const run = (m, n) => { for (let i = 0; i < n; i++) m.step(); return m.drain().m
   m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, pass: true, lob: true }); let kind = null, top = 0;
   for (let i = 0; i < 60; i++) { m.step(); for (const e of m.drain()) if (e.type === 'PassMade') kind = e.kind; top = Math.max(top, m.ball.pos.y); }
   ok(kind === 'lob' && top > 2, `lob: kind ${kind}, apex ${top.toFixed(1)} m`); }
+// RULE: free throw inside 5 m = no direct shot (must pass first); outside 5 m the shot is allowed.
+{ const m = setup(); const me = m.human; me.pos = { x: 9, y: 0, z: 0 }; m.restart = { team: 0, pos: { x: 9, y: 0, z: 0 }, taker: me }; m.executeRestart(); run(m, 20);
+  m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, quickShot: true }); const ev = run(m, 3);
+  ok(!ev.includes('ShotTaken') && ev.includes('NoDirectShot5m') && m.ball.owner === me, 'free throw inside 5 m: no direct shot');
+  const mate = m.slot(0, me.slot === 3 ? 1 : 3); mate.pos = { x: 8, y: 0, z: 3 };
+  m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, pass: true, passDir: { x: -0.3, y: 0, z: 1 } }); run(m, 60);
+  ok(m.freeThrow === null, 'after a pass the free throw restriction is lifted'); }
+{ const m = setup(); const me = m.human; me.pos = { x: 4, y: 0, z: 0 }; m.restart = { team: 0, pos: { x: 4, y: 0, z: 0 }, taker: me }; m.executeRestart(); run(m, 20);
+  m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, quickShot: true }); ok(run(m, 3).includes('ShotTaken'), 'free throw outside 5 m: direct shot allowed'); }
+// RULE: 2 m offside — an attacker without the ball inside the 2 m line, ball outside it -> turnover.
+{ const m = setup(); const c = m.slot(0, 1), mate = m.slot(0, 4); c.pos = { x: 5, y: 0, z: 0 }; m.give(c, false); m.drain(); c.nextDecision = 1e9;
+  mate.pos = { x: 11.5, y: 0, z: 1 }; mate.human = false; let ev = [];
+  for (let i = 0; i < 40 && !ev.includes('Offside2m'); i++) { mate.pos = { x: 11.5, y: 0, z: 1 }; m.step(); ev = ev.concat(m.drain().map((e) => e.type)); }
+  ok(ev.includes('Offside2m'), '2 m offside whistled'); }
+// PASSER LE JOUEUR: burst around the marker; a beaten marker is stunned
+{ let beat = 0, fails = 0; for (let sd = 1; sd <= 30; sd++) { const m = new Match({ seed: sd, humanTeam: 0 }, HOME(), AWAY()); m.start(); for (let i = 0; i < 10; i++) m.step();
+    for (const p of m.players) p.pos = { x: p.team === 0 ? -11 : 11, y: 0, z: -9 + p.id };
+    m.cfg.autoSwitch = false; const me = m.human, d = m.slot(1, 2); me.pos = { x: 0, y: 0, z: 0 }; d.pos = { x: 1, y: 0, z: 0 }; m.give(me, false); m.drain();
+    m.setHumanCommand({ move: { x: 1, y: 0, z: 0 }, dodge: true }); const ev = run(m, 2); if (ev.includes('Dodge')) beat++; if (ev.includes('DodgeFail')) fails++; }
+  ok(beat > 3 && fails > 3, `PASSER LE JOUEUR: ${beat}/30 beaten, ${fails} failed`); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

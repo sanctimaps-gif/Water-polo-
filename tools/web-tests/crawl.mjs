@@ -1,7 +1,7 @@
 // Run: node tools/web-tests/crawl.mjs — front crawl arms turn the right way: the hand moves forward
 // over the water (recovery) and backward under the water (pull), for both arms.
 import * as THREE from '../../web/vendor/three.module.min.js';
-import { Athlete } from '../../web/render/athlete.js';
+import { Athlete, JOINT_LIMITS } from '../../web/render/athlete.js';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const a = new Athlete({ teamColor: 0x1e5bd8, capColor: 0x1e5bd8, trimColor: 0xffffff, number: 3, role: 'WINGER', isGK: false, seed: 5, preset: { limbSeg: 6, faceDetail: false } });
 const st = { x: 0, z: 0, fx: 0, fz: -1, vx: 0, vz: -1.6, sprint: false, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 0, -5), receive: false };
@@ -25,4 +25,13 @@ for (const [name, arm] of [['right', a.armR], ['left', a.armL]]) {
 { const d = { ...st, hasBall: true }; for (let i = 0; i < 90; i++) a.update(1 / 60, d); ok(a.dribbling && a.w.hold < 0.2, 'dribble: crawl with the ball in front'); }
 // Moving backward = eggbeater facing the play, not a crawl.
 { const bk = { ...st, vz: 1.0 }; for (let i = 0; i < 90; i++) a.update(1 / 60, bk); ok(a.w.swim < 0.1, 'backward move uses the eggbeater'); }
+// Joint limits: every animation state stays inside the human range of motion.
+{ let bad = [];
+  const states = [{}, { hasBall: true }, { hasBall: true, vz: -1.6 }, { charging: true, charge: 1, hasBall: true }, { vz: 1.2 }, { vx: 1.2, vz: 0 }, { block: 1 }];
+  for (const extra of states) {
+    for (let i = 0; i < 120; i++) { a.update(1 / 60, { ...st, ...extra }); if (i === 60 && extra.charging) a.playThrow('power');
+      for (const [k, [lo, hi]] of Object.entries(JOINT_LIMITS)) if (a.pose[k] < lo - 1e-6 || a.pose[k] > hi + 1e-6) bad.push(k + '=' + a.pose[k].toFixed(2)); }
+  }
+  a.playCelebrate(); a.playDive(1); a.playReach(-1); for (let i = 0; i < 120; i++) a.update(1 / 60, st);
+  ok(bad.length === 0, `joint limits respected (${bad.length ? [...new Set(bad)].slice(0, 5).join(', ') : 'all states'})`); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

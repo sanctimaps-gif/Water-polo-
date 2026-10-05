@@ -25,3 +25,5 @@ jobs:
         run: node tools/web-tests/state.mjs
       - name: Web build — AI positioning (spacing, postes, goal-side defence)
         run: node tools/web-tests/positioning.mjs 6
+      - name: Web build — front crawl arms turn the right way
+        run: node tools/web-tests/crawl.mjs

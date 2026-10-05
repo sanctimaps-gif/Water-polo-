@@ -638,7 +638,8 @@ function frame(now) {
     const ang = time * 0.25, focus = new URLSearchParams(location.search).get('focus');
     if (focus !== null) {   // ?showcase&focus=i : face close-up of athlete i
       const fx = (+focus - 2.5) * 0.85, fa = Math.sin(time * 0.5) * 0.7, fy = showcase[+focus].morph.height;
-      camera.position.set(fx + Math.sin(fa) * 0.9, 0.5 * fy, -Math.cos(fa) * 0.9); camera.lookAt(fx, 0.33 * fy, 0); setFov(40, fdt, 10);
+      if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.35, -0.3); camera.lookAt(fx, 0.05, -0.3); setFov(40, fdt, 10); }   // ?side: profile view
+      else { camera.position.set(fx + Math.sin(fa) * 0.9, 0.5 * fy, -Math.cos(fa) * 0.9); camera.lookAt(fx, 0.33 * fy, 0); setFov(40, fdt, 10); }
     } else { camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10); }
     ballMesh.position.set(0, -5, 0); selRing.visible = selArrow.visible = passRing.visible = false;
   } else {

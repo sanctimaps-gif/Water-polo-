@@ -723,9 +723,10 @@ export class Athlete {
     // Stroke splash when a hand enters the water (two per cycle).
     if (w.swim > 0.5 && this.onStroke) {
       const twoPi = Math.PI * 2;
-      for (const off of [1.2, 1.2 + Math.PI]) {
+      // hand entry in front of the head: arm phase p = π (right), p = 0 (left, half a cycle later)
+      for (const off of [Math.PI, 2 * Math.PI]) {
         if (Math.floor((prev - off) / twoPi) !== Math.floor((this.phase - off) / twoPi)) {
-          const h = off < 2 ? this.armR.hand : this.armL.hand;
+          const h = off < 4 ? this.armR.hand : this.armL.hand;
           h.getWorldPosition(tmpV); this.onStroke(tmpV.x, tmpV.z, 0.4 + speed * 0.35);
         }
       }
@@ -743,8 +744,10 @@ export class Athlete {
     };
     const swim = {
       pitch: 1.12, roll: Math.sin(p) * 0.18, twist: 0, neck: -0.55, headX: -0.55, headY: Math.sin(p) * 0.1,
-      shRx: -wrapPos(p), shRz: 0.22, elR: -0.9 * Math.max(0, Math.sin(p - 0.6)),
-      shLx: -wrapPos(p + Math.PI), shLz: -0.22, elL: -0.9 * Math.max(0, Math.sin(p + Math.PI - 0.6)),
+      // Front crawl, arm angle a = p - 2π (increasing): p = 0 hand at the hip (exit), 0..π recovery over the
+      // water (high elbow), π entry in front of the head, π..2π pull under the body back to the hip.
+      shRx: wrapPos(p) - 2 * Math.PI, shRz: 0.22, elR: crawlElbow(p),
+      shLx: wrapPos(p + Math.PI) - 2 * Math.PI, shLz: -0.22, elL: crawlElbow(p + Math.PI),
       hipRx: 0.05 + Math.sin(p * 2) * 0.32, hipRz: 0.06, knR: 0.25 + Math.max(0, Math.sin(p * 2)) * 0.4, knRy: 0,
       hipLx: 0.05 - Math.sin(p * 2) * 0.32, hipLz: -0.06, knL: 0.25 + Math.max(0, -Math.sin(p * 2)) * 0.4, knLy: 0,
       rise: 0.04,
@@ -909,5 +912,7 @@ function concatGeometries(list) {
   return out;
 }
 
+/** Elbow in the crawl: bent high during the recovery, slightly bent in the middle of the pull, straight at entry. */
+function crawlElbow(p) { const q = wrapPos(p); return -1.0 * Math.max(0, Math.sin(q)) - 0.45 * Math.max(0, -Math.sin(q)); }
 function wrapPos(a) { const t = a % (Math.PI * 2); return t < 0 ? t + Math.PI * 2 : t; }
 function mix(P, o, w) { for (const k in o) P[k] += (o[k] - P[k]) * w; }

@@ -360,6 +360,7 @@ export class Athlete {
     // Appearance (all tied to the seed: a player always has the same face, hair and body).
     const hairStyle = HAIR_STYLES[Math.floor(r() * HAIR_STYLES.length)];
     const facial = r(), wetHair = hair.clone().multiplyScalar(0.72);
+    const bodyHair = r() < 0.35 ? 0.6 + r() * 0.4 : 0;   // like the reference team photo: some players have chest hair
     this.look = { hairStyle, body: morph.type, beard: facial < 0.3 ? 'beard' : facial < 0.42 ? 'moustache' : facial < 0.52 ? 'goatee' : facial < 0.75 ? 'stubble' : 'clean' };
 
     // Skeleton: every joint is a THREE.Bone; all body parts are merged into ONE skinned mesh
@@ -640,7 +641,12 @@ export class Athlete {
           }
           rg[k] = SUIT;
         } else {
-          const h = Math.sin(k * 12.9898) * 43758.5453; cc.copy(skin).multiplyScalar(1 + (h - Math.floor(h) - 0.5) * 0.04);   // tone variation
+          const h = Math.sin(k * 12.9898) * 43758.5453, hn = h - Math.floor(h); cc.copy(skin).multiplyScalar(1 + (hn - 0.5) * 0.04);   // tone variation
+          // Body hair (some players): chest between the pectorals, sternum, line down to the navel; patchy.
+          if (bodyHair > 0 && z > 0.02) {
+            const ax = Math.abs(x), chest = gs(y + 0.13, 0.09) * gs(ax - 0.04, 0.09), trail = gs(ax, 0.025) * ss(-0.12, -0.2, y) * ss(-0.4, -0.3, y);
+            cc.lerp(wetHair, Math.min(1, (chest + trail) * bodyHair * (0.55 + 0.45 * hn)) * 0.55);
+          }
           rg[k] = W;
         }
         cc.multiplyScalar(0.35 + 0.65 * Bd.ao[k] / 255);   // baked cavity occlusion (armpits, under the pecs, between muscles)

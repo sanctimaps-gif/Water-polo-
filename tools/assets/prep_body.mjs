@@ -5,10 +5,10 @@ const T = (n) => `./tools/assets/src/${n}.target`;
 // male = equal mix of the three MakeHuman ethnic male targets, then muscle / weight macro targets
 const MALE = [['african-male-young', 1 / 3], ['asian-male-young', 1 / 3], ['caucasian-male-young', 1 / 3]];
 const VARIANTS = {
-  lean: [...MALE, ['universal-male-young-maxmuscle-minweight', 1.0], ['universal-male-young-maxmuscle-averageweight', 0.25]],
+  lean: [...MALE, ['universal-male-young-maxmuscle-minweight', 0.6], ['universal-male-young-maxmuscle-averageweight', 0.7]],
   athletic: [...MALE, ['universal-male-young-maxmuscle-averageweight', 1.4]],
   power: [...MALE, ['universal-male-young-maxmuscle-averageweight', 1.5], ['universal-male-young-maxmuscle-maxweight', 0.2]],
-  massive: [...MALE, ['universal-male-young-maxmuscle-maxweight', 0.6], ['universal-male-young-maxmuscle-averageweight', 0.85]],
+  massive: [...MALE, ['universal-male-young-maxmuscle-maxweight', 0.55], ['universal-male-young-maxmuscle-averageweight', 0.6]],
 };
 
 // faces of the body (quads -> triangles), head removed above the jaw line (the scanned head replaces it)
@@ -25,11 +25,34 @@ function firmChest(V) {
     if (v[2] > lim) v[2] = lim + (v[2] - lim) * 0.25;
   }
 }
-for (const [name, list] of Object.entries(VARIANTS)) { const V = o.V.map((v) => v.slice()); for (const [t, w] of list) applyTarget(V, T(t), w); meshes[name] = V; }
+// Water polo build (reference: national team photo): broad shoulders and upper chest, full pectorals,
+// V-taper to a narrower waist, long arms; natural muscle, not a bodybuilder.
+const ssT = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+function waterPoloBuild(V, k) {
+  const Jv = joints(o, V), sy = Jv['l-shoulder'][1], sx = Math.abs(Jv['l-shoulder'][0]), hy = Jv['l-upper-leg'][1];
+  const SH = 0.13 * k;   // shoulder broadening (fraction of the shoulder half-width)
+  for (const v of V) {
+    const ax = Math.abs(v[0]), sg = Math.sign(v[0]) || 1;
+    const upper = ssT(sy - 2.8, sy - 0.7, v[1]) * (1 - ssT(sy + 0.4, sy + 1.0, v[1]));   // chest .. shoulders, not the neck
+    const armK = ssT(sx - 0.1, sx + 0.5, ax) * ssT(hy + 0.3, hy + 1.2, v[1]);              // arms (A-pose, out to the side)
+    const torsoShift = ax < sx ? (ax / sx) * SH * sx * upper : SH * sx * upper;
+    v[0] += sg * ((1 - armK) * torsoShift + armK * SH * sx);
+    // narrower waist (V-taper), sides only
+    const waist = Math.exp(-(((v[1] - (sy - 3.4)) / 0.8) ** 2)) * (1 - armK);
+    v[0] -= sg * Math.min(ax, 1.4) * 0.06 * k * waist;
+    // fuller chest (pectorals forward) and thicker back (lats)
+    const pec = Math.exp(-(((v[1] - (sy - 0.9)) / 0.55) ** 2)) * Math.exp(-(((ax - 0.75) / 0.6) ** 2)) * (1 - armK);
+    if (v[2] > 0.3) v[2] += 0.08 * k * pec;
+    const lat = Math.exp(-(((v[1] - (sy - 1.5)) / 0.8) ** 2)) * ssT(0.6, 1.3, ax) * (1 - armK);
+    if (v[2] < 0.4) v[0] += sg * 0.06 * k * lat;
+  }
+}
+const BUILD_K = { lean: 0.8, athletic: 1, power: 1.12, massive: 1.15 };
+for (const [name, list] of Object.entries(VARIANTS)) { const V = o.V.map((v) => v.slice()); for (const [t, w] of list) applyTarget(V, T(t), w); waterPoloBuild(V, BUILD_K[name]); meshes[name] = V; }
 const A = meshes.athletic, J = joints(o, A);
 // Frame: metres, athletic build 1.84 m tall, shoulders at torso y = +0.07, origin on the spine axis.
 let yMin = 1e9, yMax = -1e9; for (const f of o.groups.body) for (const [vi] of f) { yMin = Math.min(yMin, A[vi][1]); yMax = Math.max(yMax, A[vi][1]); }
-const S = 1.84 / (yMax - yMin), OY = J['l-shoulder'][1] - 0.07 / S, OZ = J['spine-1'][2];
+const S = 1.9 / (yMax - yMin), OY = J['l-shoulder'][1] - 0.07 / S, OZ = J['spine-1'][2];
 const M = (p) => [p[0] * S, (p[1] - OY) * S, (p[2] - OZ) * S];
 // Head removed above the neck (the scanned head starts ~0.16 m below the eyes).
 const CUT = J['l-eye'][1] - 0.135 / S;
@@ -94,7 +117,7 @@ const DEF = {}, AO = new Uint8Array(nv);
 for (const [name, V] of Object.entries(meshes)) {
   const P = verts.map((vi) => V[vi].slice()), S4 = smooth(P, 4);
   // sharpen the mid-frequency shape (muscle bellies, grooves) on torso, arms and legs; not hands, feet, neck
-  const out = P.map((p, i) => { const w = (p[1] < J.neck[1] - 0.2 && p[1] > J['l-ankle'][1] + 0.6 && Math.abs(p[0]) < Math.abs(J['l-hand'][0]) - 0.3) ? 0.9 : 0; return p.map((x, d) => x + (x - S4[i][d]) * w); });
+  const out = P.map((p, i) => { const w = (p[1] < J.neck[1] - 0.2 && p[1] > J['l-ankle'][1] + 0.6 && Math.abs(p[0]) < Math.abs(J['l-hand'][0]) - 0.3) ? 0.6 : 0; return p.map((x, d) => x + (x - S4[i][d]) * w); });
   DEF[name] = out;
   if (name === 'athletic') {
     const N = vnorm(P), S1 = smooth(P, 2), S8 = smooth(P, 10);

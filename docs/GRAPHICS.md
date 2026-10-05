@@ -23,6 +23,10 @@ Unity/URP est à faire.
   ligne (4 os par sommet), os « demi-épaule » qui suit la moitié de la rotation du bras (pas d'aisselle
   écrasée bras levé, pas de saut pendant le crawl). Maillot peint sur le corps (couleur d'équipe,
   ceinture et bandes de jambes, panneaux, chevron).
+* **Carrure de water-polo** (référence : photo d'une équipe nationale) : 1,90 m pour le gabarit
+  athlétique, épaules et haut du torse élargis (+13 %), pectoraux plus pleins, dorsaux, taille plus
+  fine (V), musculature naturelle (moins « sèche » qu'avant) ; poils sur le torse chez ~35 % des
+  joueurs.
 * **Corps amélioré** : 4 gabarits (fin, athlétique, puissant, massif) ; définition musculaire
   renforcée (accentuation des formes moyennes du maillage : ventres musculaires, sillons) ; occlusion
   des creux précalculée par sommet (aisselles, sous les pectoraux, entre les abdominaux, plis) ; peau

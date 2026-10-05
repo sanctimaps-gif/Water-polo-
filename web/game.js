@@ -419,7 +419,8 @@ function react(e) {
   const a = e.player >= 0 ? athletes[e.player] : null;
   switch (e.type) {
     case Ev.PASS: {
-      if (a) a.playThrow('pass'); vfx.burst(e.pos.x, e.pos.z, 0.35); audio.ballHit(0.5);
+      if (a) a.playThrow(e.kind === 'lob' ? 'lob' : 'pass'); vfx.burst(e.pos.x, e.pos.z, 0.35); audio.ballHit(0.5);
+      if (e.team === 0 && !replay && e.kind && e.kind !== 'normal') toast(L('hud.pass_' + e.kind), 1);
       const rcv = e.other >= 0 ? athletes[e.other] : null;   // the passer looks at his team-mate
       if (a && rcv) a.lookAtFor(rcv.root.position.x, 0.4, rcv.root.position.z, 0.6);
       break;
@@ -607,7 +608,17 @@ function updateWorld(dt, v) {
   const me = match.human;
   if (!replay && me && match.ball.owner === me) {
     const target = match.chooseTarget(me, currentMove, match.cfg.assist, me.prof.risk, match.teams[me.team].tp.center);
-    if (target) { const r = athletes[target.id].root.position; passRing.position.set(r.x, 0.04, r.z); passRing.visible = true; }
+    if (target) {
+      // Preview: green ring on the receiver, yellow ring on the water where a pass in depth / laid pass will land.
+      const kind = match.passKind(me, target, input.B.held && bCtx);
+      if (kind === 'depth' || kind === 'lay') {
+        const sp = kind === 'depth' ? match.depthSpot(me, target) : { x: target.pos.x + (match.targetGoal(me.team).x > 0 ? 1 : -1), z: target.pos.z };
+        passRing.position.set(sp.x, 0.04, sp.z); passRing.material.color.setHex(0xffd21a);
+      } else { const r = athletes[target.id].root.position; passRing.position.set(r.x, 0.04, r.z); passRing.material.color.setHex(0x4dff73); }
+      passRing.visible = true;
+    }
+  } else if (!replay && match.ball.state === 'PASSED' && match.ball.landing && match.ball.passKind !== 'normal' && match.ball.passKind !== 'lob') {
+    passRing.position.set(match.ball.landing.x, 0.04, match.ball.landing.z); passRing.material.color.setHex(0xffd21a); passRing.visible = true;
   }
   arena.focusShadows(camState.focus.x, camState.focus.z);
 }

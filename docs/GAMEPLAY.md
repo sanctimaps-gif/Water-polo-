@@ -128,6 +128,19 @@ Ce qui a été ajouté pour y arriver :
 
 Mesures vérifiées en CI (`tools/web-tests/positioning.mjs`, seuils).
 
+### Passes en profondeur, posées et lobées (d'après des images de match)
+
+* **Passe en profondeur** : si le receveur nage vers le but, démarqué, le ballon est posé sur l'eau
+  2 à 4,5 m devant lui (selon sa vitesse) ; il « meurt » à l'impact et le receveur nage dessus (assistance
+  pour le joueur humain si le joystick est lâché). L'IA la cherche en contre-attaque.
+* **Passe posée** : vers la pointe démarquée, ballon posé 1 m devant elle, côté but.
+* **Lobe** (appui long sur PASSE) : ~1,25 s de vol, environ 2,4 m de haut, par-dessus les défenseurs ;
+  combinable avec la profondeur.
+* Aperçu : anneau vert sur le receveur, **anneau jaune sur l'eau** à l'endroit où une passe en
+  profondeur / posée va tomber ; message « PASSE EN PROFONDEUR », « PASSE POSÉE », « LOBE ».
+* Mesuré (30 matchs IA) : ballon gardé par l'équipe après une passe normale 91 %, en profondeur 76 %,
+  posée 86 %, lobe 51 % (passes risquées).
+
 ### Version web (`web/sim.js`) — placement retravaillé (pas encore reporté dans le C#)
 
 * **Chaque joueur a un poste** (affiché dans le HUD pour le joueur contrôlé) : 1 ailier droit (2 m),

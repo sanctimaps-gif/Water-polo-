@@ -51,4 +51,15 @@ const run = (m, n) => { for (let i = 0; i < n; i++) m.step(); return m.drain().m
   ok(d.excluded <= 0, 're-entry after 20 s or when his team regains the ball'); }
 { const m = setup(); const d = m.slot(1, 3), a = m.slot(0, 5); m.give(a, false); m.exclude(d, a); m.drain(); m.onGoal(0);
   ok(d.excluded <= 0 && m.stats.teams[0].ppGoals === 1, 'a power-play goal ends the exclusion and is counted'); }
+// PASSE EN PROFONDEUR: team-mate swimming free toward goal -> ball laid on the water ahead of him, he swims onto it.
+{ const m = setup(); m.cfg.autoSwitch = false; const me = m.human; me.pos = { x: -2, y: 0, z: 0 }; const r = m.slot(0, 3); r.pos = { x: 2, y: 0, z: 3 }; r.vel = { x: 1.6, y: 0, z: 0 };
+  m.give(me, false); m.drain(); m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, pass: true, passDir: { x: 0.8, y: 0, z: 0.6 } });
+  let kind = null, got = null;
+  for (let i = 0; i < 200 && !got; i++) { m.step(); for (const e of m.drain()) if (e.type === 'PassMade') kind = e.kind; if (m.ball.owner) got = m.ball.owner; }
+  ok(kind === 'depth' && got === r && r.pos.x > 3, `pass in depth: kind ${kind}, caught by the runner ahead (x ${r.pos.x.toFixed(1)})`); }
+// LOBE: holding PASSE gives a high pass
+{ const m = setup(); const me = m.human; me.pos = { x: 0, y: 0, z: 0 }; const t = m.slot(0, 3); t.pos = { x: 5, y: 0, z: 2 }; t.vel = { x: 0, y: 0, z: 0 }; m.give(me, false); m.drain();
+  m.setHumanCommand({ move: { x: 0, y: 0, z: 0 }, pass: true, lob: true }); let kind = null, top = 0;
+  for (let i = 0; i < 60; i++) { m.step(); for (const e of m.drain()) if (e.type === 'PassMade') kind = e.kind; top = Math.max(top, m.ball.pos.y); }
+  ok(kind === 'lob' && top > 2, `lob: kind ${kind}, apex ${top.toFixed(1)} m`); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

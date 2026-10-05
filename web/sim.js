@@ -273,7 +273,14 @@ export class Match {
     for (const p of this.players) {
       // Copy (C# PlayerCommand is a struct): consumeOneShots() below must not wipe this tick's actions.
       if (p.excluded > 0) { p.cmd = {}; continue; }
-      if (p.human) p.cmd = { ...this.humanCmd };
+      if (p.human) {
+        p.cmd = { ...this.humanCmd };
+        // Assist: a pass in depth / laid pass for the human receiver — he swims onto the ball unless the joystick says otherwise.
+        const b = this.ball;
+        if (b.receiver === p && !b.owner && b.landing && b.possTeam === p.team && (!p.cmd.move || len(p.cmd.move) < 0.2)) {
+          p.cmd.move = this.steer(p, b.pos.y < 0.4 ? flat(b.pos) : b.landing, 0); p.cmd.sprint = true;
+        }
+      }
       else if (p.isGK) this.thinkGK(p);
       else this.thinkField(p);
     }
@@ -573,12 +580,40 @@ export class Match {
   passSpeed(p, d, lob) {
     let s = lerp(8, 12, this.effPass(p));
     if (d > 9) s += lerp(0, 3.5, this.effPower(p)) * invLerp(9, 18, d);
-    return lob ? s * 0.55 : s;
+    return lob ? Math.min(s * 0.55, Math.max(3.5, d / 1.25)) : s;   // lob: ~1.25 s of flight, high over the defenders
+  }
+  /**
+   * Pass kinds (from match footage): 'depth' — into the space in front of a team-mate swimming toward
+   * goal (counter-attack), the ball lands on the water ahead of him; 'lay' — ball laid on the water just
+   * in front of a free receiver (typically the point), so he swims onto it facing goal; 'lob' — high
+   * arc over the defenders (also in depth). Returns the kind used.
+   */
+  passKind(passer, target, lob) {
+    if (!target || target.isGK) return lob ? 'lob' : 'normal';
+    const g = this.targetGoal(target.team), dirG = norm(flat(sub(g, target.pos)));
+    const fwd = dot(flat(target.vel), dirG), ahead = dot(flat(sub(target.pos, passer.pos)), dirG);
+    const spot = this.depthSpot(passer, target), dSpot = this.closestOppDist(target.team, spot);
+    if (fwd > 1.0 && ahead > 2 && fdist(target.pos, g) > 3.5 && dSpot > 1.6 && this.closestOppDist(target.team, target.pos) > 0.9) return 'depth';
+    if (!lob && target.slot === 2 && this.closestOppDist(target.team, add(target.pos, mul(dirG, 1))) > 1.5 && fdist(passer.pos, target.pos) > 3) return 'lay';
+    return lob ? 'lob' : 'normal';
+  }
+  closestOppDist(team, pt) { let d = 99; for (const o of this.teams[1 - team].players) if (o.excluded <= 0) d = Math.min(d, fdist(o.pos, pt)); return d; }
+  /** Landing point of a pass in depth: ahead of the runner along his swim (toward goal if he is still). */
+  depthSpot(passer, target) {
+    const g = this.targetGoal(target.team), sp = len(flat(target.vel));
+    const dir = sp > 0.6 ? norm(flat(target.vel)) : norm(flat(sub(g, target.pos)));
+    const lead = clamp(1.8 + sp * 1.1, 2, 4.5), c = this.cfg;
+    const p = add(target.pos, mul(dir, lead));
+    return V(clamp(p.x, -c.hl + 1.2, c.hl - 1.2), 0, clamp(p.z, -c.hw + 0.8, c.hw - 0.8));
   }
   passTo(passer, target, fallbackDir, lob) {
     const b = this.ball; if (b.owner !== passer) return;
     const from = { ...b.pos }; let aim;
-    if (target) {
+    const kind = this.passKind(passer, target, lob);
+    if (kind === 'lob') lob = true;
+    if (target && (kind === 'depth' || kind === 'lay')) {
+      aim = kind === 'depth' ? this.depthSpot(passer, target) : add(target.pos, mul(norm(flat(sub(this.targetGoal(target.team), target.pos))), 1.0));
+    } else if (target) {
       const d0 = fdist(from, target.pos);
       aim = add(target.pos, clampMag(mul(flat(target.vel), d0 / this.passSpeed(passer, d0, lob)), 2));
     } else {
@@ -586,17 +621,20 @@ export class Match {
       aim = add(passer.pos, mul(dir, 8));
     }
     const c = this.cfg;
-    aim.y = 0.6; aim.x = clamp(aim.x, -c.hl + 0.5, c.hl - 0.5); aim.z = clamp(aim.z, -c.hw + 0.5, c.hw - 0.5);
+    aim.y = kind === 'depth' || kind === 'lay' ? BALL_R : 0.6;   // laid on the water in front of the receiver
+    aim.x = clamp(aim.x, -c.hl + 0.5, c.hl - 0.5); aim.z = clamp(aim.z, -c.hw + 0.5, c.hw - 0.5);
     const dist0 = fdist(from, aim);
     let maxErr = lerp(7, 1.5, this.effPass(passer)); if (passer.human && c.assist === 'ASSISTED') maxErr *= 0.6;
     const ang = this.rng.bell() * maxErr * DEG, df = norm(flat(sub(aim, from)));
     const rot = V(df.x * Math.cos(ang) - df.z * Math.sin(ang), 0, df.x * Math.sin(ang) + df.z * Math.cos(ang));
     const le = 1 + this.rng.bell() * (1 - this.effPass(passer)) * 0.08;
-    const fin = add(flat(from), mul(rot, dist0 * le)); fin.y = 0.6;
-    const vel = ballistic(from, fin, this.passSpeed(passer, dist0, lob));
-    b.passer = passer; b.receiver = target; this.release('PASSED', vel);
+    const fin = add(flat(from), mul(rot, dist0 * le)); fin.y = aim.y;
+    const soft = kind === 'lay' ? 0.7 : kind === 'depth' && !lob ? 0.9 : 1;
+    const vel = ballistic(from, fin, this.passSpeed(passer, dist0, lob) * soft);
+    b.passer = passer; b.receiver = target; b.landing = target ? fin : null; b.passKind = kind; b.landed = false; b.lobbed = !!lob; this.release('PASSED', vel);
     passer.actionCd = 0.35;
     this.stats.teams[passer.team].passes++; this.emit(Ev.PASS, passer.team, passer.id, target ? target.id : -1, passer.pos);
+    this.events[this.events.length - 1].kind = kind;
   }
 
   // =============================================================== shots
@@ -638,7 +676,7 @@ export class Match {
   snap() { const b = this.ball, o = b.owner; b.pos = add(add(o.pos, mul(o.facing, 0.35)), V(0, HOLD_H, 0)); }
   give(p, fromPlay) {
     const b = this.ball, prev = b.possTeam;
-    b.shooter = null; b.owner = p; b.lastTouch = p; b.possTeam = p.team; b.receiver = null; b.vel = V(); this.setBall('POSSESSED'); this.snap();
+    b.shooter = null; b.owner = p; b.lastTouch = p; b.possTeam = p.team; b.receiver = null; b.landing = null; b.vel = V(); this.setBall('POSSESSED'); this.snap();
     p.possTime = 0; p.charging = false; p.charge = 0; p.aiCharge = -1; p.nextDecision = this.time + this.reactionTime(p);
     if (prev !== p.team) {
       for (const q of this.teams[p.team].field) this.endExclusion(q);   // excluded player re-enters when his team gets the ball
@@ -651,6 +689,8 @@ export class Match {
     const air = b.pos.y > BALL_R + 0.005 || v.y > 0.01;
     if (air) { v.y -= G * dt; v = mul(v, 1 - 0.03 * dt); }
     const p = add(b.pos, mul(v, dt));
+    // A laid / in-depth pass "dies" on the water where it lands (the receiver swims onto it).
+    if (p.y <= BALL_R && b.state === 'PASSED' && !b.landed && (b.passKind === 'depth' || b.passKind === 'lay')) { b.landed = true; v.x *= 0.15; v.z *= 0.15; v.y = 0; }
     if (p.y <= BALL_R) { p.y = BALL_R; if (v.y < -2.5) { v.y = -v.y * 0.3; v.x *= 0.85; v.z *= 0.85; } else v.y = 0; }
     if (p.y <= BALL_R + 0.005 && Math.abs(v.y) < 0.01) { const k = Math.max(0, 1 - 1.7 * dt); v.x *= k; v.z *= k; }
     b.pos = p; b.vel = v; b.stateTime += dt;
@@ -827,8 +867,12 @@ export class Match {
     // Loose ball: only the closest player goes for it (plus a second one if he is right there);
     // everybody else keeps his position instead of swarming.
     const chase = loose && (this.amongClosest(p, 1) || (this.amongClosest(p, 2) && fdist(p.pos, b.pos) < 2.5));
+    const mine = b.receiver === p && !b.owner && b.landing && b.possTeam === p.team && b.state !== 'SHOT' && b.stateTime < 4;
     if (b.owner === p) this.carrier(p, cmd, decide, tp, intel);
-    else if (chase) { cmd.move = this.steer(p, add(flat(b.pos), mul(flat(b.vel), 0.35)), 0.1); cmd.sprint = true; }
+    else if (mine) {   // receiver of a pass in depth / laid pass: swim onto the ball
+      const tgt = b.pos.y < 0.4 ? flat(b.pos) : b.landing;
+      cmd.move = this.steer(p, add(tgt, mul(flat(b.vel), 0.2)), 0); cmd.sprint = p.stamina > 0.1;
+    } else if (chase) { cmd.move = this.steer(p, add(flat(b.pos), mul(flat(b.vel), 0.35)), 0.1); cmd.sprint = true; }
     else if (this.possessionTeam === p.team) this.support(p, cmd, decide, tp);
     else this.defend(p, cmd, decide, tp);
     p.cmd = cmd;
@@ -864,12 +908,19 @@ export class Match {
         p.aiCharge = clamp(lerp(EXC_MIN, EXC_MAX, this.rng.f()) + (1 - intel) * 0.25 * this.rng.bell(), 0.35, 1);
         cmd.shootHeld = true; return;
       }
+      // Counter-attack: a team-mate swimming free toward goal ahead of the ball -> pass in depth (lob if the lane is blocked).
+      for (const m of this.teams[p.team].field) {
+        if (m === p || m.excluded > 0) continue;
+        if (this.passKind(p, m, false) === 'depth' && fdist(p.pos, goal) - fdist(m.pos, goal) > 3 && this.rng.chance(0.55 + 0.3 * intel)) {
+          cmd.pass = true; cmd.passDir = norm(flat(sub(m.pos, p.pos))); cmd.lob = this.laneBlocked(p, m); return;
+        }
+      }
       const hold = lerp(1, 2.2, this.rng.f()) * tp.tempo * p.prof.patience * (this.shortHanded(1 - p.team) ? 0.5 : 1);
       const must = p.possTime > hold || pr > 0.55 || this.shotClockLeft < 3;
       if (must || this.rng.chance(0.15 + p.prof.passPref)) {
         const t = this.chooseTarget(p, null, 'STANDARD', p.prof.risk, tp.center, (1 - intel) * 0.45);
         if (t && (must || this.evaluate(p, t, null, 'STANDARD', p.prof.risk, tp.center) > 0.25)) {
-          cmd.pass = true; cmd.passDir = norm(flat(sub(t.pos, p.pos))); cmd.lob = this.laneBlocked(p, t) && this.rng.chance(0.6); return;
+          cmd.pass = true; cmd.passDir = norm(flat(sub(t.pos, p.pos))); cmd.lob = this.laneBlocked(p, t) && this.rng.chance(0.35); return;
         }
       }
     }

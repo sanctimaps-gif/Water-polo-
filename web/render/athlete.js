@@ -343,7 +343,7 @@ const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), IDQ =
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-const THROW_DUR = { pass: 0.3, shot: 0.38, power: 0.42, lob: 0.5 };
+const THROW_DUR = { pass: 0.36, shot: 0.7, power: 0.75, lob: 0.55 };   // whip + follow-through (shot ~0.25 s whip, then the fall forward)
 const JOINTS = ['chestX', 'chestY', 'chestZ', 'pelvisY', 'pelvisZ', 'pitch', 'roll', 'twist', 'neck', 'headX', 'headY', 'shRx', 'shRz', 'elR', 'shLx', 'shLz', 'elL', 'hipRx', 'hipRz', 'knR', 'knRy', 'hipLx', 'hipLz', 'knL', 'knLy', 'rise'];
 
 export class Athlete {
@@ -704,6 +704,7 @@ export class Athlete {
     this.throwT = Math.max(0, this.throwT - dt);
     this.diveT = Math.max(0, this.diveT - dt);
     this.celebrateT = Math.max(0, this.celebrateT - dt);
+    this.windT = s.charging ? (this.windT || 0) + dt : 0;
     this.reachT = Math.max(0, this.reachT - dt); this.saveT = Math.max(0, this.saveT - dt); this.lookT = Math.max(0, this.lookT - dt);
     // Turning rate and acceleration (smoothed): banking into turns, leaning on acceleration / braking.
     const yaw0 = Math.atan2(s.fx, s.fz);
@@ -772,16 +773,17 @@ export class Athlete {
     // Head-up front crawl (water polo): head out of the water looking ahead, shoulders roll with each
     // stroke (thorax more than pelvis), arms wide and short at the entry, high-elbow recovery, bent-elbow
     // pull under the body, small fast flutter kick. The head stays level while the shoulders roll.
-    const roll = Math.sin(p) * 0.36 * ROLL_SIGN;
+    const roll = Math.sin(p) * 0.26 * ROLL_SIGN;   // footage: moderate roll, the head never turns
     const qR = wrapPos(p), qL = wrapPos(p + Math.PI);
     const swim = {
       chestX: -0.18, chestY: roll, chestZ: 0, pelvisY: roll * 0.4, pelvisZ: 0,
-      pitch: 1.1, roll: 0, twist: 0, neck: -0.55, headX: -0.55, headY: -roll * 0.85,
-      shRx: qR - 2 * Math.PI, shRz: 0.16 + 0.42 * Math.max(0, Math.sin(qR)), elR: crawlElbow(p),
-      shLx: qL - 2 * Math.PI, shLz: -0.16 - 0.42 * Math.max(0, Math.sin(qL)), elL: crawlElbow(p + Math.PI),
+      pitch: 1.0, roll: 0, twist: 0, neck: -0.6, headX: -0.6, headY: -roll * 0.9,
+      // recovery close to the head with the elbow high, short entry in front of the shoulder
+      shRx: qR - 2 * Math.PI, shRz: 0.14 + 0.16 * Math.max(0, Math.sin(qR)), elR: crawlElbow(p),
+      shLx: qL - 2 * Math.PI, shLz: -0.14 - 0.16 * Math.max(0, Math.sin(qL)), elL: crawlElbow(p + Math.PI),
       hipRx: 0.05 + Math.sin(p * 3) * 0.22, hipRz: 0.06, knR: 0.2 + Math.max(0, Math.sin(p * 3)) * 0.35, knRy: 0,
       hipLx: 0.05 - Math.sin(p * 3) * 0.22, hipLz: -0.06, knL: 0.2 + Math.max(0, -Math.sin(p * 3)) * 0.35, knLy: 0,
-      rise: 0.04,
+      rise: 0.08,   // shoulders high: head-up crawl
     };
     for (const j of JOINTS) P[j] = tread[j] + (swim[j] - tread[j]) * w.swim;
     // Swim arms rotate continuously: take them from the swim pose when swimming.
@@ -804,15 +806,20 @@ export class Athlete {
       const g = { shRx: -0.55, shRz: 1.2 + Math.sin(t * 1.3) * 0.12, elR: -0.6, shLx: -0.55, shLz: -1.2 - Math.sin(t * 1.3 + 1) * 0.12, elL: -0.6, rise: 0.14, pitch: 0.02 };
       mix(P, g, w.gk * (1 - w.swim));
     }
-    // ---- holding the ball overhead (right hand), body up
-    if (w.hold > 0) mix(P, { shRx: -2.85, shRz: 0.22, elR: -0.55, pitch: 0.05, rise: 0.1, headX: -0.05 }, w.hold);
+    // ---- holding the ball (match footage): the ball stays on the water under the palm, arm forward,
+    // body slightly forward; it is only lifted to shoot or pass.
+    if (w.hold > 0) mix(P, { shRx: -0.95, shRz: 0.32, elR: -0.15, chestX: 0.1, pitch: 0.15, rise: 0.05, headX: -0.08 }, w.hold);
+    this.ballLow = w.hold > 0.5 && w.wind < 0.2 && this.throwT <= 0;
     // ---- shot wind-up: arm cocked back, torso twisted, rising out of the water
     if (w.wind > 0) {
-      const c = clamp(s.charge || 0, 0, 1);
-      // Cocked: pelvis and (more) thorax turned back, trunk leaning back and away, elbow at shoulder height,
-      // the free arm pointing at the target for balance, the eggbeater lifting the body.
-      mix(P, { shRx: -2.95 - 0.75 * c, shRz: 0.32, elR: -0.95 - 0.45 * c, pelvisY: -0.22 * c, chestY: -0.5 * c, chestZ: 0.14 * c, chestX: -0.16 * c,
-        twist: 0, pitch: -0.12 * c, rise: 0.12 + 0.26 * c, shLx: -1.35, shLz: -0.35, elL: -0.15, headY: 0.35 * c }, w.wind);
+      const c = clamp(s.charge || 0, 0, 1), lift = clamp(this.windT / 0.38, 0, 1), le = lift * lift * (3 - 2 * lift);
+      // Footage: the ball is scooped off the water and swept up in a wide arc out to the side (arm almost
+      // straight), then cocked high behind the head (elbow above the shoulder); the eggbeater lifts the
+      // body out of the water to the waist; pelvis and thorax turn back, the free arm sculls out to the side.
+      const arc = Math.sin(le * Math.PI);
+      mix(P, { shRx: -1.0 + (-2.0 - 0.75 * c) * le, shRz: 0.3 + 0.75 * arc, elR: -0.1 - (1.0 + 0.45 * c) * le,
+        pelvisY: -0.22 * c * le, chestY: -0.5 * c * le, chestZ: 0.14 * c, chestX: -0.16 * c, twist: 0, pitch: -0.12 * c,
+        rise: 0.08 + (0.1 + 0.14 * c) * le, shLx: -0.9, shLz: -0.95, elL: -0.35 + Math.sin(this.tread * 2) * 0.15, headY: 0.35 * c }, w.wind);
     }
     // ---- release (shot / pass): fast forward whip and follow-through
     if (w.throw > 0) {
@@ -823,10 +830,15 @@ export class Athlete {
       // Kinetic chain: the pelvis turns first, then the thorax, then the arm whips through; the free arm
       // pulls down and the trunk bends forward into the follow-through.
       const ease = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
-      const ep = ease(u * 2.6), ec = ease((u - 0.08) * 2.2), ea = ease((u - 0.18) * 1.9);
-      mix(P, { shRx: -3.6 + ea * K[0], shRz: 0.25, elR: -1.1 * (1 - ea) * (kind === 'lob' ? 0.4 : 1), twist: 0,
-        pelvisY: (-0.22 + 0.36 * ep) * K[1], chestY: (-0.5 + 0.85 * ec) * K[1], chestX: -0.16 + 0.4 * ea * K[1], chestZ: 0.14 * (1 - ec),
-        pitch: K[2] * ea - 0.1, rise: K[3] * (1 - u) + 0.05, shLx: -1.35 + 0.9 * ec, shLz: -0.5, elL: -0.2, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
+      const sp = kind === 'pass' ? 1.6 : 1;   // passes: same chain, shorter follow-through
+      const ep = ease(u * 4.5 * sp), ec = ease((u - 0.04) * 3.8 * sp), ea = ease((u - 0.1) * 3.2 * sp), ft = ease((u - 0.35) * 2.2);
+      // Release high in front, then (footage) the arm carries on down across the body, the thorax keeps
+      // turning and the player falls forward back into the water.
+      const big = kind === 'shot' || kind === 'power';
+      mix(P, { shRx: -3.6 + ea * K[0] + (big ? ft * 0.9 : 0), shRz: 0.25 - (big ? 0.75 * ft : 0), elR: -1.1 * (1 - ea) * (kind === 'lob' ? 0.4 : 1) - (big ? 0.35 * ft : 0), twist: 0,
+        pelvisY: (-0.22 + 0.36 * ep) * K[1], chestY: (-0.5 + 0.85 * ec + (big ? 0.3 * ft : 0)) * K[1], chestX: -0.16 + 0.4 * ea * K[1] + (big ? 0.25 * ft : 0), chestZ: 0.14 * (1 - ec),
+        pitch: K[2] * ea - 0.1 + (big ? 0.2 * ft : 0), rise: Math.min(0.32, K[3]) * (1 - ea * 0.5) * (1 - u) + 0.05 - (big ? 0.05 * ft : 0),
+        shLx: -1.35 + 0.9 * ec, shLz: -0.5, elL: -0.2, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
     }
     // ---- block: both arms straight up
     if (w.block > 0) mix(P, { shRx: -3.0, shRz: 0.22, elR: -0.1, shLx: -3.0, shLz: -0.22, elL: -0.1, rise: 0.26, pitch: 0 }, w.block);
@@ -977,7 +989,8 @@ function concatGeometries(list) {
 function crawlElbow(p) {
   const q = wrapPos(p);
   // recovery: high elbow, forearm hanging (~70°); pull: early catch, elbow ~45° bent mid-pull, extended at the push
-  return -1.2 * Math.max(0, Math.sin(q)) - 0.8 * Math.max(0, -Math.sin(q - 0.3));
+  // recovery: elbow ~90° (hand passes by the head); entry already slightly bent (short reach); bent pull
+  return -1.55 * Math.max(0, Math.sin(q)) - 0.35 - 0.6 * Math.max(0, -Math.sin(q - 0.3)) + 0.35 * Math.max(0, Math.sin(q));
 }
 const ROLL_SIGN = 1;
 function wrapPos(a) { const t = a % (Math.PI * 2); return t < 0 ? t + Math.PI * 2 : t; }

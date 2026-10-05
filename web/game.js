@@ -586,6 +586,10 @@ function updateWorld(dt, v) {
     // Dribble: the ball floats just in front of the head, pushed by the bow wave between the arms.
     const r = athletes[v.owner].root, yw = r.rotation.y;
     ballMesh.position.set(r.position.x + Math.sin(yw) * 0.62, 0.11 + Math.sin(time * 9) * 0.01, r.position.z + Math.cos(yw) * 0.62);
+  } else if (v.owner >= 0 && athletes[v.owner].ballLow) {
+    // Held: on the water under the right palm, in front of the shoulder.
+    const r = athletes[v.owner].root, yw = r.rotation.y;
+    ballMesh.position.set(r.position.x + Math.sin(yw) * 0.5 + Math.cos(yw) * 0.26, 0.11, r.position.z + Math.cos(yw) * 0.5 - Math.sin(yw) * 0.26);
   } else if (v.owner >= 0) athletes[v.owner].handWorld(ballMesh.position); else ballMesh.position.copy(v.ball);
   const bvx = (ballMesh.position.x - prevBallPos.x) / Math.max(dt, 1e-3), bvz = (ballMesh.position.z - prevBallPos.z) / Math.max(dt, 1e-3);
   ballMesh.rotation.x += bvz * dt * 3.5; ballMesh.rotation.z -= bvx * dt * 3.5;

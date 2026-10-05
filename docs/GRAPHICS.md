@@ -92,6 +92,17 @@ Unity/URP est à faire.
 
 ## Animations — IMPLÉMENTÉ (procédural, mélangé)
 
+**Calé sur des vidéos fournies (tir de penalty à 5 m, crawl tête haute)** :
+* Ballon tenu **sur l'eau sous la paume**, bras devant (plus en l'air) ; il n'est levé que pour tirer
+  ou passer.
+* **Armé** : le ballon est ramassé sur l'eau et remonte en grand arc sur le côté, bras presque tendu,
+  puis armé haut derrière la tête, coude au-dessus de l'épaule ; le batteur sort le joueur de l'eau
+  jusqu'à la taille ; le bras libre godille sur le côté.
+* **Tir** : fouetté rapide (~0,25 s), lâcher haut devant, puis le bras continue en travers du corps,
+  le thorax continue de tourner et le joueur retombe vers l'avant (durée totale ~0,7 s).
+* **Crawl** : épaules hautes, tête fixe regardant devant (ne tourne jamais), roulis modéré, retour du
+  bras coude haut près de la tête (coude ~90°), entrée courte devant l'épaule.
+
 **Tronc en deux parties** : bassin (os `torso`, porte les jambes) et thorax (os `chest`, porte les
 bras et la tête, poids de peau répartis autour de la taille). Le thorax se penche, s'incline et tourne
 plus que le bassin.

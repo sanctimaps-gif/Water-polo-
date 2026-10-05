@@ -100,6 +100,9 @@ Unity/URP est à faire.
   jusqu'à la taille ; le bras libre godille sur le côté.
 * **Tir** : fouetté rapide (~0,25 s), lâcher haut devant, puis le bras continue en travers du corps,
   le thorax continue de tourner et le joueur retombe vers l'avant (durée totale ~0,7 s).
+* **Nage avec le ballon** (vidéo de coaching « 3 étapes ») : 1) battements forts en surface, eau
+  blanche derrière les pieds ; 2) coudes hauts, bras qui entrent écartés de chaque côté du ballon pour
+  le protéger ; 3) tête et buste hauts au-dessus du ballon, regard devant ; ballon sous le menton.
 * **Crawl** : épaules hautes, tête fixe regardant devant (ne tourne jamais), roulis modéré, retour du
   bras coude haut près de la tête (coude ~90°), entrée courte devant l'épaule.
 

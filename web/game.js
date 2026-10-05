@@ -291,6 +291,7 @@ function buildActors(m) {
       role: p.role, bodyRole: p.look ? p.look.role : p.role, isGK: p.isGK, seed: p.look ? p.look.seed : p.id * 31 + p.team * 977 + 5, preset });
     a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
     a.onDrip = (x, y, z) => { vfx.drip(x, y, z); };
+    a.onKick = (x, z, power) => { vfx.stroke(x, z, power); };
     scene.add(a.root);
     return a;
   });
@@ -585,7 +586,7 @@ function updateWorld(dt, v) {
   if (v.owner >= 0 && athletes[v.owner].dribbling) {
     // Dribble: the ball floats just in front of the head, pushed by the bow wave between the arms.
     const r = athletes[v.owner].root, yw = r.rotation.y;
-    ballMesh.position.set(r.position.x + Math.sin(yw) * 0.62, 0.11 + Math.sin(time * 9) * 0.01, r.position.z + Math.cos(yw) * 0.62);
+    ballMesh.position.set(r.position.x + Math.sin(yw) * 0.5, 0.11 + Math.sin(time * 9) * 0.01, r.position.z + Math.cos(yw) * 0.5);   // under the chin, between the arms
   } else if (v.owner >= 0 && athletes[v.owner].ballLow) {
     // Held: on the water under the right palm, in front of the shoulder.
     const r = athletes[v.owner].root, yw = r.rotation.y;
@@ -730,13 +731,16 @@ function frame(now) {
   } else if (showcase) {
     // Debug / presentation: athletes side by side in each animation state, slow orbit.
     showcase.forEach((a, i) => a.update(fdt, a.showcaseState(time)));
+    const dr = showcase.find((a) => a.dribbling);
+    if (dr) { const r = dr.root; ballMesh.position.set(r.position.x + Math.sin(r.rotation.y) * 0.5, 0.11, r.position.z + Math.cos(r.rotation.y) * 0.5); }
     const ang = time * 0.25, focus = new URLSearchParams(location.search).get('focus');
     if (focus !== null) {   // ?showcase&focus=i : face close-up of athlete i
       const fx = (+focus - 2.5) * 0.85, fa = Math.sin(time * 0.5) * 0.7, fy = showcase[+focus].morph.height;
       if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.55, 0.6); camera.lookAt(fx, 0.35, 0); setFov(40, fdt, 10); }   // ?side: profile view
       else { camera.position.set(fx + Math.sin(fa) * 0.9, 0.5 * fy, -Math.cos(fa) * 0.9); camera.lookAt(fx, 0.33 * fy, 0); setFov(40, fdt, 10); }
     } else { camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10); }
-    ballMesh.position.set(0, -5, 0); selRing.visible = selArrow.visible = passRing.visible = false;
+    if (!showcase.some((a) => a.dribbling)) ballMesh.position.set(0, -5, 0);
+    selRing.visible = selArrow.visible = passRing.visible = false;
   } else {
     // Menu: the hero treads water in front of a slow orbit of the arena.
     if (!hero) buildHero();
@@ -920,7 +924,7 @@ function buildShowcase() {
       const cyc = (t % 2.4), charging = st === 'wind' && cyc < 1.5;
       if (st === 'wind' && !charging && a.throwT <= 0 && !a._thrown) { a.playThrow('shot'); a._thrown = true; }
       if (charging) a._thrown = false;
-      return { x, z: 0, fx: 0, fz: -1, vx: st === 'swim' ? 0 : 0, vz: st === 'swim' ? -1.5 : 0, sprint: false, hasBall: st === 'hold' || charging, charging,
+      return { x, z: 0, fx: 0, fz: -1, vx: st === 'swim' ? 0 : 0, vz: st === 'swim' ? -1.5 : 0, sprint: false, hasBall: st === 'hold' || charging || (st === 'swim' && new URLSearchParams(location.search).has('dribble')), charging,
         charge: Math.min(1, cyc / 1.2), block: 0, stamina: 1, ball: new THREE.Vector3(x, 1, -3), receive: false };
     };
     scene.add(a.root); return a;

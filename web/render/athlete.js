@@ -737,6 +737,11 @@ export class Athlete {
     for (const key in target) this.w[key] = (this.w[key] || 0) + (target[key] - (this.w[key] || 0)) * (key === 'throw' || key === 'dive' || key === 'reach' || key === 'save' ? 1 - Math.exp(-dt * 25) : k);
     const w = this.w;
     this.dribbling = dribble && w.swim > 0.4;
+    // kick splash (white water behind the feet), stronger when dribbling or sprinting
+    if (this.onKick && w.swim > 0.5) {
+      this.kickAcc = (this.kickAcc || 0) + dt * (this.dribbling ? 9 : s.sprint ? 6 : 2.5);
+      if (this.kickAcc > 1) { this.kickAcc -= 1; const yw = Math.atan2(s.fx, s.fz); this.onKick(s.x - Math.sin(yw) * 1.25, s.z - Math.cos(yw) * 1.25, this.dribbling ? 0.55 : 0.35); }
+    }
 
     // ---- cycles
     const strokeRate = (2.4 + speed * 2.2 + (s.sprint ? 1.2 : 0)) * (0.7 + 0.3 * fatigue) * M.tempo;
@@ -788,6 +793,17 @@ export class Athlete {
     for (const j of JOINTS) P[j] = tread[j] + (swim[j] - tread[j]) * w.swim;
     // Swim arms rotate continuously: take them from the swim pose when swimming.
     if (w.swim > 0.5) { P.shRx = swim.shRx; P.shLx = swim.shLx; }
+    // Swimming with the ball (water polo coaching): 1) strong flutter kick at the surface, white water
+    // behind; 2) high elbows, arms entering wide on each side of the ball to protect it; 3) head and chest
+    // high, above the ball, eyes forward.
+    if (this.dribbling) {
+      const kq = this.phase * 1.6;
+      P.pitch -= 0.25; P.chestX -= 0.12; P.rise += 0.07; P.neck += 0.15; P.headX += 0.12;
+      P.shRz += 0.22; P.shLz -= 0.22;
+      P.elR -= 0.35 * Math.max(0, Math.sin(wrapPos(p))); P.elL -= 0.35 * Math.max(0, Math.sin(wrapPos(p + Math.PI)));
+      P.hipRx = 0.15 + Math.sin(kq * 3) * 0.32; P.hipLx = 0.15 - Math.sin(kq * 3) * 0.32;
+      P.knR = 0.15 + Math.max(0, Math.sin(kq * 3)) * 0.45; P.knL = 0.15 + Math.max(0, -Math.sin(kq * 3)) * 0.45;
+    }
     // Sprint: flatter, head lower, arms closer to the body. Body type sets the stroke amplitude.
     if (s.sprint) { P.pitch += 0.08 * w.swim; P.neck -= 0.08 * w.swim; P.shRz *= 0.8; P.shLz *= 0.8; }
     P.shRz *= M.amp; P.shLz *= M.amp; P.knRy *= M.amp; P.knLy *= M.amp;

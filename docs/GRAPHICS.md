@@ -92,6 +92,26 @@ Unity/URP est à faire.
 
 ## Animations — IMPLÉMENTÉ (procédural, mélangé)
 
+**Tronc en deux parties** : bassin (os `torso`, porte les jambes) et thorax (os `chest`, porte les
+bras et la tête, poids de peau répartis autour de la taille). Le thorax se penche, s'incline et tourne
+plus que le bassin.
+* **Crawl water-polo** : tête hors de l'eau regardant devant, roulis des épaules à chaque mouvement
+  (thorax ±0,36 rad, bassin 40 % de ça, tête stable), entrée des bras courte et écartée, retour coude
+  haut (~70°), traction coude fléchi (~45°), battements rapides. Vérifié en CI : l'épaule du bras qui
+  tire est plus basse.
+* **Conduite du ballon** : nager en avant avec le ballon = crawl tête haute, ballon sur l'eau devant
+  la tête (plus de ballon tenu en l'air en nageant). Tenu au-dessus de la tête seulement à l'arrêt.
+* **Batteur (eggbeater)** pour tout déplacement latéral ou en arrière : corps penché dans le sens du
+  déplacement, godille des mains plus ample avec la vitesse, bassin qui tourne avec les jambes. Les
+  défenseurs regardent le jeu (porteur ou ballon) pendant les petits ajustements au lieu de nager
+  dos au jeu.
+* **Tir en chaîne** : armé = bassin puis thorax tournés vers l'arrière, buste incliné, coude à hauteur
+  d'épaule, bras libre pointé vers la cible ; déclenché = bassin d'abord, thorax ensuite, bras en
+  dernier (fouetté), buste qui plonge vers l'avant à la fin.
+* **Teint** : le corps prend la couleur moyenne de la texture du visage teintée (même teint visage /
+  corps) ; ombre de barbe d'origine du scan atténuée ; bonnet élargi pour couvrir le crâne scanné.
+
+
 Ajouts : sprint (corps plus plat, tête basse), accélération (penché en avant), freinage (buste
 redressé, jambes devant), virage (inclinaison, la tête mène), passe / tir / **tir puissant**
 (rotation du buste plus forte, sortie de l'eau) / **lob** (bras haut, geste doux), **interception

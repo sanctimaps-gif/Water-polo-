@@ -68,7 +68,7 @@ const nv = verts.length, idx = Uint16Array.from(tris.map((v) => map.get(v)));
 // --- skin weights (bone names, 2 influences)
 const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], len = (a) => Math.hypot(...a), nrm = (a) => { const l = len(a); return a.map((x) => x / l); };
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-const BONES = ['torso', 'head', 'shL', 'elL', 'wrL', 'shR', 'elR', 'wrR', 'hipL', 'knL', 'hipR', 'knR', 'smL', 'smR'];
+const BONES = ['torso', 'head', 'shL', 'elL', 'wrL', 'shR', 'elR', 'wrR', 'hipL', 'knL', 'hipR', 'knR', 'smL', 'smR', 'chest'];
 const bi = (n) => BONES.indexOf(n);
 const chain = (s) => { const c = s > 0 ? 'l' : 'r'; return { sh: J[`${c}-shoulder`], el: J[`${c}-elbow`], wr: J[`${c}-hand`], hip: J[`${c}-upper-leg`], kn: J[`${c}-knee`], an: J[`${c}-ankle`], tag: s > 0 ? 'L' : 'R' }; };
 const W4 = new Float32Array(nv * 4), B4 = new Uint8Array(nv * 4), suit = new Uint8Array(nv);
@@ -88,7 +88,7 @@ for (let k = 0; k < nv; k++) {
   const legY = c.hip[1];
   if (armness > 0.001) {
     // shoulder: torso -> half-way bone (sm) -> arm bone, then elbow and wrist blends
-    const wSm = ss(-0.45, 0.05, t), wSh = ss(0.0, 0.55, t);
+    const wSm = ss(-0.65, 0.15, t), wSh = ss(-0.15, 0.75, t);
     const wEl = ss(-0.3, 0.3, t - Lua), wWr = ss(-0.15, 0.25, t2 - Lfa);
     const armW = wSh * (1 - wEl) + 0;
     const A = armness;
@@ -101,6 +101,8 @@ for (let k = 0; k < nv; k++) {
   } else if (p[1] > J.neck[1]) {
     const wH = ss(J.neck[1] - 0.1, CUT - 0.02, p[1]); infl.torso = 1 - wH; infl.head = wH;
   }
+  // Trunk: 'torso' = pelvis, 'chest' = thorax (rotates over the lumbar spine): soft split around the waist.
+  if (infl.torso) { const c = ss(J['spine-3'][1] - 0.5, J['spine-2'][1] - 0.1, p[1]); infl.chest = (infl.chest || 0) + infl.torso * c; infl.torso *= 1 - c; }
   const top = Object.entries(infl).filter(([, w]) => w > 0.002).sort((a, b) => b[1] - a[1]).slice(0, 4), tot = top.reduce((a, [, w]) => a + w, 0);
   top.forEach(([n, w], j) => { B4[k * 4 + j] = bi(n); W4[k * 4 + j] = w / tot; });
   // suit (briefs): low waist, leg openings rising to the hip side

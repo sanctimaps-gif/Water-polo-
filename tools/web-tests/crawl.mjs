@@ -16,4 +16,13 @@ for (const [name, arm] of [['right', a.armR], ['left', a.armL]]) {
   }
   ok(n.fa > 5 * n.ba && n.bb > 5 * n.fb, `${name} arm: forward over the water ${n.fa}/${n.fa + n.ba}, backward under the water ${n.bb}/${n.bb + n.fb}`);
 }
+// Shoulder roll: during the right-arm pull the right shoulder is lower than the left one.
+{ const r = new THREE.Vector3(), l = new THREE.Vector3(); let n = 0, k = 0;
+  for (let i = 0; i < 240; i++) { a.update(1 / 60, st); a.root.updateMatrixWorld(true); a.armR.sh.getWorldPosition(r); a.armL.sh.getWorldPosition(l);
+    const q = ((a.phase % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); if (q > 3.9 && q < 5.5) { n++; if (r.y < l.y) k++; } }
+  ok(n > 0 && k / n > 0.9, `shoulders roll with the stroke (${k}/${n})`); }
+// Dribbling: swimming forward with the ball = head-up crawl (not the ball held overhead).
+{ const d = { ...st, hasBall: true }; for (let i = 0; i < 90; i++) a.update(1 / 60, d); ok(a.dribbling && a.w.hold < 0.2, 'dribble: crawl with the ball in front'); }
+// Moving backward = eggbeater facing the play, not a crawl.
+{ const bk = { ...st, vz: 1.0 }; for (let i = 0; i < 90; i++) a.update(1 / 60, bk); ok(a.w.swim < 0.1, 'backward move uses the eggbeater'); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

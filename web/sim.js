@@ -424,7 +424,7 @@ export class Match {
     if (hasBall) s *= lerp(0.82, 0.92, N(p.stats.technique));
     return s;
   }
-  motor(p, move, wantSprint, hasBall, dt) {
+  motor(p, move, wantSprint, hasBall, dt, face = null) {
     move = clampMag(flat(move), 1); const amt = len(move);
     // stamina
     if (p.sprintLocked && p.stamina >= 0.2) p.sprintLocked = false;
@@ -441,7 +441,10 @@ export class Match {
     p.vel = moveTowards(flat(p.vel), desired, acc * dt);
     p.pos = add(p.pos, mul(p.vel, dt)); p.pos.y = 0;
     const turn = lerp(200, 420, N(p.stats.technique)) * DEG;
-    p.facing = rotateFlatTowards(p.facing, amt > 0.1 ? norm(move) : p.facing, turn * dt);
+    // Facing: the swim direction, or a point to watch (defenders keep their eyes on the play and move
+    // with the eggbeater over short distances, backward / sideways).
+    const fd = face ? flat(sub(face, p.pos)) : null;
+    p.facing = rotateFlatTowards(p.facing, fd && len(fd) > 0.2 ? norm(fd) : amt > 0.1 ? norm(move) : p.facing, turn * dt);
   }
   faceTo(p, pt, dt) { const d = flat(sub(pt, p.pos)); if (dot(d, d) > 1e-4) p.facing = rotateFlatTowards(p.facing, norm(d), lerp(200, 420, N(p.stats.technique)) * DEG * dt); }
   clampField(p) {
@@ -488,7 +491,7 @@ export class Match {
         if (pr.tackle && p.stealCd <= 0) this.doDefend(p);
       }
     }
-    this.motor(p, move, sprint, hasBall, dt);
+    this.motor(p, move, sprint, hasBall, dt, !hasBall && !p.human ? cmd.face : null);
     if (p.charging) this.faceTo(p, this.targetGoal(p.team), dt);
     this.clampField(p);
   }
@@ -1027,6 +1030,7 @@ export class Match {
       }
       if (p.slot !== 5 && !hasBall) target = this.spread(p, target, 1.6, 0.6);
       const d = fdist(p.pos, target);
+      if (d < 2.5) cmd.face = hasBall ? mark.pos : b.pos;   // short adjustment: face the play
       cmd.move = this.steer(p, target, 0.15); cmd.sprint = d > 2.5 && p.stamina > 0.25;
     }
     if (decide) {

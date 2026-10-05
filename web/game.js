@@ -582,7 +582,11 @@ function updateWorld(dt, v) {
     athletes[i].update(dt, s);
   }
   // Ball: in the hand when held, simulated position otherwise.
-  if (v.owner >= 0) athletes[v.owner].handWorld(ballMesh.position); else ballMesh.position.copy(v.ball);
+  if (v.owner >= 0 && athletes[v.owner].dribbling) {
+    // Dribble: the ball floats just in front of the head, pushed by the bow wave between the arms.
+    const r = athletes[v.owner].root, yw = r.rotation.y;
+    ballMesh.position.set(r.position.x + Math.sin(yw) * 0.62, 0.11 + Math.sin(time * 9) * 0.01, r.position.z + Math.cos(yw) * 0.62);
+  } else if (v.owner >= 0) athletes[v.owner].handWorld(ballMesh.position); else ballMesh.position.copy(v.ball);
   const bvx = (ballMesh.position.x - prevBallPos.x) / Math.max(dt, 1e-3), bvz = (ballMesh.position.z - prevBallPos.z) / Math.max(dt, 1e-3);
   ballMesh.rotation.x += bvz * dt * 3.5; ballMesh.rotation.z -= bvx * dt * 3.5;
   // Ball meets the water: splash scaled by its speed.
@@ -725,7 +729,7 @@ function frame(now) {
     const ang = time * 0.25, focus = new URLSearchParams(location.search).get('focus');
     if (focus !== null) {   // ?showcase&focus=i : face close-up of athlete i
       const fx = (+focus - 2.5) * 0.85, fa = Math.sin(time * 0.5) * 0.7, fy = showcase[+focus].morph.height;
-      if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.35, -0.3); camera.lookAt(fx, 0.05, -0.3); setFov(40, fdt, 10); }   // ?side: profile view
+      if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.55, 0.6); camera.lookAt(fx, 0.35, 0); setFov(40, fdt, 10); }   // ?side: profile view
       else { camera.position.set(fx + Math.sin(fa) * 0.9, 0.5 * fy, -Math.cos(fa) * 0.9); camera.lookAt(fx, 0.33 * fy, 0); setFov(40, fdt, 10); }
     } else { camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10); }
     ballMesh.position.set(0, -5, 0); selRing.visible = selArrow.visible = passRing.visible = false;
@@ -908,8 +912,12 @@ function buildShowcase() {
     const x = (i - 2.5) * 0.85;
     a.showcaseState = (t) => {
       if (st === 'celebrate' && a.celebrateT <= 0) a.playCelebrate('arms');
-      return { x, z: 0, fx: 0, fz: -1, vx: st === 'swim' ? 0 : 0, vz: st === 'swim' ? -1.5 : 0, sprint: false, hasBall: st === 'hold', charging: st === 'wind',
-        charge: (t * 0.6) % 1, block: 0, stamina: 1, ball: new THREE.Vector3(x, 1, -3), receive: false };
+      // wind-up 1.5 s, then the shot is released (whole kinetic chain), every 2.4 s
+      const cyc = (t % 2.4), charging = st === 'wind' && cyc < 1.5;
+      if (st === 'wind' && !charging && a.throwT <= 0 && !a._thrown) { a.playThrow('shot'); a._thrown = true; }
+      if (charging) a._thrown = false;
+      return { x, z: 0, fx: 0, fz: -1, vx: st === 'swim' ? 0 : 0, vz: st === 'swim' ? -1.5 : 0, sprint: false, hasBall: st === 'hold' || charging, charging,
+        charge: Math.min(1, cyc / 1.2), block: 0, stamina: 1, ball: new THREE.Vector3(x, 1, -3), receive: false };
     };
     scene.add(a.root); return a;
   });

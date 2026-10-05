@@ -130,6 +130,12 @@ export async function loadScanBody(base = 'web/assets/body/') {
   return BODY;
 }
 const BUILD = { SMALL_FAST: 'lean', SLIM: 'lean', ATHLETIC: 'athletic', TALL_POWER: 'power', MASSIVE: 'massive' };
+/** Colour multiplier of the scanned face texture for a skin tone (per channel, partly luminance only so
+ *  lips and cheeks keep natural hues). The body uses SCAN_REF × this tint: face and body match. */
+function scanTint(skin) {
+  const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, kl = lum(skin) / lum(SCAN_REF);
+  return new THREE.Color(skin.r / SCAN_REF.r, skin.g / SCAN_REF.g, skin.b / SCAN_REF.b).lerp(new THREE.Color(kl, kl, kl), 0.6).multiplyScalar(1.16);
+}
 const TILT_C = Math.cos(0.18), TILT_S = Math.sin(0.18), EYE_U = [0.447, 0.568], EYE_V = 0.711;
 const SCAN_REF = new THREE.Color(0.51, 0.294, 0.248);   // average skin colour of the scan texture (linear)
 function headMaterial(waterTint, rich) {
@@ -157,8 +163,7 @@ function scanHeadGeometry(P, skin, hair) {
   const toHead = (X, Y, Z) => { const hx = (X + 0.08) * s, hy = (Y + 0.5) * s - 0.03 - 0.08, hz = (Z - 0.25) * s; return [hx, hy * TILT_C - hz * TILT_S + 0.08, hy * TILT_S + hz * TILT_C]; };
   // Skin tone: per-channel ratio to the scan's tone, partly replaced by a luminance ratio so the lips
   // and cheeks keep natural hues on every skin tone.
-  const lum = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, kl = lum(skin) / lum(SCAN_REF);
-  const tint = new THREE.Color(skin.r / SCAN_REF.r, skin.g / SCAN_REF.g, skin.b / SCAN_REF.b).lerp(new THREE.Color(kl, kl, kl), 0.6).multiplyScalar(1.16), hairT = new THREE.Color(hair.r / SCAN_REF.r, hair.g / SCAN_REF.g, hair.b / SCAN_REF.b).multiplyScalar(0.8), c = new THREE.Color();
+  const tint = scanTint(skin), hairT = new THREE.Color(hair.r / SCAN_REF.r, hair.g / SCAN_REF.g, hair.b / SCAN_REF.b).multiplyScalar(0.8), c = new THREE.Color();
   for (let i = 0; i < n; i++) {
     // scan units (y up, z forward): eyes ~ 1.6, nose tip (0, 1.1, 2.6), mouth ~ 0.35, chin ~ -0.45
     // Eye openings (the scan has closed lids): almond-shaped area of each eye, found in texture space,
@@ -339,7 +344,7 @@ const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const THROW_DUR = { pass: 0.3, shot: 0.38, power: 0.42, lob: 0.5 };
-const JOINTS = ['pitch', 'roll', 'twist', 'neck', 'headX', 'headY', 'shRx', 'shRz', 'elR', 'shLx', 'shLz', 'elL', 'hipRx', 'hipRz', 'knR', 'knRy', 'hipLx', 'hipLz', 'knL', 'knLy', 'rise'];
+const JOINTS = ['chestX', 'chestY', 'chestZ', 'pelvisY', 'pelvisZ', 'pitch', 'roll', 'twist', 'neck', 'headX', 'headY', 'shRx', 'shRz', 'elR', 'shLx', 'shLz', 'elL', 'hipRx', 'hipRz', 'knR', 'knRy', 'hipLx', 'hipLz', 'knL', 'knLy', 'rise'];
 
 export class Athlete {
   /**
@@ -370,13 +375,16 @@ export class Athlete {
     const bone = (parent) => { const b = new THREE.Bone(); bones.push(b); if (parent) parent.add(b); return b; };
     const rootBone = bone(null);
     this.pivot = bone(rootBone);           // body tilt (pitch / roll), chest at the water line
-    this.torso = bone(this.pivot);         // twist
+    this.torso = bone(this.pivot);         // pelvis (yaw / roll), legs hang from it
+    this.chest = bone(this.torso);         // thorax over the lumbar spine: bend, side bend, twist; arms and head hang from it
     const partsByBone = new Map();
     const mesh = (parts, b) => { partsByBone.set(b, (partsByBone.get(b) || []).concat(parts)); };
     const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const Q = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z));
 
     const scan = HEAD && (rich || o.preset.scanHead);
+    // Face and body in the same skin tone: the body takes the average colour of the tinted face texture.
+    const bodySkin = scan ? SCAN_REF.clone().multiply(scanTint(skin)).multiplyScalar(1.06) : skin;
     const mhb = scan && BODY, build = BUILD[morph.type] || 'athletic';
     this.realistic = !!mhb;
     // --- torso: smooth lathe profile (hips -> waist -> ribcage -> shoulders), sculpted muscles:
@@ -418,16 +426,17 @@ export class Athlete {
       { geo: neck, color: skin, rough: W },
       { geo: new THREE.SphereGeometry(0.06, seg, seg), color: skin, rough: W, pos: V3(0.09 * sw, 0.06, -0.01), scale: V3(1.3, 0.6, 1) },    // trapezius
       { geo: new THREE.SphereGeometry(0.06, seg, seg), color: skin, rough: W, pos: V3(-0.09 * sw, 0.06, -0.01), scale: V3(1.3, 0.6, 1) },
-    ], this.torso);
+    ], this.chest);
+    this.chest.userData.blend = [-0.18, -0.42, 1];   // below the waist the procedural trunk follows the pelvis
 
     // --- head: one sculpted mesh (skull, jaw, chin, cheekbones, brow, sockets, nose, lips;
     // beard / stubble and shading in vertex colours), eyes with lids, cap, ear guards, chin strap
-    this.head = bone(this.torso); this.head.position.set(0, 0.2, 0.005);
+    this.head = bone(this.chest); this.head.position.set(0, 0.2, 0.005);
     if (mhb) this.head.position.fromArray(BODY.joints[build].headBone);
     const hs = 1 + (r() - 0.5) * 0.08, R = 0.112;
     const bk = this.look.beard;
     const FP = { jawW: 0.8 + r() * 0.16, faceW: 0.92 + r() * 0.1, nose: 0.12 + r() * 0.08, noseW: 0.08 + r() * 0.05, brow: 0.035 + r() * 0.035, chin: 0.03 + r() * 0.05,
-      lips: 0.02 + r() * 0.025, seed: o.seed % 97, beard: bk === 'beard' ? 0.85 : bk === 'stubble' ? 0.3 : 0.08, moustache: bk === 'moustache' || bk === 'goatee' ? 0.85 : 0,
+      lips: 0.02 + r() * 0.025, seed: o.seed % 97, beard: bk === 'beard' ? 0.85 : bk === 'stubble' ? 0.14 : 0, moustache: bk === 'moustache' || bk === 'goatee' ? 0.85 : 0,
       goatee: bk === 'goatee' ? 0.85 : 0, eyeX: 0.034 + r() * 0.007, eyeS: 0.9 + r() * 0.2 };
     const sculpt = sculptHead(face ? seg * 4 + 8 : 14, face ? seg * 3 + 6 : 10, FP, skin, hair);
     sculpt.geo.applyMatrix4(new THREE.Matrix4().compose(V3(0, 0.1, 0), new THREE.Quaternion(), V3(0.92 * hs * R, 1.08 * R, 1.02 * R)));
@@ -467,9 +476,10 @@ export class Athlete {
       }
     }
     // Cap: fabric shell covering the skull and the back of the head, slightly tilted back.
-    headParts.push({ geo: new THREE.SphereGeometry(0.117, seg * 2, seg + 2, 0, Math.PI * 2, 0, Math.PI * 0.52), color: cap, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(-0.62, 0, 0), scale: V3(0.95 * hs, 1.06, 1.05) });
-    headParts.push({ geo: new THREE.TorusGeometry(0.114, 0.0055, 4, seg * 2, Math.PI * 2), color: trim, rough: CAP, pos: V3(0, 0.1 + 0.068 * 0.0, -0.006), quat: Q(Math.PI / 2 - 0.62, 0, 0), scale: V3(0.95 * hs, 1.06, 1.05) }); // edge seam
-    headParts.push({ geo: new THREE.TorusGeometry(0.118, 0.004, 3, seg * 2, Math.PI * 0.6), color: trim, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(0.25, Math.PI / 2, 0), scale: V3(1, 1.06, 1.05) });                       // centre seam (stops at the cap edge)
+    const ck = scan ? 1.075 : 1;   // the scanned skull is a little bigger: the cap covers it entirely
+    headParts.push({ geo: new THREE.SphereGeometry(0.117, seg * 2, seg + 2, 0, Math.PI * 2, 0, Math.PI * 0.52), color: cap, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(-0.62, 0, 0), scale: V3(0.95 * hs * ck, 1.06 * ck, 1.05 * ck) });
+    headParts.push({ geo: new THREE.TorusGeometry(0.114, 0.0055, 4, seg * 2, Math.PI * 2), color: trim, rough: CAP, pos: V3(0, 0.1 + 0.068 * 0.0, -0.006), quat: Q(Math.PI / 2 - 0.62, 0, 0), scale: V3(0.95 * hs * ck, 1.06 * ck, 1.05 * ck) }); // edge seam
+    headParts.push({ geo: new THREE.TorusGeometry(0.118, 0.004, 3, seg * 2, Math.PI * 0.6), color: trim, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(0.25, Math.PI / 2, 0), scale: V3(ck, 1.06 * ck, 1.05 * ck) });                       // centre seam (stops at the cap edge)
     for (const sx of [-1, 1]) {
       // Ear guard: rigid disc, with a ring of holes, part of the cap.
       headParts.push({ geo: new THREE.CylinderGeometry(0.046, 0.046, 0.022, seg * 2), color: cap, rough: 0.5, pos: V3(sx * 0.098 * hs, 0.085, 0.004), quat: Q(0, 0, Math.PI / 2) });
@@ -507,7 +517,7 @@ export class Athlete {
       if (rich) {   // HIGH / ULTRA: number on the suit (left hip), same texture
         const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
         if (mhb) { sn.position.set(-0.1, -0.415, 0.098); sn.rotation.set(-0.15, -0.5, 0); } else { sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); }
-        this.torso.add(sn);
+        this.torso.add(sn);   // suit number: on the pelvis
       }
     }
 
@@ -518,7 +528,7 @@ export class Athlete {
     const foreArm = sculptLathe([[0, -0.25], [0.029, -0.236], [0.031, -0.2], [0.04 * bulk, -0.12], [0.047 * bulk, -0.06], [0.045 * bulk, -0.02], [0.036, 0.02], [0, 0.035]], armRows, armSeg,
       (v) => { v.x *= 1 + 0.18 * sstep(-0.1, -0.22, v.y); v.z *= 1 - 0.2 * sstep(-0.1, -0.22, v.y); });   // flat wrist
     const arm = (side) => {
-      const sh = bone(this.torso); sh.position.set(side * 0.205 * sw, 0.03, 0); sh.userData.blend = [-0.06, 0.04, 0.35];
+      const sh = bone(this.chest); sh.position.set(side * 0.205 * sw, 0.03, 0); sh.userData.blend = [-0.06, 0.04, 0.35];
       mesh([
         { geo: upperArm, color: skin, rough: W },
         { geo: new THREE.SphereGeometry(0.037 * bulk, seg, seg), color: skin, rough: W, pos: V3(0, -0.28, 0) },   // elbow
@@ -544,14 +554,14 @@ export class Athlete {
     const mhArm = (side) => {
       const Jt = BODY.joints[build], c = side > 0 ? 'l' : 'r', v = (k) => new THREE.Vector3(...Jt[`${c}-${k}`]);
       const shW = v('shoulder'), elW = v('elbow'), wrW = v('hand'), fW = v('finger-3-1');
-      const sh = bone(this.torso); sh.position.copy(shW);
+      const sh = bone(this.chest); sh.position.copy(shW);
       const A = new THREE.Quaternion().setFromUnitVectors(DOWN, elW.clone().sub(shW).normalize());
       const Bq = new THREE.Quaternion().setFromUnitVectors(DOWN, wrW.clone().sub(elW).normalize());
       const Hq = new THREE.Quaternion().setFromUnitVectors(DOWN, fW.clone().sub(wrW).normalize());
       const el = bone(sh); el.position.set(0, -elW.distanceTo(shW), 0);
       const wr = bone(el); wr.position.set(0, -wrW.distanceTo(elW), 0);
       // half-way shoulder bone: follows half of the arm rotation (no collapsed armpit when the arm is raised)
-      const sm = bone(this.torso); sm.position.copy(shW);
+      const sm = bone(this.chest); sm.position.copy(shW);
       binds.push([sh, A], [el, A.clone().invert().multiply(Bq)], [wr, Bq.clone().invert().multiply(Hq)], [sm, new THREE.Quaternion().slerp(A, 0.5)]);
       // ball grip: in front of the palm (palm faces the body's front once the arm is down and turned)
       const hand = new THREE.Object3D(); hand.position.set(-side * 0.012, -0.075, 0.115); wr.add(hand);
@@ -623,7 +633,7 @@ export class Athlete {
     }
     if (mhb) {
       const Bd = BODY, vi = Bd.variants.indexOf(build), nv = Bd.nv;
-      const byName = { torso: this.torso, head: this.head, shL: this.armR.sh, elL: this.armR.el, wrL: this.armR.wr, shR: this.armL.sh, elR: this.armL.el, wrR: this.armL.wr,
+      const byName = { torso: this.torso, chest: this.chest, head: this.head, shL: this.armR.sh, elL: this.armR.el, wrL: this.armR.wr, shR: this.armL.sh, elR: this.armL.el, wrR: this.armL.wr,
         hipL: this.legR.hip, knL: this.legR.kn, hipR: this.legL.hip, knR: this.legL.kn, smL: this.armR.sm, smR: this.armL.sm };
       const id = Bd.bones.map((n) => bones.indexOf(byName[n]));
       const si = new Uint16Array(nv * 4), sw4 = new Float32Array(nv * 4), col = new Float32Array(nv * 3), rg = new Float32Array(nv), P = Bd.pos[vi].array;
@@ -641,7 +651,7 @@ export class Athlete {
           }
           rg[k] = SUIT;
         } else {
-          const h = Math.sin(k * 12.9898) * 43758.5453, hn = h - Math.floor(h); cc.copy(skin).multiplyScalar(1 + (hn - 0.5) * 0.04);   // tone variation
+          const h = Math.sin(k * 12.9898) * 43758.5453, hn = h - Math.floor(h); cc.copy(bodySkin).multiplyScalar(1 + (hn - 0.5) * 0.04);   // tone variation
           // Body hair (some players): chest between the pectorals, sternum, line down to the navel; patchy.
           if (bodyHair > 0 && z > 0.02) {
             const ax = Math.abs(x), chest = gs(y + 0.13, 0.09) * gs(ax - 0.04, 0.09), trail = gs(ax, 0.025) * ss(-0.12, -0.2, y) * ss(-0.4, -0.3, y);
@@ -705,9 +715,14 @@ export class Athlete {
 
     // ---- blend weights (smoothed: no snapping between animations)
     const k = 1 - Math.exp(-dt * 9);
+    // Local velocity: crawl only when swimming forward; sideways / backward moves are done with the
+    // eggbeater (as real players do over short distances, facing the play).
+    const fl = Math.hypot(s.fx, s.fz) || 1, fwdV = (s.vx * s.fx + s.vz * s.fz) / fl, latV = (s.vx * s.fz - s.vz * s.fx) / fl;
+    // Dribbling: the ball is pushed between the arms with a head-up crawl (held overhead only when stopped).
+    const dribble = s.hasBall && !s.charging && fwdV > 0.6;
     const target = {
-      swim: s.hasBall || s.charging || this.celebrateT > 0 ? 0 : clamp((speed - 0.35) / 0.7, 0, 1),
-      hold: s.hasBall && !s.charging ? 1 : 0,
+      swim: (s.hasBall && !dribble) || s.charging || this.celebrateT > 0 ? 0 : clamp((fwdV - 0.35) / 0.7, 0, 1),
+      hold: s.hasBall && !s.charging && !dribble ? 1 : 0,
       wind: s.charging ? 1 : 0,
       throw: this.throwT > 0 ? 1 : 0,
       block: s.block > 0 ? 1 : 0,
@@ -720,6 +735,7 @@ export class Athlete {
     };
     for (const key in target) this.w[key] = (this.w[key] || 0) + (target[key] - (this.w[key] || 0)) * (key === 'throw' || key === 'dive' || key === 'reach' || key === 'save' ? 1 - Math.exp(-dt * 25) : k);
     const w = this.w;
+    this.dribbling = dribble && w.swim > 0.4;
 
     // ---- cycles
     const strokeRate = (2.4 + speed * 2.2 + (s.sprint ? 1.2 : 0)) * (0.7 + 0.3 * fatigue) * M.tempo;
@@ -741,21 +757,30 @@ export class Athlete {
     // ---- base pose: eggbeater tread <-> front crawl
     const t = this.tread, p = this.phase;
     const P = {};
+    // Eggbeater: trunk upright, hands sculling a figure of eight at the surface, alternate leg circles
+    // turning the pelvis a little; travelling sideways / backward leans the body into the move.
+    const travel = 1 - w.swim, back = clamp(-fwdV / 1.2, 0, 1), side = clamp(latV / 1.2, -1, 1);
+    const scull = 0.18 + 0.22 * clamp(Math.hypot(fwdV, latV) / 1.2, 0, 1);
     const tread = {
-      pitch: 0.1, roll: 0, twist: 0, neck: 0, headX: -0.1, headY: 0,
-      shRx: -0.45 + Math.sin(t) * 0.12, shRz: 0.55 + Math.sin(t + 1) * 0.18, elR: -1.0 + Math.sin(t + 0.5) * 0.3,
-      shLx: -0.45 + Math.sin(t + 2) * 0.12, shLz: -0.55 - Math.sin(t + 3) * 0.18, elL: -1.0 + Math.sin(t + 2.5) * 0.3,
+      chestX: 0.04 - back * 0.12, chestY: Math.sin(t) * 0.03, chestZ: side * 0.08, pelvisY: Math.sin(t) * 0.07, pelvisZ: 0,
+      pitch: 0.1 - back * 0.22 * travel, roll: -side * 0.18 * travel, twist: 0, neck: 0, headX: -0.1 + back * 0.1, headY: 0,
+      shRx: -0.5 + Math.sin(t) * 0.1, shRz: 0.5 + Math.sin(t * 2 + 1) * scull, elR: -1.05 + Math.sin(t * 2 + 0.5) * 0.3,
+      shLx: -0.5 + Math.sin(t + 2) * 0.1, shLz: -0.5 - Math.sin(t * 2 + 3) * scull, elL: -1.05 + Math.sin(t * 2 + 2.5) * 0.3,
       hipRx: -1.05, hipRz: 0.55, knR: 1.55, knRy: Math.sin(t) * 0.7, hipLx: -1.05, hipLz: -0.55, knL: 1.55, knLy: Math.sin(t + Math.PI) * 0.7,
       rise: (Math.sin(t * 2) * 0.012) - (1 - fatigue) * 0.06,
     };
+    // Head-up front crawl (water polo): head out of the water looking ahead, shoulders roll with each
+    // stroke (thorax more than pelvis), arms wide and short at the entry, high-elbow recovery, bent-elbow
+    // pull under the body, small fast flutter kick. The head stays level while the shoulders roll.
+    const roll = Math.sin(p) * 0.36 * ROLL_SIGN;
+    const qR = wrapPos(p), qL = wrapPos(p + Math.PI);
     const swim = {
-      pitch: 1.12, roll: Math.sin(p) * 0.18, twist: 0, neck: -0.55, headX: -0.55, headY: Math.sin(p) * 0.1,
-      // Front crawl, arm angle a = p - 2π (increasing): p = 0 hand at the hip (exit), 0..π recovery over the
-      // water (high elbow), π entry in front of the head, π..2π pull under the body back to the hip.
-      shRx: wrapPos(p) - 2 * Math.PI, shRz: 0.22, elR: crawlElbow(p),
-      shLx: wrapPos(p + Math.PI) - 2 * Math.PI, shLz: -0.22, elL: crawlElbow(p + Math.PI),
-      hipRx: 0.05 + Math.sin(p * 2) * 0.32, hipRz: 0.06, knR: 0.25 + Math.max(0, Math.sin(p * 2)) * 0.4, knRy: 0,
-      hipLx: 0.05 - Math.sin(p * 2) * 0.32, hipLz: -0.06, knL: 0.25 + Math.max(0, -Math.sin(p * 2)) * 0.4, knLy: 0,
+      chestX: -0.18, chestY: roll, chestZ: 0, pelvisY: roll * 0.4, pelvisZ: 0,
+      pitch: 1.1, roll: 0, twist: 0, neck: -0.55, headX: -0.55, headY: -roll * 0.85,
+      shRx: qR - 2 * Math.PI, shRz: 0.16 + 0.42 * Math.max(0, Math.sin(qR)), elR: crawlElbow(p),
+      shLx: qL - 2 * Math.PI, shLz: -0.16 - 0.42 * Math.max(0, Math.sin(qL)), elL: crawlElbow(p + Math.PI),
+      hipRx: 0.05 + Math.sin(p * 3) * 0.22, hipRz: 0.06, knR: 0.2 + Math.max(0, Math.sin(p * 3)) * 0.35, knRy: 0,
+      hipLx: 0.05 - Math.sin(p * 3) * 0.22, hipLz: -0.06, knL: 0.2 + Math.max(0, -Math.sin(p * 3)) * 0.35, knLy: 0,
       rise: 0.04,
     };
     for (const j of JOINTS) P[j] = tread[j] + (swim[j] - tread[j]) * w.swim;
@@ -784,8 +809,10 @@ export class Athlete {
     // ---- shot wind-up: arm cocked back, torso twisted, rising out of the water
     if (w.wind > 0) {
       const c = clamp(s.charge || 0, 0, 1);
-      mix(P, { shRx: -2.95 - 0.75 * c, shRz: 0.32, elR: -0.95 - 0.45 * c, twist: -0.55 * c, pitch: -0.12 * c, rise: 0.12 + 0.26 * c,
-        shLx: -1.15, shLz: -0.45, elL: -0.25, headY: 0.35 * c }, w.wind);
+      // Cocked: pelvis and (more) thorax turned back, trunk leaning back and away, elbow at shoulder height,
+      // the free arm pointing at the target for balance, the eggbeater lifting the body.
+      mix(P, { shRx: -2.95 - 0.75 * c, shRz: 0.32, elR: -0.95 - 0.45 * c, pelvisY: -0.22 * c, chestY: -0.5 * c, chestZ: 0.14 * c, chestX: -0.16 * c,
+        twist: 0, pitch: -0.12 * c, rise: 0.12 + 0.26 * c, shLx: -1.35, shLz: -0.35, elL: -0.15, headY: 0.35 * c }, w.wind);
     }
     // ---- release (shot / pass): fast forward whip and follow-through
     if (w.throw > 0) {
@@ -793,8 +820,13 @@ export class Athlete {
       const e = 1 - Math.pow(1 - clamp(u * 1.6, 0, 1), 3);
       // pass: short whip; shot: torso rotation + whip; power: bigger rotation, body out of the water; lob: high soft arc
       const K = { pass: [2.0, 0.9, 0.35, 0.32], shot: [2.5, 0.9, 0.35, 0.32], power: [2.8, 1.35, 0.5, 0.42], lob: [1.3, 0.5, 0.1, 0.36] }[kind] || [2.5, 0.9, 0.35, 0.32];
-      mix(P, { shRx: -3.6 + e * K[0], shRz: 0.25, elR: -1.1 * (1 - e) * (kind === 'lob' ? 0.4 : 1), twist: -0.5 * K[1] + e * K[1], pitch: K[2] * e - 0.1,
-        rise: K[3] * (1 - u) + 0.05, shLx: -0.8, shLz: -0.6, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
+      // Kinetic chain: the pelvis turns first, then the thorax, then the arm whips through; the free arm
+      // pulls down and the trunk bends forward into the follow-through.
+      const ease = (x) => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
+      const ep = ease(u * 2.6), ec = ease((u - 0.08) * 2.2), ea = ease((u - 0.18) * 1.9);
+      mix(P, { shRx: -3.6 + ea * K[0], shRz: 0.25, elR: -1.1 * (1 - ea) * (kind === 'lob' ? 0.4 : 1), twist: 0,
+        pelvisY: (-0.22 + 0.36 * ep) * K[1], chestY: (-0.5 + 0.85 * ec) * K[1], chestX: -0.16 + 0.4 * ea * K[1], chestZ: 0.14 * (1 - ec),
+        pitch: K[2] * ea - 0.1, rise: K[3] * (1 - u) + 0.05, shLx: -1.35 + 0.9 * ec, shLz: -0.5, elL: -0.2, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
     }
     // ---- block: both arms straight up
     if (w.block > 0) mix(P, { shRx: -3.0, shRz: 0.22, elR: -0.1, shLx: -3.0, shLz: -0.22, elL: -0.1, rise: 0.26, pitch: 0 }, w.block);
@@ -844,7 +876,8 @@ export class Athlete {
     this.root.position.set(s.x, q.rise + Math.sin(this.tread * 2 + 1) * 0.008, s.z);
     this.root.rotation.y = yaw;
     this.pivot.rotation.set(q.pitch, 0, q.roll);
-    this.torso.rotation.set(0, q.twist, 0);
+    this.torso.rotation.set(0, q.twist * 0.35 + q.pelvisY, q.pelvisZ);
+    this.chest.rotation.set(q.chestX, q.twist * 0.65 + q.chestY, q.chestZ);
     this.head.rotation.set(q.neck + q.headX, q.headY, 0);
     this.armR.sh.rotation.set(q.shRx, 0, q.shRz); this.armR.el.rotation.set(q.elR, 0, 0);
     this.armL.sh.rotation.set(q.shLx, 0, q.shLz); this.armL.el.rotation.set(q.elL, 0, 0);
@@ -890,7 +923,7 @@ export class Athlete {
    */
   overridePose(kind, u = 0) {
     const L = [this.legR, this.legL], A = [this.armR, this.armL];
-    this.torso.rotation.set(0, 0, 0);
+    this.torso.rotation.set(0, 0, 0); this.chest.rotation.set(0, 0, 0);
     if (kind === 'stand') {
       this.pivot.rotation.set(0, 0, 0); this.head.rotation.set(-0.05, 0, 0);
       A.forEach((a, i) => { a.sh.rotation.set(0.08, 0, (i ? -1 : 1) * 0.1); a.el.rotation.set(-0.2, 0, 0); });
@@ -941,6 +974,11 @@ function concatGeometries(list) {
 }
 
 /** Elbow in the crawl: bent high during the recovery, slightly bent in the middle of the pull, straight at entry. */
-function crawlElbow(p) { const q = wrapPos(p); return -1.0 * Math.max(0, Math.sin(q)) - 0.45 * Math.max(0, -Math.sin(q)); }
+function crawlElbow(p) {
+  const q = wrapPos(p);
+  // recovery: high elbow, forearm hanging (~70°); pull: early catch, elbow ~45° bent mid-pull, extended at the push
+  return -1.2 * Math.max(0, Math.sin(q)) - 0.8 * Math.max(0, -Math.sin(q - 0.3));
+}
+const ROLL_SIGN = 1;
 function wrapPos(a) { const t = a % (Math.PI * 2); return t < 0 ? t + Math.PI * 2 : t; }
 function mix(P, o, w) { for (const k in o) P[k] += (o[k] - P[k]) * w; }

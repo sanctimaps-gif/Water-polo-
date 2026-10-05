@@ -316,6 +316,108 @@ function paint(geo, fn) {
   return out;
 }
 
+// ---------------------------------------------------------------- water polo cap
+/**
+ * Fitted water polo cap (reference: real caps): fabric shrink-wrapped on the actual head surface (radius
+ * found per direction from the head vertices, smoothed like stretched fabric), covering the skull, the
+ * nape and coming down in flaps over the ears to the jaw; rolled binding along the edge, seam over the
+ * top; oval domed ear guards with a grid of holes; strings tied under the chin with dangling ends.
+ * All in head-bone space. Returns parts for mergeParts + a surface() helper to place numbers.
+ */
+function buildCap(headGeo, o) {
+  const C0 = new THREE.Vector3(0, 0.1, -0.005), NA = o.res * 2, NT = o.res;   // azimuth x polar grid
+  const T0 = 0.0, T1 = Math.PI * 0.74;
+  // head radius per direction (bucketed vertices; the scanned head is cropped on top -> ellipsoid fallback)
+  const P = headGeo.attributes.position.array, raw = new Float32Array((NA) * (NT + 1)).fill(0), d = new THREE.Vector3();
+  for (let i = 0; i < P.length; i += 3) {
+    d.set(P[i] - C0.x, P[i + 1] - C0.y, P[i + 2] - C0.z); const r = d.length(); if (r < 1e-4) continue; d.multiplyScalar(1 / r);
+    const t = Math.acos(clamp(d.y, -1, 1)); if (t > T1 + 0.1) continue;
+    const a = Math.atan2(d.x, d.z);
+    const ia = ((Math.round((a / (Math.PI * 2)) * NA) % NA) + NA) % NA, it = Math.round(((t - T0) / (T1 - T0)) * NT);
+    if (it < 0 || it > NT) continue;
+    const k = it * NA + ia; if (r > raw[k]) raw[k] = r;
+  }
+  const E = o.ell, R = new Float32Array(raw.length);
+  for (let it = 0; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
+    const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2;
+    const dx = Math.sin(t) * Math.sin(a), dy = Math.cos(t), dz = Math.sin(t) * Math.cos(a);
+    const re = 1 / Math.sqrt((dx / E[0]) ** 2 + (dy / E[1]) ** 2 + (dz / E[2]) ** 2);
+    const k = it * NA + ia; R[k] = raw[k] > 0 ? raw[k] : re;
+  }
+  const minR = R.slice();
+  for (let pass = 0; pass < 6; pass++) {   // fabric: smooth over the bumps (ears, hair line), never inside the head
+    const Q = R.slice();
+    for (let it = 0; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
+      const k = it * NA + ia, l = it * NA + (ia + NA - 1) % NA, rr = it * NA + (ia + 1) % NA, u = Math.max(0, it - 1) * NA + ia, w = Math.min(NT, it + 1) * NA + ia;
+      R[k] = Math.max(minR[k], (Q[k] * 2 + Q[l] + Q[rr] + Q[u] + Q[w]) / 6);
+    }
+  }
+  // cap outline: straight across the forehead, down in front of the ears to the jaw, around the nape
+  const edgeY = (a) => { const A = Math.abs(a); return A < 0.5 ? 0.163 : A < 1.3 ? 0.163 - 0.145 * sstep(0.5, 1.3, A) : 0.018 + 0.012 * sstep(2.2, Math.PI, A); };
+  const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color();
+  const pt = (it, ia, extra = 0) => {
+    const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2, r = R[it * NA + ia] + o.thick + extra;
+    return [C0.x + r * Math.sin(t) * Math.sin(a), C0.y + r * Math.cos(t), C0.z + r * Math.sin(t) * Math.cos(a)];
+  };
+  for (let it = 0; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
+    const a = (ia / NA) * Math.PI * 2, aa = a > Math.PI ? a - 2 * Math.PI : a, p0 = pt(it, ia), m = p0[1] - edgeY(aa);
+    let v = p0;
+    if (m < 0) {
+      // first row below the outline: snap it onto the outline (smooth edge instead of a staircase)
+      if (it === 0) continue;
+      const pp = pt(it - 1, ia), mp = pp[1] - edgeY(aa); if (mp < 0) continue;
+      const f = mp / (mp - m);
+      v = [pp[0] + (p0[0] - pp[0]) * f, pp[1] + (p0[1] - pp[1]) * f, pp[2] + (p0[2] - pp[2]) * f];
+    }
+    const band = m < 0.009;   // rolled binding along the edge
+    if (band) { const n0 = new THREE.Vector3(...v).sub(C0).normalize().multiplyScalar(0.0018); v = [v[0] + n0.x, v[1] + n0.y, v[2] + n0.z]; }
+    grid[it * NA + ia] = pos.length / 3; pos.push(...v);
+    c.copy(band ? o.trim : o.cap);
+    if (!band && Math.abs(Math.sin(aa)) * Math.sin(T0 + (it / NT) * (T1 - T0)) < 0.012 && Math.cos(aa) > -0.2 || (!band && Math.abs(aa) > Math.PI - 0.03)) c.copy(o.cap).lerp(o.trim, 0.55);   // top seam
+    col.push(c.r, c.g, c.b);
+  }
+  for (let it = 0; it < NT; it++) for (let ia = 0; ia < NA; ia++) {
+    const a = grid[it * NA + ia], b = grid[it * NA + (ia + 1) % NA], cc = grid[(it + 1) * NA + ia], dd = grid[(it + 1) * NA + (ia + 1) % NA];
+    if (a >= 0 && b >= 0 && cc >= 0) idx.push(a, cc, b);
+    if (b >= 0 && cc >= 0 && dd >= 0) idx.push(b, cc, dd);
+  }
+  const cap = new THREE.BufferGeometry();
+  cap.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); cap.setIndex(idx); cap.computeVertexNormals();
+  const parts = [{ geo: cap, colors: new Float32Array(col), color: o.cap, rough: o.rough }];
+  // surface point + normal for an azimuth / height (numbers, ear guards, strings)
+  const surface = (a, y, extra = 0) => {
+    let best = null, bd = 9;
+    for (let it = 0; it <= NT; it++) { const p = pt(it, ((Math.round((a / (Math.PI * 2)) * NA) % NA) + NA) % NA, extra); const dy = Math.abs(p[1] - y); if (dy < bd) { bd = dy; best = p; } }
+    const v = new THREE.Vector3(...best), n = v.clone().sub(C0).normalize(); return { p: v, n };
+  };
+  // ear guards: oval domes over the ears, grid of holes (vertex colours), rim
+  for (const sx of [-1, 1]) {
+    const { p, n } = surface(sx * Math.PI * 0.5 - sx * 0.08, 0.082, 0.006);
+    const g = new THREE.SphereGeometry(0.04, o.res + 8, Math.max(8, (o.res >> 1) + 4), 0, Math.PI * 2, 0, Math.PI * 0.42);
+    const gp = g.attributes.position.array, gc = new Float32Array(gp.length);
+    for (let i = 0; i < gp.length; i += 3) {
+      const x = gp[i], z = gp[i + 2], hole = Math.abs(Math.sin(x * 330)) > 0.55 && Math.abs(Math.sin(z * 330)) > 0.55 && Math.hypot(x, z) < 0.022;
+      c.copy(o.guard); if (hole) c.multiplyScalar(0.18); if (Math.hypot(x, z) > 0.024) c.multiplyScalar(0.85);
+      gc[i] = c.r; gc[i + 1] = c.g; gc[i + 2] = c.b;
+    }
+    const q = new THREE.Quaternion().setFromUnitVectors(UP, n);
+    parts.push({ geo: g, colors: gc, color: o.guard, rough: 0.35, pos: p.clone().addScaledVector(n, -0.03), quat: q, scale: new THREE.Vector3(0.95, 0.75, 1.2) });
+  }
+  // strings: from the bottom of each flap, under the chin, bow and two loose ends
+  if (o.strings) {
+    const knot = new THREE.Vector3(0, -0.035, 0.07);
+    for (const sx of [-1, 1]) {
+      const { p } = surface(sx * 1.32, 0.03, 0.001);
+      const pts = [p, new THREE.Vector3(sx * 0.06, -0.01, 0.06), knot.clone().add(new THREE.Vector3(sx * 0.008, 0, 0))];
+      parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.0022, 4), color: o.trim, rough: 0.6 });
+      const end = [knot.clone(), new THREE.Vector3(sx * 0.012, -0.07, 0.075), new THREE.Vector3(sx * 0.02, -0.11, 0.07)];
+      parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(end), 8, 0.002, 4), color: o.trim, rough: 0.6 });
+      parts.push({ geo: new THREE.TorusGeometry(0.009, 0.0022, 4, 8), color: o.trim, rough: 0.6, pos: knot.clone().add(new THREE.Vector3(sx * 0.011, 0, 0.003)), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, sx * 0.4, 0)) });
+    }
+  }
+  return { parts, surface };
+}
+
 /** z of the head surface (front) at (x, y), from the generated vertices: features sit ON the face. */
 function surfaceZ(geo, x, y) {
   const p = geo.attributes.position.array; let best = [], bz = 0;
@@ -329,6 +431,11 @@ function surfaceZ(geo, x, y) {
   return bz / wsum;
 }
 
+function concatPlanes(list) {
+  const pos = [], uv = [], idx = []; let o = 0;
+  for (const g of list) { pos.push(...g.attributes.position.array); uv.push(...g.attributes.uv.array); for (const i of g.index.array) idx.push(i + o); o += g.attributes.position.count; }
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); out.setIndex(idx); return out;
+}
 function numberTexture(n, fg = '#ffffff') {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -475,23 +582,11 @@ export class Athlete {
         headParts.push({ geo: new THREE.SphereGeometry(0.0095, 6, 5), color: skin.clone().lerp(C(0xc0504a), 0.15), rough: S, pos: V3(sx * 0.097 * hs * FP.faceW, 0.039, 0.012), scale: V3(0.6, 1, 0.9) });
       }
     }
-    // Cap: fabric shell covering the skull and the back of the head, slightly tilted back.
-    const ck = scan ? 1.075 : 1;   // the scanned skull is a little bigger: the cap covers it entirely
-    headParts.push({ geo: new THREE.SphereGeometry(0.117, seg * 2, seg + 2, 0, Math.PI * 2, 0, Math.PI * 0.52), color: cap, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(-0.62, 0, 0), scale: V3(0.95 * hs * ck, 1.06 * ck, 1.05 * ck) });
-    headParts.push({ geo: new THREE.TorusGeometry(0.114, 0.0055, 4, seg * 2, Math.PI * 2), color: trim, rough: CAP, pos: V3(0, 0.1 + 0.068 * 0.0, -0.006), quat: Q(Math.PI / 2 - 0.62, 0, 0), scale: V3(0.95 * hs * ck, 1.06 * ck, 1.05 * ck) }); // edge seam
-    headParts.push({ geo: new THREE.TorusGeometry(0.118, 0.004, 3, seg * 2, Math.PI * 0.6), color: trim, rough: CAP, pos: V3(0, 0.1, -0.006), quat: Q(0.25, Math.PI / 2, 0), scale: V3(ck, 1.06 * ck, 1.05 * ck) });                       // centre seam (stops at the cap edge)
-    for (const sx of [-1, 1]) {
-      // Ear guard: rigid disc, with a ring of holes, part of the cap.
-      headParts.push({ geo: new THREE.CylinderGeometry(0.046, 0.046, 0.022, seg * 2), color: cap, rough: 0.5, pos: V3(sx * 0.098 * hs, 0.085, 0.004), quat: Q(0, 0, Math.PI / 2) });
-      for (let k = 0; k < 7; k++) {
-        const a = (k / 7) * Math.PI * 2;
-        headParts.push({ geo: new THREE.CylinderGeometry(0.0055, 0.0055, 0.004, 5), color: C(0x111111), rough: 0.9,
-          pos: V3(sx * (0.098 * hs + 0.012), 0.085 + Math.sin(a) * 0.022, 0.004 + Math.cos(a) * 0.022), quat: Q(0, 0, Math.PI / 2) });
-      }
-    }
-    headParts.push({ geo: new THREE.TorusGeometry(0.09, 0.005, 4, seg * 2, Math.PI), color: cap, rough: CAP, pos: V3(0, 0.065, 0.012), quat: Q(0, Math.PI / 2, Math.PI) }); // chin strap
-    headParts.push({ geo: new THREE.SphereGeometry(0.009, 6, 5), color: cap, rough: CAP, pos: V3(0, -0.026, 0.018), scale: V3(1.4, 0.8, 1) });                               // strap knot
-    for (const sx of [-1, 1]) headParts.push({ geo: new THREE.CapsuleGeometry(0.003, 0.03, 2, 4), color: cap, rough: CAP, pos: V3(sx * 0.008, -0.04, 0.02), quat: Q(0.2, 0, sx * 0.4) }); // strap ends
+    // Cap: fitted fabric cap on the actual head shape (see buildCap).
+    const capRes = face ? Math.max(16, seg * 2 + 4) : 12;
+    const CAPB = buildCap(scanGeo || sculpt.geo, { res: capRes, thick: 0.0045, ell: scan ? [0.112, 0.128, 0.126] : [0.104, 0.122, 0.118], cap, trim,
+      guard: o.isGK ? cap.clone().multiplyScalar(0.8) : cap.clone().lerp(C(0xffffff), cap.getHSL({}).l < 0.5 ? 0.12 : 0).multiplyScalar(0.9), rough: CAP, strings: face });
+    headParts.push(...CAPB.parts);
     // Hair (wet: darker, glossy). Shaved: nothing shows under the cap.
     const HR = 0.42;
     if (hairStyle === 'short' || hairStyle === 'wavy') {
@@ -512,8 +607,15 @@ export class Athlete {
     this.hairA = 0; this.hairV = 0; this.hairZ = 0;
     // Cap number on the back of the cap.
     if (face) {
-      const num = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.085), new THREE.MeshBasicMaterial({ map: numberTexture(o.number), transparent: true, depthWrite: false }));
-      num.position.set(0, 0.125, -0.113); num.rotation.set(0.35, Math.PI, 0); this.head.add(num);
+      // Cap numbers (like real caps): on the back and on both sides above the ear guards, laid on the fabric.
+      const numGeos = [];
+      for (const [a, y, sz] of [[Math.PI, 0.13, 0.08], [Math.PI * 0.68, 0.15, 0.055], [-Math.PI * 0.68, 0.15, 0.055]]) {
+        const { p, n } = CAPB.surface(a, y, 0.002), g = new THREE.PlaneGeometry(sz, sz);
+        g.applyMatrix4(new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), new THREE.Vector3(1, 1, 1)));
+        numGeos.push(g);
+      }
+      const num = new THREE.Mesh(concatPlanes(numGeos), new THREE.MeshBasicMaterial({ map: numberTexture(o.number, cap.getHSL({}).l > 0.6 ? '#173a8c' : '#ffffff'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+      this.head.add(num);
       if (rich) {   // HIGH / ULTRA: number on the suit (left hip), same texture
         const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
         if (mhb) { sn.position.set(-0.1, -0.415, 0.098); sn.rotation.set(-0.15, -0.5, 0); } else { sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); }

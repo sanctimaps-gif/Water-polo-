@@ -116,6 +116,15 @@ tenu sur l'eau et face à la cible à l'armé et au tir.
 ballon selon la normale de la paume, d'après le pouce, l'auriculaire et la courbure des doigts) ;
 ballon tenu sur l'eau : petite IK de l'épaule qui amène la main au niveau de l'eau.
 
+**Bonnet de water-polo** (`buildCap`, d'après des photos de vrais bonnets) : tissu ajusté sur la
+forme réelle de la tête (rayon trouvé par direction à partir des sommets de la tête, lissé comme un
+tissu tendu, jamais à l'intérieur de la tête), qui couvre le crâne et la nuque et descend en rabats
+devant les oreilles jusqu'à la mâchoire ; bord droit sur le front, juste au-dessus des sourcils, bord
+lissé (sans escalier) avec liseré roulé de couleur ; couture sur le dessus ; protège-oreilles ovales
+bombés avec une grille de trous ; cordons noués sous le menton avec un nœud et deux bouts qui pendent ;
+numéros au dos et sur les deux côtés, posés sur le tissu (bleu foncé sur bonnet clair, blanc sinon).
+Coût : +50 k triangles en ULTRA.
+
 **Tronc en deux parties** : bassin (os `torso`, porte les jambes) et thorax (os `chest`, porte les
 bras et la tête, poids de peau répartis autour de la taille). Le thorax se penche, s'incline et tourne
 plus que le bassin.

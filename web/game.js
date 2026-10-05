@@ -39,17 +39,19 @@ const L = (k, ...a) => {
 };
 
 // ------------------------------------------------------------------ options (persisted per device)
-const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, zoom: 5, radar: true, graphics: 'AUTO', camera: 'STANDARD', replays: true, ambience: 'EVENT', sound: true };
+const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, zoom: 5, radar: true, intro: true, graphics: 'AUTO', camera: 'ATTACK', replays: true, ambience: 'EVENT', sound: true };
 let opts = { ...DEFAULT_OPTS };
 try { Object.assign(opts, JSON.parse(localStorage.getItem('wp26.opts') || '{}')); } catch { /* private mode */ }
+if (!opts.camV2) { opts.camera = 'ATTACK'; opts.camV2 = true; }   // new default camera (end-on, toward the attacked goal)
 const saveOpts = () => { try { localStorage.setItem('wp26.opts', JSON.stringify(opts)); } catch { /* ignore */ } };
 const DIFF = [0.75, 1, 1.15], DIFF_KEYS = ['difficulty.easy', 'difficulty.normal', 'difficulty.hard'];
 const ASSISTS = ['ASSISTED', 'STANDARD', 'PRO'];
 const MINUTES = [1, 2, 4, 8];
 const GRAPHICS = ['AUTO', ...TIERS];
-// Match cameras (Settings > Match, and the CAM chip in the match): broadcast, wide, close, dynamic side,
-// tactical (high), behind the controlled player (end-on), pool deck (low side).
-const CAMERAS = ['STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK'];
+// Match cameras (Settings > Match, and the CAM chip in the match): attack (high, end-on, looking at the
+// goal we attack, like console rugby / football games), broadcast, wide, close, dynamic side,
+// top view, behind the controlled player, pool deck (low side).
+const CAMERAS = ['ATTACK', 'STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK'];
 const AMBIENCES = ['EVENT', 'DAY', 'EVENING', 'NIGHT'];
 const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIVE: 'tactic.offensive', DEFENSIVE: 'tactic.defensive', PRESSURE: 'tactic.pressure', CENTER: 'tactic.center', COUNTER: 'tactic.counter' };
 const cycle = (list, v) => list[(list.indexOf(v) + 1) % list.length];
@@ -139,7 +141,7 @@ function btnState() { return { held: false, press: false, release: false, down: 
 // on iOS Safari, Android Chrome and desktop, and is immune to overlays stealing the event.
 const contacts = new Map(); // id -> { region, ox, oy, lx, ly }
 const STICK_R = 70;
-function hudActive() { return match && !paused && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
+function hudActive() { return match && !intro && !paused && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
 function regionAt(x, y) {
   for (const id of ['btnA', 'btnB', 'btnS']) {
     const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -349,7 +351,65 @@ function startMatch(ctx) {
   $('home-chip').style.background = hex(match.teams[0].def.color); $('away-chip').style.background = hex(match.teams[1].def.color);
   refreshTactic(); refreshChips();
   lockLandscape();
-  audio.start(); audio.whistle(true);
+  audio.start();
+  if (opts.intro !== false) startIntro(); else audio.whistle(true);
+}
+
+// ------------------------------------------------------------------ pool entry cinematic
+// Before the swim-off: both teams stand on the deck behind their goal line, dive into the pool one
+// after the other (splashes), glide to their start positions; the camera cuts between the two ends
+// then rises to the match view. Tap to skip. The simulation does not run meanwhile.
+let intro = null;
+const INTRO_T = 7.2;
+function startIntro() {
+  const m = match;
+  intro = { t: 0, actors: m.players.map((p, i) => {
+    const t = p.team, s = m.sign(t), order = p.isGK ? 3 : [0, 5, 2, 4, 1, 6][p.slot];
+    return { i, t, s, start: { x: p.pos.x, z: p.pos.z }, deck: { x: -s * 15.1, z: p.isGK ? 0 : -6 + order * 2 },
+      entry: { x: -s * 13.0 }, jump: (t === 0 ? 1.0 : 3.2) + order * 0.17, splashed: false };
+  }) };
+  const ov = $('intro');
+  ov.innerHTML = `<div class="it-vs"><b style="background:${hex(m.teams[0].def.color)}">${m.teams[0].def.short}</b><i>${L('ui.vs')}</i><b style="background:${hex(m.teams[1].def.color)}">${m.teams[1].def.short}</b></div><small>${L('hud.skip')}</small>`;
+  ov.classList.remove('hidden'); document.body.classList.add('intro-on');
+  ov.onclick = () => endIntro();
+  arena.cheer(-1, 0.8);
+}
+function endIntro() {
+  if (!intro) return;
+  intro = null; $('intro').classList.add('hidden'); document.body.classList.remove('intro-on');
+  for (const p of match.players) athletes[p.id].root.position.set(p.pos.x, 0, p.pos.z);
+  camState.focus.set(0, 0, 0); audio.whistle(true);
+}
+function updateIntro(dt) {
+  const it = intro, m = match; it.t += dt;
+  const DIVE = 0.75, GLIDE = 1.3;
+  for (const a of it.actors) {
+    const ath = athletes[a.i], u = (it.t - a.jump) / DIVE;
+    const st = { x: a.deck.x, z: a.deck.z, fx: a.s, fz: 0, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: ballMesh.position, receive: false };
+    if (u < 0) {   // standing on the deck
+      ath.update(dt, st); ath.overridePose('stand'); ath.root.position.set(a.deck.x, 0.3 + ath.standHeight(), a.deck.z);
+    } else if (u < 1) {   // flight: ballistic arc head first
+      const x = a.deck.x + (a.entry.x - a.deck.x) * u, y = (0.3 + ath.standHeight()) * (1 - u) - 0.25 * u + 1.1 * u * (1 - u);
+      st.x = x; ath.update(dt, st); ath.overridePose('dive', u); ath.root.position.set(x, y, a.deck.z);
+    } else {   // entry splash, glide / swim to the start position, then tread water
+      if (!a.splashed) { a.splashed = true; vfx.burst(a.entry.x, a.deck.z, 1.3); audio.splash(0.9); }
+      const g = Math.min(1, (it.t - a.jump - DIVE) / GLIDE), e = g * g * (3 - 2 * g);
+      const x = a.entry.x + (a.start.x - a.entry.x) * e, z = a.deck.z + (a.start.z - a.deck.z) * e;
+      Object.assign(st, { x, z, vx: g < 1 ? a.s * 1.6 : 0, vz: 0 });
+      ath.update(dt, st);
+    }
+  }
+  // camera: home end (dives), away end (dives), then rising wide shot over the pool
+  const tt = it.t; let p, l, fov = 45;
+  if (tt < 3.0) { const k = tt / 3; p = tmp.set(-6 - 3 * k, 4.6 - 1.4 * k, -9 + 1.5 * k); l = tmp2.set(-14, 0.8, 0); }
+  else if (tt < 5.2) { const k = (tt - 3) / 2.2; p = tmp.set(6 + 3 * k, 4.6 - 1.4 * k, -9 + 1.5 * k); l = tmp2.set(14, 0.8, 0); }
+  else { const k = Math.min(1, (tt - 5.2) / 2), e = k * k * (3 - 2 * k); p = tmp.set(0, 1.2 + 9 * e, -7 - 12 * e); l = tmp2.set(0, 0, 0); fov = 40 + 10 * e; }
+  if (tt < 0.05 || Math.abs(tt - 3.0) < dt || Math.abs(tt - 5.2) < dt) camera.position.copy(p); else camera.position.lerp(p, 1 - Math.exp(-dt * 5));
+  camera.lookAt(l); setFov(fov, dt, 8);
+  selRing.visible = selArrow.visible = passRing.visible = false;
+  if (it.t >= INTRO_T) {
+    endIntro();
+  }
 }
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 
@@ -457,6 +517,17 @@ function updateCamera(dt, v) {
   if (c.shotT > 0) { c.shotT -= dt; target.x += (c.shotGoalX - target.x) * 0.35; }   // follow the shot toward goal
   const near = Math.min(1, Math.max(0, (Math.abs(ball.x) - 6) / 5));
   let height, back, sideX = 0, clampX = 6, zk = 0.35, lookY = 0.5;
+  if (cam === 'ATTACK' && c.goalT <= 0) {
+    // End-on, high behind the play, looking down the pool toward the goal the user attacks.
+    const dir = m.cfg.humanTeam === 1 ? -1 : 1;
+    const fx = Math.max(-8.5, Math.min(8.5, target.x * 0.9 + dir * 1.5 + userPan)), fz = target.z * 0.3;
+    c.focus.lerp(tmp2.set(fx, 0, fz), 1 - Math.exp(-dt / 0.3));
+    const back = 9 * zoom, h = Math.min(14, 6.6 * zoom);
+    camera.position.lerp(tmp.set(Math.max(-23, Math.min(23, c.focus.x - dir * back)), h, c.focus.z * 0.5), 1 - Math.exp(-dt * 4));
+    camera.lookAt(c.focus.x + dir * 4.5, 0, c.focus.z * 0.8); setFov(c.shotT > 0 ? 50 : 54, dt, 3);
+    userPan += (0 - userPan) * Math.min(1, dt * 0.8);
+    return;
+  }
   if (cam === 'BEHIND' && m.human && c.goalT <= 0) {
     // End-on view from behind the controlled player, looking at the goal he attacks.
     const dir = m.human.team === 0 ? 1 : -1, h = athletes[m.human.id].root.position;
@@ -556,6 +627,7 @@ function finishMatch(forfeit) {
   else app.home();
 }
 function leaveMatch() {
+  intro = null; $('intro').classList.add('hidden'); document.body.classList.remove('intro-on');
   match = null; paused = false; endReplay();
   for (const a of athletes) scene.remove(a.root);
   athletes = [];
@@ -603,7 +675,10 @@ function frame(now) {
   time += fdt;
   water.update(time); arena.update(fdt, time); vfx.update(fdt);
 
-  if (match) {
+  if (match && intro) {
+    updateIntro(fdt);
+    arena.drawScreen({ home: match.teams[0].def.short, away: match.teams[1].def.short, hs: 0, as: 0, clock: 'P1  00:00' });
+  } else if (match) {
     let v;
     if (replay) {
       replay.t += fdt * 50 * replay.speed;
@@ -767,6 +842,7 @@ const settingsDef = () => [
   ['menu.radar', L(opts.radar !== false ? 'value.on' : 'value.off'), 'radar', 'match'],
   ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience', 'audio'],
   ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), 'replays', 'match'],
+  ['menu.intro', L(opts.intro !== false ? 'value.on' : 'value.off'), 'intro', 'match'],
   ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty', 'match'],
   ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist', 'controls'],
   ['menu.duration', L('menu.minutes', opts.minutes), 'minutes', 'match'],
@@ -792,6 +868,7 @@ const app = new App($('app'), {
       case 'camera': opts.camera = cycle(CAMERAS, opts.camera); break;
       case 'zoom': opts.zoom = ((opts.zoom ?? 5) % 10) + 1; break;
       case 'radar': opts.radar = opts.radar === false; break;
+      case 'intro': opts.intro = opts.intro === false; break;
       case 'ambience': opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); break;
       case 'replays': opts.replays = !opts.replays; break;
       case 'difficulty': opts.difficulty = (opts.difficulty + 1) % 3; break;

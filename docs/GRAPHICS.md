@@ -134,7 +134,15 @@ Les éléments fixes sont fusionnés automatiquement par matériau.
 
 ## Caméra et replay
 
-**7 caméras** (Paramètres > Match, ou bouton CAM pendant le match) : 1 Standard (TV), 2 Large,
+**Caméra ATTAQUE (par défaut)** : haute, dans l'axe du bassin, derrière le jeu, regardant le but
+attaqué par l'utilisateur (comme les jeux de rugby / football sur mobile) ; elle suit le ballon.
+
+**Cinématique d'entrée** (réglable, touchez pour passer) : les deux équipes debout sur la plage
+derrière leur ligne de but plongent l'une après l'autre (plongeon tête la première, éclaboussures),
+glissent jusqu'à leur position de départ ; la caméra filme chaque bout puis s'élève vers le jeu,
+coup de sifflet. ~7 s, la simulation est arrêtée pendant ce temps.
+
+**Autres caméras** (Paramètres > Match, ou bouton CAM pendant le match) : 1 Standard (TV), 2 Large,
 3 Courte portée, 4 Dynamique (parallèle qui suit l'attaque), 5 Tactique (haute), 6 Derrière le
 joueur (vue dans l'axe vers le but attaqué), 7 Bord du bassin (au ras de l'eau). **Zoom 1 à 10**.
 La caméra reste toujours dans la salle (sous le toit, devant le mur). Le joystick et la visée du tir

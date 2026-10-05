@@ -75,6 +75,12 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; }
 #stamina-wrap { height: 9px; } #charge-wrap { height: 18px; margin-bottom: 6px; visibility: hidden; }
 #manup { margin-top: 3px; font: 800 11px/1.4 system-ui, sans-serif; padding: 1px 8px; border-radius: 4px; text-align: center; letter-spacing: .04em; }
 #manup.up { background: #1fbf5b; color: #fff; } #manup.down { background: #e5533d; color: #fff; }
+#intro { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; padding-bottom: calc(26px + var(--safe-b)); pointer-events: auto; background: linear-gradient(transparent 70%, rgba(0,0,0,.45)); }
+#intro.hidden { display: none; }
+#intro .it-vs { display: flex; align-items: center; gap: 14px; font: 900 30px/1 'Barlow Condensed', system-ui, sans-serif; color: #fff; animation: splashIn .6s ease-out both; }
+#intro .it-vs b { padding: 6px 16px; border-radius: 6px; text-shadow: 0 2px 4px #0008; } #intro .it-vs i { font-style: normal; font-size: 22px; opacity: .9; }
+#intro small { color: #dbe8f5; font: 600 12px system-ui, sans-serif; opacity: .85; }
+body.intro-on #hud > *:not(#intro) { visibility: hidden; }
 #radar { position: absolute; left: calc(12px + var(--safe-l, 0px)); top: calc(54px + var(--safe-t, 0px)); width: 124px; height: 96px; pointer-events: none; border-radius: 4px; }
 #who { font: 700 12px/1.2 system-ui, sans-serif; color: #fff; text-shadow: 0 1px 3px #000; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.04em; }
 #who i { font-style: normal; color: #7fe3ff; }

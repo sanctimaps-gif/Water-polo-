@@ -878,6 +878,28 @@ export class Athlete {
     this.updateShoulders(w.receive > 0.01);
   }
 
+  /**
+   * Cinematic poses (pool entry), applied after update(): 'stand' upright on the deck, arms down;
+   * 'dive' head-first racing dive, u = 0 (take-off) .. 1 (entry): body pitches down, arms over the head.
+   */
+  overridePose(kind, u = 0) {
+    const L = [this.legR, this.legL], A = [this.armR, this.armL];
+    this.torso.rotation.set(0, 0, 0);
+    if (kind === 'stand') {
+      this.pivot.rotation.set(0, 0, 0); this.head.rotation.set(-0.05, 0, 0);
+      A.forEach((a, i) => { a.sh.rotation.set(0.08, 0, (i ? -1 : 1) * 0.1); a.el.rotation.set(-0.2, 0, 0); });
+      L.forEach((l, i) => { l.hip.rotation.set(0, 0, (i ? -1 : 1) * 0.03); l.kn.rotation.set(0, 0, 0); });
+    } else {
+      const crouch = Math.max(0, 1 - u * 4);   // short crouch at take-off
+      this.pivot.rotation.set(0.35 + u * 1.55, 0, 0); this.head.rotation.set(-0.35, 0, 0);
+      A.forEach((a, i) => { a.sh.rotation.set(-1.2 - 1.9 * Math.min(1, u * 3), 0, (i ? -1 : 1) * 0.08); a.el.rotation.set(0, 0, 0); });
+      L.forEach((l) => { l.hip.rotation.set(-0.9 * crouch, 0, 0); l.kn.rotation.set(1.3 * crouch, 0, 0); });
+    }
+    for (const a of A) if (a.sm) a.sm.rotation.set(a.sh.rotation.x * 0.5, 0, a.sh.rotation.z * 0.5);
+  }
+  /** Height of the chest pivot above the feet when standing (m). */
+  standHeight() { return 1.42 * this.morph.height; }
+
   /** Shoulder half-way bones (realistic body) follow half of the arm rotation. */
   updateShoulders(ik) {
     if (!this.armR.sm) return;

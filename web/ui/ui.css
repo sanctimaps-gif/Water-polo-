@@ -349,3 +349,56 @@ body.sheet-open .app { visibility: hidden; }
 .modal.sheet3d .ps-3d .ed-badge { top: .6rem; left: .8rem; }
 .modal.sheet3d .modal-box.wide { width: min(64%, 46rem); }
 .modal.sheet3d .ps-cards > .pcard:first-child { display: none; }
+
+/* ---------- competitions: trophy tiles + bottom tab bar ---------- */
+.scr-tournaments .topbar { display: none; }
+.app.scr-tournaments { padding-bottom: 0; background: linear-gradient(135deg, #0c6fae, #1aa6d6 45%, #0d5f8f) !important; }
+.app.scr-tournaments:has(.tab-europe) { background: linear-gradient(135deg, #b8460f, #f08a1e 50%, #a8380c) !important; }
+.app.scr-tournaments:has(.tab-world) { background: linear-gradient(135deg, #5a1fb8, #a63de0 50%, #3d1490) !important; }
+.tours { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+.tours::before { content: ""; position: absolute; inset: -1rem; background: repeating-linear-gradient(120deg, transparent 0 3rem, #ffffff0d 3rem 3.3rem); pointer-events: none; }
+.tt-grid { position: relative; flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 1fr); grid-auto-columns: minmax(10.5rem, 1fr);
+  gap: .6rem; padding: .4rem .2rem .6rem; overflow-x: auto; scroll-snap-type: x mandatory; }
+.tt-grid.has-feat { grid-template-columns: minmax(15rem, 1.3fr); }
+.tt { position: relative; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; padding: .5rem; color: #fff; text-align: center;
+  border: 0; background: linear-gradient(150deg, var(--c1), var(--c2)); box-shadow: 0 .3rem .8rem #0006; overflow: hidden; transition: transform .12s; animation: pop .3s backwards; }
+.tt::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, transparent 0 1.6rem, #ffffff12 1.6rem 1.75rem), linear-gradient(200deg, #ffffff22, transparent 40%); pointer-events: none; }
+.tt:active { transform: scale(.96); } .tt > * { position: relative; }
+.tt .trophy-art { width: 3.6rem; height: 3rem; filter: drop-shadow(0 .2rem .3rem #0007); }
+.tt b { font-size: 1.05rem; line-height: 1.05; text-shadow: 0 1px 3px #0008; } .tt-f { font-size: .7rem; opacity: .85; }
+.tt-s { margin-top: .15rem; font-size: .75rem; font-weight: 800; background: #0006; padding: .1rem .5rem; border-radius: 1rem; display: inline-flex; align-items: center; gap: .25rem; flex-wrap: wrap; justify-content: center; }
+.tt-flag { position: absolute !important; top: .4rem; left: .4rem; line-height: 0; box-shadow: 0 1px 4px #0008; }
+.tt.locked { filter: grayscale(.75) brightness(.7); } .tt.active { box-shadow: 0 0 0 3px #ffd21a, 0 .3rem .8rem #0006; }
+.tt.feat { grid-row: 1 / span 2; } .tt.feat .trophy-art { width: 8rem; height: 7rem; } .tt.feat b { font-size: 1.4rem; }
+.feat-title { font-style: normal; font-size: 2.2rem; font-weight: 900; letter-spacing: .06em; text-shadow: 0 .2rem .5rem #0008; }
+.tabbar { position: relative; flex: none; display: flex; margin: 0 -.8rem; background: #0b1424; padding-bottom: var(--safe-b); }
+.tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: .1rem; padding: .35rem 0; color: #fff; background: none; border: 0; font-weight: 800; font-size: .8rem; letter-spacing: .05em; }
+.tabbar button.on { background: linear-gradient(180deg, #ff2a55, #d10f3a); }
+.tt-grid { grid-auto-columns: minmax(10.5rem, 14rem); justify-content: center; }
+.tt .trophy-art { width: 5.2rem; height: 4.4rem; } .tt.feat .trophy-art { width: 9rem; height: 7.6rem; }
+.tt.locked { filter: saturate(.55) brightness(.8); } .tt.locked .trophy-art { opacity: .75; }
+
+/* ---------- club picker (flags column, crest cards, kits panel) ---------- */
+.app.scr-clubs { background: linear-gradient(135deg, #1b1f3a, #2c2a52 55%, #4a3a78) !important; }
+.clubs { grid-template-columns: 7.2rem 1fr 18.5rem; grid-template-rows: auto 1fr; gap: .5rem; }
+.cp-bar { grid-column: 1 / -1; display: flex; align-items: center; gap: .8rem; background: #0b0e1f; border-bottom: 3px solid #ff2a55; padding: .3rem .6rem; }
+.cp-bar > b { font-size: 1.3rem; letter-spacing: .06em; } .cp-bar small { margin-left: auto; color: #b8c0e0; font-size: .8rem; } .cp-bar .btn.back { margin-left: auto; min-height: 1.9rem; }
+.cp-tabs { display: flex; gap: .3rem; } .cp-tabs button { border: 0; color: #fff; background: #262a48; font-weight: 800; font-size: .8rem; padding: .25rem .7rem; display: flex; gap: .3rem; align-items: center; }
+.cp-tabs button.on { background: #ff2a55; }
+.cp-countries { display: flex; flex-direction: column; gap: .35rem; overflow-y: auto; min-height: 0; }
+.cp-ctry { display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: .35rem .2rem; color: #1b1f3a; background: #dfe3f5; border: 0; font-weight: 800; font-size: .85rem; transition: transform .1s; }
+.cp-ctry.on { background: #ff2a55; color: #fff; } .cp-ctry:active { transform: scale(.95); } .cp-ctry .flag { box-shadow: 0 1px 4px #0005; }
+.clubs .club-grid { grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr)); gap: .45rem; }
+.clubs .club-card { position: relative; flex-direction: column; justify-content: center; gap: .15rem; min-height: 8.4rem; padding: .5rem .3rem; text-align: center; color: #1b1f3a;
+  background: linear-gradient(160deg, #eef0fb, #c9cdea); border: 2px solid transparent; animation: pop .25s backwards; }
+.clubs .club-card .logo { width: 3.6rem; height: 3.6rem; filter: drop-shadow(0 .15rem .3rem #0005); }
+.clubs .club-card b { font-size: .92rem; line-height: 1.05; text-transform: uppercase; } .clubs .club-card small { font-size: .72rem; color: #4a4f72; font-weight: 700; }
+.clubs .club-card.on { border-color: #ff2a55; background: linear-gradient(160deg, #ffd6df, #f38aa2); }
+.ovr-b { position: absolute; top: .3rem; left: .3rem; display: flex; flex-direction: column; align-items: center; line-height: .9; background: #fff; color: #1b1f3a; font-weight: 900; font-size: 1rem;
+  padding: .15rem .3rem .2rem; clip-path: polygon(0 0, 100% 0, 100% 75%, 50% 100%, 0 75%); box-shadow: 0 1px 3px #0004; }
+.ovr-b small { font-size: .5rem; }
+.clubs .club-panel { grid-row: 2; grid-column: 3; background: linear-gradient(180deg, #5d5f86, #3d3f66); border: 0; align-items: stretch; text-align: left; }
+.cp-head { display: flex; gap: .6rem; align-items: center; } .cp-head .cp-logo { position: relative; } .cp-head .cp-logo .ovr-b { left: auto; right: -.6rem; top: -.2rem; }
+.cp-head .logo { width: 4.6rem; height: 4.6rem; } .cp-head > span:last-child { display: flex; flex-direction: column; gap: .1rem; }
+.cp-city { display: flex; align-items: center; gap: .3rem; font-weight: 800; } .cp-head small { color: #d6d8f0; font-size: .75rem; }
+.clubs .cp-kits { justify-content: space-around; background: #0002; padding: .3rem 0; } .clubs .kit { color: #fff; font-size: .75rem; letter-spacing: .05em; }

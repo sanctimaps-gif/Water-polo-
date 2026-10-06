@@ -85,3 +85,32 @@ export function trophySvg(c1, c2, size = 84) {
     <path d="M45 52h10v16H45Z" fill="${c1}"/><path d="M32 70h36v8H32Zm-6 8h48v8H26Z" fill="${c2}"/>
     <circle cx="50" cy="30" r="7" fill="${c1}" opacity=".7"/></svg>`;
 }
+
+/** Simple national flags (plain colour stripes, drawn in SVG so they look the same on every phone). */
+const FLAGS = {
+  FRA: ['v', '#0055a4', '#ffffff', '#ef4135'], ITA: ['v', '#009246', '#ffffff', '#ce2b37'], ESP: ['h3', '#aa151b', '#f1bf00', '#aa151b'],
+  HUN: ['h', '#ce2939', '#ffffff', '#477050'], SRB: ['h', '#c6363c', '#0c4076', '#ffffff'], CRO: ['h', '#ff0000', '#ffffff', '#171796'],
+  GER: ['h', '#000000', '#dd0000', '#ffce00'], GRE: ['gr'],
+};
+export function flagSvg(code, w = 60) {
+  const f = FLAGS[code], h = Math.round(w * 2 / 3);
+  let body = '<rect width="60" height="40" fill="#556"/>';
+  if (f && f[0] === 'v') body = `<rect width="20" height="40" fill="${f[1]}"/><rect x="20" width="20" height="40" fill="${f[2]}"/><rect x="40" width="20" height="40" fill="${f[3]}"/>`;
+  else if (f && f[0] === 'h') body = `<rect width="60" height="14" fill="${f[1]}"/><rect y="13" width="60" height="14" fill="${f[2]}"/><rect y="26" width="60" height="14" fill="${f[3]}"/>`;
+  else if (f && f[0] === 'h3') body = `<rect width="60" height="40" fill="${f[1]}"/><rect y="10" width="60" height="20" fill="${f[2]}"/>`;
+  else if (f && f[0] === 'gr') body = `<rect width="60" height="40" fill="#0d5eaf"/>${[1, 3, 5, 7].map((i) => `<rect y="${i * 4.44}" width="60" height="4.44" fill="#fff"/>`).join('')}<rect width="22" height="22.2" fill="#0d5eaf"/><rect x="8.8" width="4.4" height="22.2" fill="#fff"/><rect y="8.9" width="22" height="4.4" fill="#fff"/>`;
+  return `<svg class="flag" width="${w}" height="${h}" viewBox="0 0 60 40" preserveAspectRatio="none" aria-hidden="true">${body}<rect width="60" height="40" fill="none" stroke="#0003"/></svg>`;
+}
+
+/** White trophy silhouettes (original drawings), one shape per competition family. */
+const TROPHIES = {
+  bigear: '<path d="M38 14h24v6c0 14-4 24-12 28-8-4-12-14-12-28Z"/><path d="M38 18c-14-4-20 4-16 12 3 6 10 8 16 8M62 18c14-4 20 4 16 12-3 6-10 8-16 8" fill="none" stroke="#fff" stroke-width="5"/><path d="M46 48h8v14h-8ZM38 62h24v6H38Zm-4 6h32v8H34Z"/>',
+  tower: '<path d="M36 12h28l-4 8H40Z"/><path d="M40 22h20v34H40Z" fill="none" stroke="#fff" stroke-width="4"/><path d="M40 30l20 8M60 30l-20 8M40 42l20 8M60 42l-20 8" stroke="#fff" stroke-width="2.5"/><path d="M38 58h24v8H38Zm-4 8h32v10H34Z"/>',
+  globe: '<circle cx="50" cy="26" r="14"/><path d="M44 40h12l-2 22h-8Z"/><path d="M40 62h20v6H40Zm-6 6h32v8H34Z"/><path d="M38 22q12 8 24 0M38 30q12-6 24 0" stroke="#0004" stroke-width="2" fill="none"/>',
+  goblet: '<path d="M32 12h36c0 18-6 30-18 32-12-2-18-14-18-32Z"/><path d="M47 44h6v16h-6Z"/><path d="M36 60h28l4 8H32Zm-4 8h36v8H32Z"/>',
+  plate: '<circle cx="50" cy="36" r="24" fill="none" stroke="#fff" stroke-width="7"/><circle cx="50" cy="36" r="11"/><path d="M40 64h20v5H40Zm-6 5h32v7H34Z"/>',
+  wave: '<path d="M34 14h32l-6 26H40Z"/><path d="M28 40q11-8 22 0t22 0v6q-11 8-22 0t-22 0Z"/><path d="M46 48h8v12h-8ZM36 60h28v6H36Zm-4 6h36v10H32Z"/>',
+};
+export function trophyArt(kind, size = 64) {
+  return `<svg class="trophy-art" width="${size}" height="${size}" viewBox="0 0 100 84" fill="#fff" aria-hidden="true">${TROPHIES[kind] || TROPHIES.goblet}</svg>`;
+}

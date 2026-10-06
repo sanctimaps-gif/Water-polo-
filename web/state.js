@@ -67,12 +67,13 @@ export const EVENTS = [
 const FLAG_NAMES = { FRA: 'France', ITA: 'Italia', ESP: 'España', HUN: 'Magyar', GRE: 'Hellas', CRO: 'Hrvatska', SRB: 'Srbija', GER: 'Deutschland' };
 export const TOURNAMENTS = [
   ...['FRA', 'ITA', 'ESP', 'HUN', 'GRE', 'CRO'].map((c) => ({ id: 'cup-' + c, scope: 'national', country: c, countries: [c], name: `Coupe ${FLAG_NAMES[c]}`,
-    format: 'ko', size: ['HUN', 'GRE', 'CRO', 'SRB', 'GER'].includes(c) ? 4 : 8, reward: { coins: 700, gems: 8, token: 1 }, inspiredBy: 'national cup' })),
-  { id: 'adria', scope: 'regional', name: 'Adria League', countries: ['CRO', 'SRB'], format: 'league', size: 6, reward: { coins: 900, gems: 12, token: 1 }, minLevel: 2, inspiredBy: 'regional league (Adriatic)' },
-  { id: 'euro-challenge', scope: 'continental', name: 'Euro Challenge Cup', format: 'ko', size: 8, skipTop: 8, reward: { coins: 1200, gems: 15, token: 2 }, minLevel: 3, inspiredBy: 'second European club cup' },
-  { id: 'med-cup', scope: 'continental', name: 'Mediterranean Club Cup', countries: ['FRA', 'ITA', 'ESP', 'GRE', 'CRO'], format: 'groups', groupSize: 4, size: 8, reward: { coins: 1400, gems: 18, token: 2 }, minLevel: 4, inspiredBy: 'Mediterranean club tournaments' },
-  { id: 'euro-champions', scope: 'continental', name: 'Euro Champions Aqua', format: 'groups', groupSize: 4, size: 16, reward: { coins: 2500, gems: 30, token: 3 }, minLevel: 6, inspiredBy: 'European club champions competition' },
-  { id: 'world-masters', scope: 'international', name: 'World Club Masters', format: 'ko', size: 8, reward: { coins: 3000, gems: 40, token: 3 }, minLevel: 8, inspiredBy: 'international club tournaments' },
+    format: 'ko', size: ['HUN', 'GRE', 'CRO', 'SRB', 'GER'].includes(c) ? 4 : 8, reward: { coins: 700, gems: 8, token: 1 }, inspiredBy: 'national cup',
+    art: 'goblet', bg: { FRA: ['#1f4fd6', '#0b1d5c'], ITA: ['#0f9a58', '#064326'], ESP: ['#d4202b', '#5e0a10'], HUN: ['#2f8a4c', '#0f3a1e'], GRE: ['#1d7ad6', '#0a2f63'], CRO: ['#d6303a', '#3a1a6e'] }[c] })),
+  { id: 'adria', scope: 'regional', name: 'Adria League', countries: ['CRO', 'SRB'], format: 'league', size: 6, reward: { coins: 900, gems: 12, token: 1 }, minLevel: 2, inspiredBy: 'regional league (Adriatic)', art: 'wave', bg: ['#14b7c9', '#0a4a66'] },
+  { id: 'euro-challenge', scope: 'continental', name: 'Euro Challenge Cup', format: 'ko', size: 8, skipTop: 8, reward: { coins: 1200, gems: 15, token: 2 }, minLevel: 3, inspiredBy: 'second European club cup', art: 'tower', bg: ['#e2541c', '#4a0c08'] },
+  { id: 'med-cup', scope: 'continental', name: 'Mediterranean Club Cup', countries: ['FRA', 'ITA', 'ESP', 'GRE', 'CRO'], format: 'groups', groupSize: 4, size: 8, reward: { coins: 1400, gems: 18, token: 2 }, minLevel: 4, inspiredBy: 'Mediterranean club tournaments', art: 'plate', bg: ['#0aa37a', '#053d34'] },
+  { id: 'euro-champions', scope: 'continental', name: 'Euro Champions Aqua', format: 'groups', groupSize: 4, size: 16, reward: { coins: 2500, gems: 30, token: 3 }, minLevel: 6, inspiredBy: 'European club champions competition', art: 'bigear', bg: ['#2b2fb8', '#0a0d3e'] },
+  { id: 'world-masters', scope: 'international', name: 'World Club Masters', format: 'ko', size: 8, reward: { coins: 3000, gems: 40, token: 3 }, minLevel: 8, inspiredBy: 'international club tournaments', art: 'globe', bg: ['#f2a516', '#7a3c00'] },
 ];
 
 const OBJECTIVE_POOL = [

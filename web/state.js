@@ -40,7 +40,11 @@ export function defaultKits(c1, c2, c3 = c2) {
   return { home: { suit: c1, suit2: c2, pattern: 'plain', cap: c1, capTrim: c2, number: c2 },
     away: { suit: c2, suit2: c1, pattern: 'plain', cap: 0xf4f6f8, capTrim: c1, number: c1 }, goalkeeper: { cap: 0xd81a1f, capTrim: 0xffffff, number: 0xffffff }, c3 };
 }
-export const POOLS = [{ id: 'aqua', name: 'AQUA ARENA' }, { id: 'oceanic', name: 'OCEANIC CENTER' }, { id: 'city', name: 'CITY AQUATIC' }];
+// Home pools of the club (customisation): name + arena ambience used when the club plays at home.
+export const POOLS = [{ id: 'aqua', name: 'AQUA ARENA', ambience: 'EVENT' }, { id: 'oceanic', name: 'OCEANIC CENTER', ambience: 'DAY' },
+  { id: 'city', name: 'CITY AQUATIC', ambience: 'EVENING' }, { id: 'dome', name: 'MIDNIGHT DOME', ambience: 'NIGHT' }];
+/** Ball designs (customisation): base colour, shade, groove colour. */
+export const BALL_DESIGNS = { classic: ['#ffd21a', '#f2b705', '#0d2a6b'], ocean: ['#f4f6f8', '#d6e0ea', '#1e5bd8'], sunset: ['#ff8a1a', '#e2650a', '#16181d'], lime: ['#c8f51a', '#9ccc08', '#5a1fb8'] };
 
 export const SHOP_ITEMS = [
   { id: 'cap_black', kind: 'cap', name: 'shop.cap_black', color: 0x16181d, price: { coins: 600 } },
@@ -274,6 +278,13 @@ export class GameState {
     this.autoLineup(false);
     this.data.league = newLeague((this.data.league && this.data.league.season) || 1, club.country, club.baseClubId);
     this.data.tournaments = {}; this.data.clubChosen = true; this.data.clubMode = mode; this.data.squadMode = squad;
+    this.save();
+  }
+  /** MON CLUB customisation after the choice: identity edited, squad / league / country kept. */
+  updateClub(identity) {
+    const c = this.data.club;
+    for (const k of ['name', 'short', 'city', 'color', 'color2', 'color3', 'logo', 'kits', 'ball', 'pool']) if (identity[k] !== undefined) c[k] = JSON.parse(JSON.stringify(identity[k]));
+    c.short = String(c.short).toUpperCase().slice(0, 4); c.customClubId ??= 'my-' + Date.now().toString(36);
     this.save();
   }
   /** Saved custom club (MON CLUB), as stored in the local save. */
@@ -551,11 +562,21 @@ export class GameState {
   }
 
   // ------------------------------------------------ league
+  /** Odd number of clubs: rounds where the user's club rests are simulated automatically. */
+  skipRestRounds() {
+    const lg = this.data.league; let n = 0;
+    while (lg.round < lg.rounds.length && !lg.rounds[lg.round].some((f) => f.home === 'user' || f.away === 'user')) {
+      const rng = new Rng((Date.now() & 0xffffff) + lg.round * 13);
+      for (const f of lg.rounds[lg.round]) this.simulateFixture(f, rng);
+      lg.round++; n++;
+    }
+    return n;
+  }
   nextLeagueMatch() {
-    const lg = this.data.league; if (lg.round >= lg.rounds.length) return null;
+    const lg = this.data.league; if (this.skipRestRounds()) this.save(); if (lg.round >= lg.rounds.length) return null;
     const fx = lg.rounds[lg.round].find((f) => f.home === 'user' || f.away === 'user');
     const opp = fx.home === 'user' ? fx.away : fx.home;
-    return { round: lg.round + 1, rounds: lg.rounds.length, opponent: opp, season: lg.season };
+    return { round: lg.round + 1, rounds: lg.rounds.length, opponent: opp, season: lg.season, home: fx.home === 'user' };
   }
   standings() {
     const t = this.data.league.table;
@@ -684,7 +705,7 @@ export class GameState {
       if (fx.home === 'user') { fx.hs = res.hs; fx.as = res.as; } else { fx.hs = res.as; fx.as = res.hs; }
       this.recordLeague(fx.hs, fx.as, fx.home, fx.away);
       for (const f of round) if (f !== fx) this.simulateFixture(f, rng);
-      lg.round++;
+      lg.round++; this.skipRestRounds();
       const pos = this.standings().findIndex((r) => r.id === 'user') + 1;
       out.league = { position: pos, finished: lg.round >= lg.rounds.length };
       if (out.league.finished) {

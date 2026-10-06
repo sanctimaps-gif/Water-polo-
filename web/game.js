@@ -2,7 +2,7 @@
 // deterministic JS simulation. Rendering modules live in web/render/.
 import * as THREE from './vendor/three.module.min.js';
 import { Match, Ev, TACTICS } from './sim.js';
-import { GameState, lookOf } from './state.js';
+import { GameState, lookOf, POOLS, BALL_DESIGNS } from './state.js';
 import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
@@ -89,13 +89,14 @@ function applyQuality(t) {
 }
 
 // ------------------------------------------------------------------ ball (detailed: grooved rubber, grip texture)
-function ballTextures() {
+function ballTextures(design = 'classic') {
+  const [c0, c1, groove] = BALL_DESIGNS[design] || BALL_DESIGNS.classic;
   const c = document.createElement('canvas'); c.width = 512; c.height = 256;
   const g = c.getContext('2d');
-  const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, '#ffd21a'); grd.addColorStop(1, '#f2b705');
+  const grd = g.createLinearGradient(0, 0, 0, 256); grd.addColorStop(0, c0); grd.addColorStop(1, c1);
   g.fillStyle = grd; g.fillRect(0, 0, 512, 256);
   for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(120,80,0,${Math.random() * 0.12})`; g.fillRect(Math.random() * 512, Math.random() * 256, 2, 2); } // grip
-  g.strokeStyle = '#0d2a6b'; g.lineWidth = 9;
+  g.strokeStyle = groove; g.lineWidth = 9;
   for (let k = 0; k < 3; k++) {             // curved grooves (panel lines)
     g.beginPath();
     for (let x = 0; x <= 512; x += 4) { const y = 128 + Math.sin((x / 512) * Math.PI * 4 + k * 2.1) * 70 * (k === 1 ? -1 : 1); x ? g.lineTo(x, y) : g.moveTo(x, y); }
@@ -110,6 +111,12 @@ function ballTextures() {
 }
 const bt = ballTextures();
 const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshStandardMaterial({ map: bt.map, bumpMap: bt.bump, bumpScale: 0.8, roughness: 0.32, envMapIntensity: 1.3 }));
+let ballDesign = 'classic';
+function setBall(design) {
+  if (design === ballDesign || !BALL_DESIGNS[design]) return;
+  const t = ballTextures(design), m = ballMesh.material; m.map.dispose(); m.bumpMap.dispose();
+  m.map = t.map; m.bumpMap = t.bump; m.needsUpdate = true; ballDesign = design;
+}
 ballMesh.castShadow = true; scene.add(ballMesh);
 const ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.15, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x021c2c, transparent: true, opacity: 0.45, depthWrite: false }));
 ballShadow.renderOrder = 4; scene.add(ballShadow);
@@ -128,7 +135,8 @@ passRing.renderOrder = 5; scene.add(passRing);
 // white / light caps; goalkeepers in red caps.
 const lum = (c) => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
 function kitOptions(kit, gk, isGK, user) {
-  const cap = isGK ? gk.cap : (user && state.equippedColor('cap')) ?? kit.cap, trim = (user && state.equippedColor('trim')) ?? kit.suit2;
+  const shop = (k) => (user ? state.equippedColor(k) : null);   // shop cap / trim only on the user's club
+  const cap = isGK ? gk.cap : shop('cap') ?? kit.cap, trim = shop('trim') ?? kit.suit2;
   return { teamColor: kit.suit, suit2: kit.suit2, suitPattern: kit.pattern, trimColor: trim, capColor: cap,
     capTrim: isGK ? gk.capTrim : kit.capTrim, numberColor: isGK ? gk.number : kit.number };
 }
@@ -140,12 +148,15 @@ function matchKits(defA, defB) {
 }
 
 // Menu hero: one athlete treading water in front of the camera while the quick-match screen is shown.
-let hero = null;
+// The club editor uses it as a live 3D preview: draft kits (home / away / goalkeeper), ball, rotation.
+let hero = null, heroYaw = 0, heroPreview = null;
 function buildHero() {
   if (hero) scene.remove(hero.root);
-  const c = state.data.club;
-  hero = new Athlete({ ...kitOptions(c.kits.home, c.kits.goalkeeper, false, true), number: 7, role: 'CENTER', isGK: false, seed: 7, preset });
+  const c = heroPreview ? heroPreview.club : state.data.club, view = heroPreview ? heroPreview.view : 'home', gk = view === 'gk';
+  const kit = view === 'away' ? c.kits.away : c.kits.home;
+  hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, !heroPreview), number: gk ? 1 : 7, role: gk ? 'GOALKEEPER' : 'CENTER', isGK: gk, seed: 7, preset });
   scene.add(hero.root);
+  setBall(c.ball || 'classic');
 }
 
 // ------------------------------------------------------------------ input
@@ -361,6 +372,9 @@ function startMatch(ctx) {
   matchCtx = ctx; paused = false;
   const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: 0, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing, autoSwitch: opts.autoSwitch !== false };
   match = new Match(cfg, state.userTeamDef(), state.opponentTeamDef(ctx.opponent, ctx.rating));
+  heroPreview = null; setBall(state.data.club.ball || 'classic');
+  const pool = POOLS.find((x) => x.id === state.data.club.pool);   // the club's home pool sets the arena ambience
+  arena.setAmbience(ctx.away || !pool ? opts.ambience : pool.ambience);
   tacticIdx = Math.max(0, TACTICS.indexOf(state.data.club.tactic));
   match.start();
   tape.length = 0; record(match, []); record(match, []);
@@ -764,7 +778,9 @@ function frame(now) {
     // Menu: the hero treads water in front of a slow orbit of the arena.
     if (!hero) buildHero();
     hero.root.visible = heroVisible;
-    hero.update(fdt, { x: 0, z: -6, fx: Math.sin(time * 0.3) * 0.3, fz: -1, vx: 0, vz: 0, hasBall: true, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 1, -12), receive: false });
+    const yaw = heroYaw + Math.sin(time * 0.3) * 0.3;
+    hero.update(fdt, { x: 0, z: -6, fx: Math.sin(yaw), fz: -Math.cos(yaw), vx: 0, vz: 0, hasBall: true, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 1, -12), receive: false });
+    if (heroPreview) hero.root.position.y = 0.62;   // editor: lifted (eggbeater) so the suit is visible
     hero.handWorld(ballMesh.position);
     // Hero framed in the centre-left gap of the home screen; slow parallax sway.
     const ang = Math.sin(time * 0.15) * 0.15;
@@ -902,6 +918,9 @@ const app = new App($('app'), {
   setHero: (v) => { heroVisible = v; },
   portrait: (p, capColor) => { try { return portraitFor(p, capColor); } catch (e) { console.warn('portrait', e); return null; } },
   refreshHero: () => buildHero(),
+  // club editor: live 3D preview of a draft identity (null = back to the saved club)
+  preview: (club, view = 'home') => { heroPreview = club ? { club, view } : null; if (!club) heroYaw = 0; buildHero(); },
+  rotateHero: (d) => { heroYaw += d; },
   startMatch: (ctx) => {
     const el = document.documentElement;
     if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
@@ -963,7 +982,7 @@ function buildShowcase() {
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });
   $('pause-resume').onclick = closePause;
   $('pause-quit').onclick = () => { closePause(); finishMatch(matchCtx.mode !== 'quick'); };
-  app.home();
+  if (state.data.clubChosen) app.home(); else app.show('clubs', { first: true }, false);   // first launch: CHOISIS TON CLUB
   $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); };
   if (new URLSearchParams(location.search).has('showcase')) buildShowcase();
   requestAnimationFrame(frame);

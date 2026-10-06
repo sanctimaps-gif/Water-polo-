@@ -1,7 +1,9 @@
 // WATER POLO 26 MOBILE — front-end screens (landscape only). Every value comes from GameState.
-import { EVENTS, SHOP_ITEMS, CLUBS, POOLS, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
+import { EVENTS, SHOP_ITEMS, CLUBS, POOLS, LEAGUES, COUNTRY_LEAGUES, BALL_DESIGNS, defaultKits, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
 import { TACTICS } from '../sim.js';
-import { logoSvg, icon, trophySvg, LOGO_SHAPES, LOGO_SYMBOLS } from './art.js';
+import { logoSvg, icon, trophySvg, LOGO_SHAPES, LOGO_SYMBOLS, LOGO_PATTERNS } from './art.js';
+
+const KIT_PATTERNS = ['plain', 'halves', 'stripe', 'sash', 'chevron'];
 
 const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 const flag = (code) => (COUNTRIES.find((c) => c[0] === code) || ['', ''])[1];
@@ -15,7 +17,22 @@ export class App {
     this.root = root; this.api = api; this.st = api.state;
     this.stack = []; this.current = null; this.sel = null; this.teamTab = 'starters'; this.rankTab = 'season';
     root.addEventListener('click', (e) => { const t = e.target.closest('[data-act]'); if (t && root.contains(t)) { this.api.uiSound(); this.act(t.dataset.act, t.dataset.arg, t); } });
-    root.addEventListener('input', (e) => { if (e.target.id === 'club-name') this.renameClub(e.target.value); });
+    root.addEventListener('input', (e) => {
+      if (e.target.id === 'club-name') this.renameClub(e.target.value);
+      const f = e.target.dataset && e.target.dataset.field; if (!f || !this.draft) return;
+      this.edField(f, e.target.value);
+      if (e.target.type === 'color' || e.target.tagName === 'SELECT') { this.render(); this.api.preview(this.draft, this.edView); return; }
+      // text fields: refresh the identity strip without re-rendering (keeps the keyboard open)
+      const d = this.draft, q = (s) => this.root.querySelector(s);
+      if (q('.ed-name')) q('.ed-name').textContent = d.name; if (q('.ed-logo')) q('.ed-logo').innerHTML = logoSvg(d.logo, d.color, d.color2, 64, d.color3);
+      if (q('.ed-id small')) q('.ed-id small').textContent = `${d.short} · ${d.city} · ${flag(d.country)}`;
+    });
+    root.addEventListener('change', (e) => { if (e.target.tagName === 'SELECT' && e.target.dataset.field && this.draft) { this.edField(e.target.dataset.field, e.target.value); this.render(); } });
+    // drag on the 3D preview turns the player
+    let drag = null;
+    root.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero"]') && !e.target.closest('button')) drag = e.clientX; });
+    addEventListener('pointermove', (e) => { if (drag !== null) { this.api.rotateHero((e.clientX - drag) * 0.012); drag = e.clientX; } });
+    addEventListener('pointerup', () => { drag = null; });
     setInterval(() => this.tick(), 1000);
     this.st.onChange(() => this.refreshHeader());
   }
@@ -27,8 +44,8 @@ export class App {
     this.current = { name, params };
     this.render();
   }
-  back() { const prev = this.stack.pop(); if (prev) { this.current = prev; this.render(); } else this.show('home', {}, false); }
-  home() { this.stack = []; this.show('home', {}, false); }
+  back() { if (this.current && this.current.name === 'editor') this.api.preview(null); const prev = this.stack.pop(); if (prev) { this.current = prev; this.render(); } else this.show('home', {}, false); }
+  home() { if (this.current && this.current.name === 'editor') this.api.preview(null); this.stack = []; this.show('home', {}, false); }
   hide() { this.root.classList.add('hidden'); this.api.setHero(false); }
   render() {
     this.st.refreshDaily();
@@ -36,8 +53,11 @@ export class App {
     const body = this['scr_' + name](params);
     this.root.classList.remove('hidden');
     this.root.className = `app scr-${name}`;
-    this.root.innerHTML = (name === 'results' || name === 'prematch' ? '' : this.header()) + `<main class="screen anim-in">${body}</main>`;
-    this.api.setHero(name === 'home' || name === 'customize', name);
+    const same = this.lastScreen === name; this.lastScreen = name;   // re-render of the same screen: no slide-in (editor, filters)
+    const sc = this.root.querySelector('.custom-panel, .club-grid'), scroll = same && sc ? sc.scrollTop : 0;
+    this.root.innerHTML = (name === 'results' || name === 'prematch' || name === 'editor' || params.first ? '' : this.header()) + `<main class="screen ${same ? '' : 'anim-in'}">${body}</main>`;
+    if (scroll) { const n = this.root.querySelector('.custom-panel, .club-grid'); if (n) n.scrollTop = scroll; }
+    this.api.setHero(name === 'home' || name === 'customize' || name === 'editor', name);
   }
   tick() {
     if (this.root.classList.contains('hidden')) return;
@@ -119,14 +139,14 @@ export class App {
     return `<div class="home">
       <nav class="tiles-left">
         <button class="tile t-green" data-act="nav" data-arg="ranking">${icon('chart', 30)}<span>${this.L('ui.ranking')}</span></button>
-        <button class="tile t-green" data-act="nav" data-arg="customize">${icon('cap', 30)}<span>${this.L('ui.customize')}</span></button>
+        <button class="tile t-green" data-act="edit-club">${icon('cap', 30)}<span>${this.L('ui.customize')}</span></button>
         <button class="tile t-teal" data-act="nav" data-arg="objectives">${icon('list', 30)}<span>${this.L('ui.objectives')}</span>${this.badge(objDone)}</button>
         <button class="tile t-orange" data-act="nav" data-arg="rewards">${icon('gift', 30)}<span>${this.L('ui.free_rewards')}</span>${this.badge(st.giftAvailable() ? 1 : 0)}</button>
       </nav>
-      <div class="hero-space" data-act="nav" data-arg="customize"></div>
+      <div class="hero-space" data-act="edit-club"></div>
       <section class="home-right">
         ${nm ? `<button class="match-card" data-act="prematch-league">
-          <div class="mc-head"><b>${this.L('ui.league')}</b><small>${this.L('ui.season', nm.season)} · ${this.L('ui.match_n', nm.round, nm.rounds)}</small></div>
+          <div class="mc-head"><b>${esc(st.data.league.name || this.L('ui.league'))}</b><small>${this.L('ui.season', nm.season)} · ${this.L('ui.match_n', nm.round, nm.rounds)}</small></div>
           <div class="mc-vs">
             <div class="mc-team">${logoSvg(me.logo, me.color, me.color2, 86)}<span class="mc-name">${esc(me.name)}</span><span class="pill">${me.total}</span></div>
             <div class="vs">${this.L('ui.vs')}</div>
@@ -248,6 +268,119 @@ export class App {
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
+  // ------------------------------------------------------------------ CHOISIS TON CLUB (real clubs, adapted identity)
+  /** Real clubs of the database shown with their GAME identity (adapted name, original logo, game rating).
+   *  The official reference data (name, competition, sources) only appears in the ⓘ panel, labelled as such. */
+  scr_clubs(p = {}) {
+    const tab = this.clubTab || 'real', ctry = this.clubCountry || 'ALL', countries = [...new Set(CLUBS.map((c) => c.country))];
+    const list = CLUBS.filter((c) => ctry === 'ALL' || c.country === ctry).sort((a, b) => b.rating - a.rating);
+    const sel = CLUBS.find((c) => c.id === this.pickId);
+    const tabs = `<div class="tabs"><button class="${tab === 'real' ? 'on' : ''}" data-act="club-tab" data-arg="real">${icon('trophy', 16)} ${this.L('club.real')}</button>
+      <button class="${tab === 'create' ? 'on' : ''}" data-act="club-new">${icon('plus', 16)} ${this.L('club.create')}</button></div>`;
+    const filters = `<div class="cfilter">${['ALL', ...countries].map((c) => `<button class="${ctry === c ? 'on' : ''}" data-act="club-country" data-arg="${c}">${c === 'ALL' ? this.L('club.all') : `${flag(c)} ${c}`}</button>`).join('')}</div>`;
+    const cards = list.map((c) => `<button class="club-card ${this.pickId === c.id ? 'on' : ''}" data-act="club-pick" data-arg="${c.id}">
+      ${logoSvg(c.logo, c.color, c.color2, 46, c.color3)}<span class="cc-txt"><b>${esc(c.name)}</b><small>${flag(c.country)} ${c.country} · ${esc(c.city)}</small><small>${esc(c.competition)}</small></span>
+      <span class="pill">${c.rating}</span></button>`).join('');
+    const ref = sel && this.showRef ? `<div class="refdata"><b>${this.L('club.ref_title')}</b>
+      <span>${this.L('club.ref_name')} : ${esc(sel.ref.officialReferenceName)}</span><span>${this.L('club.ref_comp')} : ${esc(sel.ref.competition)} · ${esc(sel.ref.season)}</span>
+      <span>${this.L('club.ref_src')} : ${sel.ref.source.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">[${i + 1}] ${esc(new URL(u).hostname.replace('www.', ''))}</a>`).join(' ')}</span>
+      <span>${this.L('club.ref_upd')} : ${esc(sel.ref.lastUpdated)}</span><small>${this.L('club.ref_note')}</small></div>` : '';
+    const panel = sel ? `<aside class="club-panel anim-pop"><h3>${this.L('club.start')}</h3>
+      <div class="cp-logo">${logoSvg(sel.logo, sel.color, sel.color2, 110, sel.color3)}</div>
+      <b class="cp-name">${esc(sel.name)}</b><span class="cp-short">${esc(sel.short)}</span>
+      <div class="cp-info"><span>${this.L('club.country')}<b>${flag(sel.country)} ${sel.country}</b></span><span>${this.L('club.city')}<b>${esc(sel.city)}</b></span>
+        <span>${this.L('club.league')}<b>${esc(sel.competition)}</b></span><span>${this.L('club.rating')}<b>${sel.rating}</b></span></div>
+      <div class="cp-kits">${['home', 'away', 'goalkeeper'].map((k) => this.kitSwatch(sel.kits[k], k, sel.kits.home)).join('')}</div>
+      <div class="cp-actions"><button class="btn play" data-act="club-with">${icon('play', 18)} ${this.L('club.play_with')}</button>
+        <button class="btn cyan" data-act="club-version">${icon('cap', 18)} ${this.L('club.my_version')}</button></div>
+      <button class="ref-btn" data-act="club-ref">ⓘ ${this.L('club.ref_title')}</button>${ref}</aside>`
+      : `<aside class="club-panel empty"><p class="sub">${this.L('club.pick_hint')}</p><p class="sub">${this.L('club.ref_note')}</p></aside>`;
+    return `<div class="clubs"><div class="clubs-main"><h1>${this.L('club.choose')}</h1>${tabs}${filters}<div class="club-grid">${cards}</div></div>${panel}
+      <footer class="bar">${p.first ? `<small class="sub">${this.L('club.first')}</small>` : this.backBtn()}</footer></div>`;
+  }
+  kitSwatch(k, which, home) {
+    const cap = which === 'goalkeeper' ? k.cap : k.cap, suit = which === 'goalkeeper' ? home.suit : k.suit, suit2 = which === 'goalkeeper' ? home.suit2 : k.suit2;
+    const pat = which === 'goalkeeper' ? home.pattern : k.pattern;
+    const fill = pat === 'halves' ? `<path d="M10 22h10v26H10z" fill="${hex(suit2)}"/>` : pat === 'stripe' ? `<path d="M17 22h6v26h-6z" fill="${hex(suit2)}"/>`
+      : pat === 'sash' ? `<path d="M10 24l20 18v6L10 30z" fill="${hex(suit2)}"/>` : pat === 'chevron' ? `<path d="M10 24l10 9 10-9v6l-10 9-10-9z" fill="${hex(suit2)}"/>` : '';
+    return `<span class="kit"><svg viewBox="0 0 40 52" width="40" height="52"><path d="M8 12a12 12 0 0 1 24 0v6H8z" fill="${hex(cap)}"/><path d="M8 15h24" stroke="${hex(k.capTrim)}" stroke-width="2"/>
+      <circle cx="8" cy="17" r="3.5" fill="${hex(cap)}" stroke="${hex(k.capTrim)}"/><circle cx="32" cy="17" r="3.5" fill="${hex(cap)}" stroke="${hex(k.capTrim)}"/>
+      <path d="M10 22h20l-2 26H12z" fill="${hex(suit)}"/>${fill}<text x="20" y="13" font-size="7" font-weight="900" text-anchor="middle" fill="${hex(k.number)}">${which === 'goalkeeper' ? 1 : 7}</text></svg>
+      <small>${this.L('kit.' + which)}</small></span>`;
+  }
+
+  // ------------------------------------------------------------------ club editor (CRÉER MA VERSION / CRÉER MON CLUB / MON CLUB)
+  /** Edits this.draft; the 3D hero in the left gap is the live preview (rebuilt on every change). */
+  scr_editor() {
+    const d = this.draft, tab = this.edTab || 'id', mode = this.edMode, base = d.baseClubId ? CLUBS.find((c) => c.id === d.baseClubId) : null;
+    const sw = (path, cur) => PALETTE.map((col) => `<button class="sw ${col === cur ? 'on' : ''}" style="background:${hex(col)}" data-act="ed-color" data-arg="${path}:${col}"></button>`).join('')
+      + `<input type="color" class="sw pick" data-field="${path}" value="${hex(cur)}" aria-label="custom">`;
+    const set = (path, vals, cur, draw) => `<div class="choices">${vals.map((v) => `<button class="ch ${v === cur ? 'on' : ''}" data-act="ed-set" data-arg="${path}:${v}">${draw(v)}</button>`).join('')}</div>`;
+    const txt = (v) => `<span class="cht">${this.L('opt.' + v)}</span>`;
+    const lg = (patch) => logoSvg({ ...d.logo, ...patch }, d.color, d.color2, 40, d.color3);
+    const kitEd = (k) => { const K = d.kits[k]; return `<h4>${this.L('kit.' + k)}</h4>
+      <label>${this.L('ed.pattern')}</label>${set(`kits.${k}.pattern`, KIT_PATTERNS, K.pattern, txt)}
+      <label>${this.L('ed.suit')}</label><div class="swatches">${sw(`kits.${k}.suit`, K.suit)}</div>
+      <label>${this.L('ed.suit2')}</label><div class="swatches">${sw(`kits.${k}.suit2`, K.suit2)}</div>`; };
+    const capEd = (k) => { const K = d.kits[k]; return `<h4>${this.L('kit.' + k)}</h4>
+      <label>${this.L('ed.cap')}</label><div class="swatches">${sw(`kits.${k}.cap`, K.cap)}</div>
+      <label>${this.L('ed.captrim')}</label><div class="swatches">${sw(`kits.${k}.capTrim`, K.capTrim)}</div>
+      <label>${this.L('ed.number')}</label><div class="swatches">${sw(`kits.${k}.number`, K.number)}</div>`; };
+    const panes = {
+      id: `<label>${this.L('ui.name')}<input data-field="name" maxlength="22" value="${esc(d.name)}" autocomplete="off"></label>
+        <label>${this.L('ed.short')}<input data-field="short" maxlength="4" value="${esc(d.short)}" autocomplete="off"></label>
+        <label>${this.L('club.city')}<input data-field="city" maxlength="22" value="${esc(d.city)}" autocomplete="off"></label>
+        <label>${this.L('club.country')}${mode === 'edit' ? `<b class="ro">${flag(d.country)} ${d.country} · ${this.L('ed.country_locked')}</b>`
+          : `<select data-field="country">${COUNTRY_LEAGUES.map((c) => `<option value="${c}" ${c === d.country ? 'selected' : ''}>${flag(c)} ${c} · ${esc((LEAGUES[c] || {}).game || '')}</option>`).join('')}</select>`}</label>
+        <label>${this.L('ui.primary')}</label><div class="swatches">${sw('color', d.color)}</div>
+        <label>${this.L('ui.secondary')}</label><div class="swatches">${sw('color2', d.color2)}</div>
+        <label>${this.L('ed.color3')}</label><div class="swatches">${sw('color3', d.color3)}</div>`,
+      logo: `<label>${this.L('ui.shape')}</label>${set('logo.shape', LOGO_SHAPES, d.logo.shape, (v) => lg({ shape: v }))}
+        <label>${this.L('ui.symbol')}</label>${set('logo.symbol', [...LOGO_SYMBOLS, ...(this.st.owns('logo_crown') ? ['crown'] : [])], d.logo.symbol, (v) => lg({ symbol: v }))}
+        <label>${this.L('ed.letters')}<input data-field="logo.letters" maxlength="3" value="${esc(d.logo.letters || '')}" autocomplete="off"></label>
+        <label>${this.L('ed.motif')}</label>${set('logo.pattern', LOGO_PATTERNS, d.logo.pattern, (v) => lg({ pattern: v }))}
+        <label>${this.L('ed.border')}</label>${set('logo.border', ['single', 'double'], d.logo.border, (v) => lg({ border: v }))}
+        <p class="sub">${this.L('ed.logo_note')}</p>`,
+      kits: kitEd('home') + kitEd('away'),
+      cap: capEd('home') + capEd('away') + `<p class="sub">${this.L('ed.gk_note')}</p>`,
+      more: `<label>${this.L('ed.ball')}</label><div class="choices">${Object.entries(BALL_DESIGNS).map(([k, [a, , g]]) => `<button class="ch ${d.ball === k ? 'on' : ''}" data-act="ed-set" data-arg="ball:${k}">
+          <svg viewBox="0 0 40 40" width="40" height="40"><circle cx="20" cy="20" r="17" fill="${a}"/><path d="M4 16q16 10 32 0M4 25q16-10 32 0" stroke="${g}" stroke-width="3" fill="none"/></svg><span class="cht">${this.L('ball.' + k)}</span></button>`).join('')}</div>
+        <label>${this.L('ed.pool')}</label><div class="choices">${POOLS.map((pl) => `<button class="ch wide ${d.pool === pl.id ? 'on' : ''}" data-act="ed-set" data-arg="pool:${pl.id}"><span class="cht">${pl.name}</span><small>${this.L('amb.' + pl.ambience.toLowerCase())}</small></button>`).join('')}</div>`,
+    };
+    const tabs = ['id', 'logo', 'kits', 'cap', 'more'].map((t) => `<button class="${tab === t ? 'on' : ''}" data-act="ed-tab" data-arg="${t}">${this.L('ed.tab_' + t)}</button>`).join('');
+    const views = ['home', 'away', 'gk'].map((v) => `<button class="${(this.edView || 'home') === v ? 'on' : ''}" data-act="ed-view" data-arg="${v}">${this.L('kit.' + (v === 'gk' ? 'goalkeeper' : v))}</button>`).join('');
+    return `<div class="editor">
+      <div class="ed-preview hero-space" data-drag="hero"><div class="ed-badge">${icon('cap', 16)} ${this.L('ed.preview')}</div>
+        <div class="ed-id"><span class="ed-logo">${logoSvg(d.logo, d.color, d.color2, 64, d.color3)}</span><span><b class="ed-name">${esc(d.name)}</b><small>${esc(d.short)} · ${esc(d.city)} · ${flag(d.country)}</small>
+          ${base ? `<small class="based">${this.L(mode === 'edit' ? 'ed.my_club' : 'ed.based_on', esc(base.name))}</small>` : ''}</span></div>
+        <div class="ed-views tabs small">${views}</div>
+        <div class="ed-rot"><button class="icon-btn" data-act="ed-rot" data-arg="-1">⟲</button><button class="icon-btn" data-act="ed-rot" data-arg="1">⟳</button></div></div>
+      <section class="custom-panel"><div class="tabs small">${tabs}</div>${panes[tab]}</section>
+      <footer class="bar">${this.backBtn()}<div class="spacer"></div><button class="btn play" data-act="ed-validate">${icon('play', 18)} ${this.L('ed.validate')}</button></footer></div>`;
+  }
+  edField(path, value) {
+    const d = this.draft, keys = path.split('.'), last = keys.pop(); let o = d; for (const k of keys) o = o[k];
+    if (typeof o[last] === 'number' || /^#[0-9a-f]{6}$/i.test(value)) value = typeof value === 'string' && value[0] === '#' ? parseInt(value.slice(1), 16) : +value;
+    if (path === 'short' || path === 'logo.letters') value = String(value).toUpperCase().replace(/[^A-Z0-9À-Ý]/g, '');
+    o[last] = value;
+    // club colours: regenerate the kits from the 3 colours, keeping the chosen patterns
+    if (['color', 'color2', 'color3'].includes(path)) { const pk = { home: d.kits.home.pattern, away: d.kits.away.pattern }; d.kits = defaultKits(d.color, d.color2, d.color3); d.kits.home.pattern = pk.home; d.kits.away.pattern = pk.away; }
+    if (path === 'short' && (!d.logo.letters || d.logo.letters === this.prevShort)) d.logo.letters = value.slice(0, 3);
+    this.prevShort = d.short;
+  }
+  openEditor(draft, mode) {
+    this.draft = draft; this.edMode = mode; this.edTab = 'id'; this.edView = 'home'; this.prevShort = draft.short;
+    this.show('editor'); this.api.preview(this.draft, 'home');
+  }
+  /** Squad choice, then the club is saved and the career starts in its national league. */
+  async startClub(identity, mode) {
+    const r = await this.modal(this.L('club.squad'), `<p>${this.L('club.squad_desc')}</p>`, [[this.L('club.squad_start'), () => 'start'], [this.L('club.squad_own'), () => 'own']]);
+    if (!r) return;
+    this.st.chooseClub(JSON.parse(JSON.stringify(identity)), { mode, squad: r });
+    this.api.preview(null); this.api.haptic([20, 40, 20]); this.api.rewardSound(); this.pickId = null; this.home();
+    this.toast(this.L('club.welcome', identity.name));
+  }
+
   scr_shop() {
     const items = SHOP_ITEMS.map((it) => {
       const owned = this.st.owns(it.id), eq = it.kind === 'symbol' ? this.st.data.club.logo.symbol === it.value : this.st.data.inventory.equipped[it.kind] === it.id;
@@ -286,7 +419,7 @@ export class App {
       <div class="pm-vs"><div class="mc-team">${logoSvg(me.logo, me.color, me.color2, 120)}<span class="mc-name">${esc(me.name)}</span><span class="pill">${me.total}</span></div>
       <div class="vs big">${this.L('ui.vs')}</div>
       <div class="mc-team">${logoSvg(opp.logo, opp.color, opp.color2, 120)}<span class="mc-name">${esc(opp.name)}</span><span class="pill">${opp.total}</span></div></div>
-      <p class="sub">${POOLS[0].name} · ${this.L('ui.reward_win', p.mode === 'quick' ? 75 : 150)} ${icon('coin', 16)}</p>
+      <p class="sub">${p.away ? this.L('ui.away_pool') : (POOLS.find((x) => x.id === this.st.data.club.pool) || POOLS[0]).name} · ${this.L('ui.reward_win', p.mode === 'quick' ? 75 : 150)} ${icon('coin', 16)}</p>
       <p class="tip">${this.L(tips[Math.floor(Math.random() * tips.length)])}</p>
       <div class="pm-actions">${this.backBtn()}<button class="btn play big" data-act="go">${icon('play', 22)} ${this.L('ui.play')}</button></div></div>`;
   }
@@ -360,10 +493,29 @@ export class App {
       case 'symbol': st.data.club.logo.symbol = arg; st.save(); this.render(); break;
       case 'setting': await this.api.changeSetting(arg); this.render(); break;
       case 'reset': if (await this.confirm(this.L('ui.reset_warn'))) { st.reset(); this.api.refreshHero(); this.home(); } break;
-      case 'prematch-league': { const nm = st.nextLeagueMatch(); if (nm) this.show('prematch', { mode: 'league', opponent: nm.opponent, title: `${this.L('ui.league')} · ${this.L('ui.match_n', nm.round, nm.rounds)}` }); break; }
+      case 'prematch-league': { const nm = st.nextLeagueMatch(); if (nm) this.show('prematch', { mode: 'league', opponent: nm.opponent, away: !nm.home, title: `${this.L('ui.league')} · ${this.L('ui.match_n', nm.round, nm.rounds)}` }); break; }
       case 'prematch-event': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }
       case 'quick': { const c = CLUBS[Math.floor(Math.random() * CLUBS.length)]; this.show('prematch', { mode: 'quick', opponent: c.id, title: this.L('ui.quick') }); break; }
       case 'go': this.hide(); this.api.startMatch(this.current.params); break;
+      case 'club-tab': this.clubTab = arg; this.render(); break;
+      case 'club-country': this.clubCountry = arg; this.render(); break;
+      case 'club-pick': this.pickId = arg; this.showRef = false; this.api.haptic(10); this.render(); break;
+      case 'club-ref': this.showRef = !this.showRef; this.render(); break;
+      case 'club-with': this.startClub(st.draftFrom(this.pickId), 'with'); break;
+      case 'club-version': this.openEditor(st.draftFrom(this.pickId), 'version'); break;
+      case 'club-new': this.openEditor(st.draftFrom(null), 'new'); break;
+      case 'edit-club': { const c = st.data.club; this.openEditor(JSON.parse(JSON.stringify({ name: c.name, short: c.short, city: c.city, country: c.country, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, ball: c.ball, pool: c.pool, baseClubId: c.baseClubId })), 'edit'); break; }
+      case 'ed-tab': this.edTab = arg; this.render(); break;
+      case 'ed-view': this.edView = arg; this.api.preview(this.draft, arg); this.render(); break;
+      case 'ed-rot': this.api.rotateHero(+arg * 0.6); break;
+      case 'ed-color': { const i = arg.lastIndexOf(':'); this.edField(arg.slice(0, i), +arg.slice(i + 1)); this.api.preview(this.draft, this.edView); this.render(); break; }
+      case 'ed-set': { const i = arg.lastIndexOf(':'); this.edField(arg.slice(0, i), arg.slice(i + 1)); this.api.preview(this.draft, this.edView); this.render(); break; }
+      case 'ed-validate': {
+        const d = this.draft; d.name = d.name.trim(); if (!d.name || !d.short) { this.toast(this.L('ed.need_name')); return; }
+        if (this.edMode === 'edit') { st.updateClub(d); this.api.preview(null); this.api.haptic([20, 40, 20]); this.home(); this.toast(this.L('ui.done')); }
+        else this.startClub(d, this.edMode === 'new' ? 'version' : this.edMode);
+        break;
+      }
     }
   }
   renameClub(v) {

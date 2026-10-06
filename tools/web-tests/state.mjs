@@ -88,6 +88,10 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
   ok(st2.data.club.name === 'Marseille Aqua 26' && st2.data.club.baseClubId === 'marseille' && st2.data.club.customClubId && !Object.keys(st2.data.league.table).includes('marseille') && st2.data.league.country === 'FRA',
     'CRÉER MA VERSION: own name, baseClubId kept, replaces its base club in its national league');
   const cc = st2.customClub(); ok(cc.homeKit && cc.awayKit && cc.capDesign && cc.ballDesign && cc.baseClubId === 'marseille', 'custom club saved with kits, cap, ball');
+  // odd league (user replaces its base club): rest rounds are simulated, every club plays the same number of matches
+  { const st3 = new GameState(); st3.chooseClub(st3.draftFrom('recco'), { mode: 'with' }); const lg = st3.data.league, n = Object.keys(lg.table).length; let k = 0, last;
+    while (st3.data.league === lg && k < 40) { const nm = st3.nextLeagueMatch(); if (!nm) break; st3.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 3, as: 2, stats: { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 } }); last = lg; k++; }
+    ok(n % 2 === 1 && k === n - 1 && Object.values(last.table).every((r) => r.p === n - 1) && st3.data.league.season === 2, `odd league (${n} clubs): user plays ${k} matches, rest rounds simulated, season ends`); }
   // tournaments: every format runs to a champion
   st2.data.profile.level = 20; let okAll = true;
   for (const def of TOURNAMENTS) { st2.startTournament(def); let n = 0; while (st2.nextTournamentMatch(def) && n < 30) { st2.playTournamentRound(def, 9, 2); n++; } const t = st2.tournamentState(def); okAll = okAll && t.stage === 'done' && t.champion === 'user'; }

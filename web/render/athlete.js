@@ -465,6 +465,17 @@ export class Athlete {
     const skin = C(SKIN[Math.floor(r() * SKIN.length)]);
     const hair = C(HAIR[Math.floor(r() * HAIR.length)]);
     const cap = C(o.capColor), team = C(o.teamColor), trim = C(o.trimColor ?? 0xffffff);
+    // Kit (club editor / clubs database): suit pattern in a 2nd colour, cap binding, ear guards, number colour.
+    const suit2 = C(o.suit2 ?? o.trimColor ?? 0xffffff), pattern = o.suitPattern || 'plain';
+    const capTrim = C(o.capTrim ?? o.trimColor ?? 0xffffff), numColor = o.numberColor !== undefined ? '#' + C(o.numberColor).getHexString() : null;
+    /** Suit pattern weight of the 2nd colour at a suit point (x right, y up, z front; metres, hip-relative). */
+    const patternW = (x, y, z, hipY) => {
+      if (pattern === 'halves') return x > 0 ? 1 : 0;
+      if (pattern === 'stripe') return z > 0 && Math.abs(x) < 0.03 ? 1 : 0;
+      if (pattern === 'sash') return z > 0 && Math.abs(x * 0.8 - (y - hipY - 0.03)) < 0.025 ? 1 : 0;
+      if (pattern === 'chevron') return z > 0 ? gs(Math.abs(x) * 1.3 - (y - hipY - 0.02), 0.012) * 0.95 : 0;
+      return 0;
+    };
     const W = 0.3, S = 0.34, CAP = 0.62, SUIT = 0.38;   // roughness: wet skin, face, wet fabric cap, wet suit
     const rich = o.preset.limbSeg >= 10;
     const mat = athleteMaterial(o.waterTint || C(0x0b5d84), rich);
@@ -518,7 +529,7 @@ export class Athlete {
     const suitColors = paint(briefs, (v, c) => {
       const ax = Math.abs(v.x), side = gs(v.z, 0.035) * sstep(0.1, 0.13, ax);
       c.copy(team);
-      c.lerp(trim, 0.85 * front(v) * gs(ax * 1.3 - (v.y + 0.62), 0.012));                            // chevron motif
+      c.lerp(suit2, patternW(v.x, v.y, v.z, -0.62));                                                  // kit pattern
       if (v.y > -0.485 || v.y < -0.64) c.copy(trim);                                                 // waistband, leg bands
       c.lerp(trim, side * 0.9);                                                                       // side panels
       c.multiplyScalar(1 - 0.35 * gs(v.x, 0.006) * sstep(-0.5, -0.58, v.y) - 0.25 * gs(Math.abs(v.y + 0.49) , 0.004));   // seams
@@ -584,8 +595,8 @@ export class Athlete {
     }
     // Cap: fitted fabric cap on the actual head shape (see buildCap).
     const capRes = face ? Math.max(16, seg * 2 + 4) : 12;
-    const CAPB = buildCap(scanGeo || sculpt.geo, { res: capRes, thick: 0.0045, ell: scan ? [0.112, 0.128, 0.126] : [0.104, 0.122, 0.118], cap, trim,
-      guard: o.isGK ? cap.clone().multiplyScalar(0.8) : cap.clone().lerp(C(0xffffff), cap.getHSL({}).l < 0.5 ? 0.12 : 0).multiplyScalar(0.9), rough: CAP, strings: face });
+    const CAPB = buildCap(scanGeo || sculpt.geo, { res: capRes, thick: 0.0045, ell: scan ? [0.112, 0.128, 0.126] : [0.104, 0.122, 0.118], cap, trim: capTrim,
+      guard: o.guardColor !== undefined ? C(o.guardColor) : o.isGK ? cap.clone().multiplyScalar(0.8) : cap.clone().lerp(C(0xffffff), cap.getHSL({}).l < 0.5 ? 0.12 : 0).multiplyScalar(0.9), rough: CAP, strings: face });
     headParts.push(...CAPB.parts);
     // Hair (wet: darker, glossy). Shaved: nothing shows under the cap.
     const HR = 0.42;
@@ -614,7 +625,7 @@ export class Athlete {
         g.applyMatrix4(new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), new THREE.Vector3(1, 1, 1)));
         numGeos.push(g);
       }
-      const num = new THREE.Mesh(concatPlanes(numGeos), new THREE.MeshBasicMaterial({ map: numberTexture(o.number, cap.getHSL({}).l > 0.6 ? '#173a8c' : '#ffffff'), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+      const num = new THREE.Mesh(concatPlanes(numGeos), new THREE.MeshBasicMaterial({ map: numberTexture(o.number, numColor || (cap.getHSL({}).l > 0.6 ? '#173a8c' : '#ffffff')), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
       this.head.add(num);
       if (rich) {   // HIGH / ULTRA: number on the suit (left hip), same texture
         const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
@@ -763,7 +774,7 @@ export class Athlete {
           cc.copy(team);
           if (Bd.suit[k] === 200) cc.copy(trim);
           else {
-            cc.lerp(trim, 0.85 * (z > 0.03 ? 1 : 0) * gs(Math.abs(x) * 1.3 - (y - Bd.suitRef.hipY - 0.02), 0.01));
+            cc.lerp(suit2, patternW(x, y, z, Bd.suitRef.hipY));
             cc.lerp(trim, 0.9 * gs(z, 0.02) * ss(0.11, 0.14, Math.abs(x)));
           }
           rg[k] = SUIT;

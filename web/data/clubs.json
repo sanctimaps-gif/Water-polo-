@@ -1,0 +1,2764 @@
+{
+ "note": "Reference data from public sources (field \"source\"); game identity (gameClubName, logo, kits, rating) is an original WATER POLO 26 creation. No official logos, kits or sponsors.",
+ "leagues": {
+  "FRA": {
+   "official": "Championnat de France Élite (FFN)",
+   "game": "Élite France"
+  },
+  "ITA": {
+   "official": "Serie A1 (FIN)",
+   "game": "Lega A1 Italia"
+  },
+  "ESP": {
+   "official": "División de Honor (RFEN)",
+   "game": "Liga de Honor"
+  },
+  "HUN": {
+   "official": "Országos Bajnokság I (MVLSZ)",
+   "game": "Magyar Liga I"
+  },
+  "GRE": {
+   "official": "A1 Ethniki",
+   "game": "Hellas A1"
+  },
+  "CRO": {
+   "official": "Prva hrvatska vaterpolska liga",
+   "game": "Hrvatska Liga"
+  },
+  "SRB": {
+   "official": "Superliga Srbije",
+   "game": "Srpska Superliga"
+  },
+  "GER": {
+   "official": "Deutsche Wasserball-Liga",
+   "game": "Wasserball Liga"
+  }
+ },
+ "clubs": [
+  {
+   "id": "marseille",
+   "baseClubId": "marseille",
+   "officialReferenceName": "Cercle des Nageurs de Marseille",
+   "city": "Marseille",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Cercle de Marseille",
+   "shortName": "CDM",
+   "adaptation": [
+    [
+     "drop",
+     "des"
+    ],
+    [
+     "drop",
+     "Nageurs"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    1920931,
+    16777215,
+    729928
+   ],
+   "rating": 80,
+   "logo": {
+    "shape": "pennant",
+    "letters": "CDM",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1920931,
+     "suit2": 16777215,
+     "cap": 1920931,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1920931,
+     "cap": 16054008,
+     "capTrim": 1920931,
+     "number": 1920931
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "aix",
+   "baseClubId": "aix",
+   "officialReferenceName": "Pays d'Aix Natation",
+   "city": "Aix-en-Provence",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Pays d'Aix N.",
+   "shortName": "PAY",
+   "adaptation": [
+    [
+     "swap",
+     "Natation",
+     "N."
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    2060210,
+    15910938,
+    863306
+   ],
+   "rating": 74,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "goal",
+    "letters": "PAY",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 2060210,
+     "suit2": 15910938,
+     "pattern": "halves",
+     "cap": 2060210,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "away": {
+     "suit": 15910938,
+     "suit2": 2060210,
+     "pattern": "stripe",
+     "cap": 16054008,
+     "capTrim": 2060210,
+     "number": 2060210
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "sete",
+   "baseClubId": "sete",
+   "officialReferenceName": "Sète NEDD",
+   "city": "Sète",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Sète Nautic",
+   "shortName": "SET",
+   "adaptation": [
+    [
+     "swap",
+     "NEDD",
+     "Nautic"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    1614024,
+    16777215,
+    669008
+   ],
+   "rating": 73,
+   "logo": {
+    "shape": "hex",
+    "symbol": "ball",
+    "letters": "SET",
+    "pattern": "ring",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 1614024,
+     "suit2": 16777215,
+     "pattern": "stripe",
+     "cap": 1614024,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1614024,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 1614024,
+     "number": 1614024
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "montpellier",
+   "baseClubId": "montpellier",
+   "officialReferenceName": "Montpellier Water-Polo",
+   "city": "Montpellier",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Montpellier Polo Club",
+   "shortName": "MPC",
+   "adaptation": [
+    [
+     "swap",
+     "Water-Polo",
+     "Polo Club"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    13780764,
+    1784972,
+    16777215
+   ],
+   "rating": 73,
+   "logo": {
+    "shape": "hex",
+    "symbol": "drop",
+    "letters": "MPC",
+    "pattern": "none",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 13780764,
+     "suit2": 1784972,
+     "pattern": "sash",
+     "cap": 13780764,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "away": {
+     "suit": 1784972,
+     "suit2": 13780764,
+     "pattern": "halves",
+     "cap": 16054008,
+     "capTrim": 13780764,
+     "number": 13780764
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "nice",
+   "baseClubId": "nice",
+   "officialReferenceName": "Olympic Nice Natation",
+   "city": "Nice",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Nice Natation",
+   "shortName": "NIC",
+   "adaptation": [
+    [
+     "drop",
+     "Olympic"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    13115439,
+    1447965,
+    16777215
+   ],
+   "rating": 71,
+   "logo": {
+    "shape": "hex",
+    "symbol": "star",
+    "letters": "NIC",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 13115439,
+     "suit2": 1447965,
+     "pattern": "chevron",
+     "cap": 13115439,
+     "capTrim": 1447965,
+     "number": 1447965
+    },
+    "away": {
+     "suit": 1447965,
+     "suit2": 13115439,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 13115439,
+     "number": 13115439
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "douai",
+   "baseClubId": "douai",
+   "officialReferenceName": "Douaisis Agglo",
+   "city": "Douai",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Douaisis WP",
+   "shortName": "DOU",
+   "adaptation": [
+    [
+     "drop",
+     "Agglo"
+    ],
+    [
+     "add",
+     "WP"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    2784570,
+    15910938,
+    16777215
+   ],
+   "rating": 66,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "ball",
+    "letters": "DOU",
+    "pattern": "halves",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 2784570,
+     "suit2": 15910938,
+     "pattern": "halves",
+     "cap": 2784570,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "away": {
+     "suit": 15910938,
+     "suit2": 2784570,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 2784570,
+     "number": 2784570
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "bordeaux",
+   "baseClubId": "bordeaux",
+   "officialReferenceName": "USB Bordeaux",
+   "city": "Bordeaux",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "US Bordeaux",
+   "shortName": "BOR",
+   "adaptation": [
+    [
+     "swap",
+     "USB",
+     "US"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    7085381,
+    16777215,
+    2755100
+   ],
+   "rating": 67,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "wave",
+    "letters": "BOR",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 7085381,
+     "suit2": 16777215,
+     "cap": 7085381,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 7085381,
+     "cap": 16054008,
+     "capTrim": 7085381,
+     "number": 7085381
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "strasbourg",
+   "baseClubId": "strasbourg",
+   "officialReferenceName": "Strasbourg",
+   "city": "Strasbourg",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Strasbourg Polo",
+   "shortName": "STR",
+   "adaptation": [
+    [
+     "add",
+     "Polo"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    1989592,
+    14168606,
+    16777215
+   ],
+   "rating": 65,
+   "logo": {
+    "shape": "circle",
+    "symbol": "wave",
+    "letters": "STR",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1989592,
+     "suit2": 14168606,
+     "pattern": "plain",
+     "cap": 1989592,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "away": {
+     "suit": 14168606,
+     "suit2": 1989592,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 1989592,
+     "number": 1989592
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "taverny",
+   "baseClubId": "taverny",
+   "officialReferenceName": "Taverny SN 95",
+   "city": "Taverny",
+   "country": "FRA",
+   "competition": "Championnat de France Élite (FFN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://fr.wikipedia.org/wiki/Championnat_de_France_masculin_de_water-polo_2025-2026",
+    "https://www.cnmarseille.com/water-polo/water-polo-elite/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Taverny 95",
+   "shortName": "TAV",
+   "adaptation": [
+    [
+     "drop",
+     "SN"
+    ]
+   ],
+   "gameCompetition": "Élite France",
+   "colors": [
+    1014410,
+    16777215,
+    408130
+   ],
+   "rating": 64,
+   "logo": {
+    "shape": "diamond",
+    "symbol": "letters",
+    "letters": "TAV",
+    "pattern": "halves",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 1014410,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 1014410,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1014410,
+     "pattern": "stripe",
+     "cap": 16054008,
+     "capTrim": 1014410,
+     "number": 1014410
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "recco",
+   "baseClubId": "recco",
+   "officialReferenceName": "Pro Recco Waterpolo",
+   "city": "Recco",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Pro Reca",
+   "shortName": "REC",
+   "adaptation": [
+    [
+     "drop",
+     "Waterpolo"
+    ],
+    [
+     "letter",
+     [
+      1,
+      3
+     ],
+     ""
+    ],
+    [
+     "letter",
+     [
+      1,
+      3
+     ],
+     "a"
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    2789336,
+    16777215,
+    864090
+   ],
+   "rating": 86,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "trident",
+    "letters": "REC",
+    "pattern": "halves",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 2789336,
+     "suit2": 16777215,
+     "pattern": "stripe",
+     "cap": 2789336,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 2789336,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 2789336,
+     "number": 2789336
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "brescia",
+   "baseClubId": "brescia",
+   "officialReferenceName": "AN Brescia",
+   "city": "Brescia",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Brescia Aquatica",
+   "shortName": "BRE",
+   "adaptation": [
+    [
+     "drop",
+     "AN"
+    ],
+    [
+     "add",
+     "Aquatica"
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    1851284,
+    16777215,
+    14168606
+   ],
+   "rating": 82,
+   "logo": {
+    "shape": "hex",
+    "letters": "BRE",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1851284,
+     "suit2": 16777215,
+     "cap": 1851284,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1851284,
+     "cap": 16054008,
+     "capTrim": 1851284,
+     "number": 1851284
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "savona",
+   "baseClubId": "savona",
+   "officialReferenceName": "RN Savona",
+   "city": "Savona",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "R. Savona",
+   "shortName": "SAV",
+   "adaptation": [
+    [
+     "swap",
+     "RN",
+     "R."
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    14168606,
+    16777215,
+    1907997
+   ],
+   "rating": 79,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "wave",
+    "letters": "SAV",
+    "pattern": "halves",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 14168606,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 14168606,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 14168606,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "posillipo",
+   "baseClubId": "posillipo",
+   "officialReferenceName": "CN Posillipo",
+   "city": "Napoli",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Posilipo",
+   "shortName": "POS",
+   "adaptation": [
+    [
+     "drop",
+     "CN"
+    ],
+    [
+     "letter",
+     [
+      0,
+      4
+     ],
+     ""
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    15910938,
+    1982346,
+    16777215
+   ],
+   "rating": 76,
+   "logo": {
+    "shape": "hex",
+    "symbol": "ball",
+    "letters": "POS",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 15910938,
+     "suit2": 1982346,
+     "pattern": "chevron",
+     "cap": 15910938,
+     "capTrim": 1982346,
+     "number": 1982346
+    },
+    "away": {
+     "suit": 1982346,
+     "suit2": 15910938,
+     "pattern": "stripe",
+     "cap": 16054008,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "trieste",
+   "baseClubId": "trieste",
+   "officialReferenceName": "Pallanuoto Trieste",
+   "city": "Trieste",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Trieste PN",
+   "shortName": "TRI",
+   "adaptation": [
+    [
+     "keep",
+     [
+      1
+     ]
+    ],
+    [
+     "add",
+     "PN"
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    13115439,
+    16777215,
+    2763306
+   ],
+   "rating": 75,
+   "logo": {
+    "shape": "circle",
+    "letters": "TRI",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 13115439,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 13115439,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 13115439,
+     "cap": 16054008,
+     "capTrim": 13115439,
+     "number": 13115439
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "ortigia",
+   "baseClubId": "ortigia",
+   "officialReferenceName": "CC Ortigia",
+   "city": "Siracusa",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Ortygia",
+   "shortName": "ORT",
+   "adaptation": [
+    [
+     "drop",
+     "CC"
+    ],
+    [
+     "letter",
+     [
+      0,
+      3
+     ],
+     "y"
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    1798072,
+    15910938,
+    16777215
+   ],
+   "rating": 75,
+   "logo": {
+    "shape": "shield",
+    "symbol": "wave",
+    "letters": "ORT",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1798072,
+     "suit2": 15910938,
+     "cap": 1798072,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "away": {
+     "suit": 15910938,
+     "suit2": 1798072,
+     "cap": 16054008,
+     "capTrim": 1798072,
+     "number": 1798072
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "deakker",
+   "baseClubId": "deakker",
+   "officialReferenceName": "De Akker Team",
+   "city": "Bologna",
+   "country": "ITA",
+   "competition": "Serie A1 (FIN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://www.oasport.it/2026/05/pallanuoto-la-pro-recco-passa-a-brescia-e-chiude-la-regular-season-di-serie-a1-a-punteggio-pieno/",
+    "https://www.oasport.it/2026/03/pallanuoto-il-brescia-vince-e-torna-a-3-dalla-pro-recco-in-serie-a1-successi-per-ortigia-e-de-akker/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "De Aker Team",
+   "shortName": "DAX",
+   "adaptation": [
+    [
+     "letter",
+     [
+      1,
+      2
+     ],
+     ""
+    ]
+   ],
+   "gameCompetition": "Lega A1 Italia",
+   "colors": [
+    14708764,
+    1447965,
+    16777215
+   ],
+   "rating": 72,
+   "logo": {
+    "shape": "hex",
+    "symbol": "star",
+    "letters": "DAX",
+    "pattern": "none",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 14708764,
+     "suit2": 1447965,
+     "pattern": "plain",
+     "cap": 14708764,
+     "capTrim": 1447965,
+     "number": 1447965
+    },
+    "away": {
+     "suit": 1447965,
+     "suit2": 14708764,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 14708764,
+     "number": 14708764
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "barceloneta",
+   "baseClubId": "barceloneta",
+   "officialReferenceName": "CN Atlètic-Barceloneta",
+   "city": "Barcelona",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Barceloneta AC",
+   "shortName": "BAC",
+   "adaptation": [
+    [
+     "swap",
+     "Atlètic-Barceloneta",
+     "Barceloneta"
+    ],
+    [
+     "drop",
+     "CN"
+    ],
+    [
+     "add",
+     "AC"
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    1784972,
+    14168606,
+    16777215
+   ],
+   "rating": 85,
+   "logo": {
+    "shape": "circle",
+    "letters": "BAC",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1784972,
+     "suit2": 14168606,
+     "cap": 1784972,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "away": {
+     "suit": 14168606,
+     "suit2": 1784972,
+     "cap": 16054008,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "terrassa",
+   "baseClubId": "terrassa",
+   "officialReferenceName": "CN Terrassa",
+   "city": "Terrassa",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "CN Terrasa",
+   "shortName": "TER",
+   "adaptation": [
+    [
+     "letter",
+     [
+      1,
+      5
+     ],
+     ""
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    1447965,
+    16777215,
+    14168606
+   ],
+   "rating": 77,
+   "logo": {
+    "shape": "shield",
+    "letters": "TER",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 1447965,
+     "suit2": 16777215,
+     "cap": 1447965,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1447965,
+     "cap": 16054008,
+     "capTrim": 1447965,
+     "number": 1447965
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "sabadell",
+   "baseClubId": "sabadell",
+   "officialReferenceName": "CN Sabadell",
+   "city": "Sabadell",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Sabadel N.",
+   "shortName": "SAB",
+   "adaptation": [
+    [
+     "drop",
+     "CN"
+    ],
+    [
+     "letter",
+     [
+      0,
+      6
+     ],
+     ""
+    ],
+    [
+     "add",
+     "N."
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    1989592,
+    16777215,
+    729928
+   ],
+   "rating": 76,
+   "logo": {
+    "shape": "circle",
+    "symbol": "trident",
+    "letters": "SAB",
+    "pattern": "halves",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1989592,
+     "suit2": 16777215,
+     "pattern": "halves",
+     "cap": 1989592,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1989592,
+     "pattern": "chevron",
+     "cap": 16054008,
+     "capTrim": 1989592,
+     "number": 1989592
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "mataro",
+   "baseClubId": "mataro",
+   "officialReferenceName": "CN Mataró",
+   "city": "Mataró",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Mataro Polo",
+   "shortName": "MAT",
+   "adaptation": [
+    [
+     "drop",
+     "CN"
+    ],
+    [
+     "letter",
+     [
+      0,
+      5
+     ],
+     "o"
+    ],
+    [
+     "add",
+     "Polo"
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    2067056,
+    16777215,
+    735790
+   ],
+   "rating": 72,
+   "logo": {
+    "shape": "circle",
+    "symbol": "wave",
+    "letters": "MAT",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 2067056,
+     "suit2": 16777215,
+     "pattern": "chevron",
+     "cap": 2067056,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 2067056,
+     "pattern": "halves",
+     "cap": 16054008,
+     "capTrim": 2067056,
+     "number": 2067056
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "cnbarcelona",
+   "baseClubId": "cnbarcelona",
+   "officialReferenceName": "CN Barcelona",
+   "city": "Barcelona",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "C Barcelona",
+   "shortName": "CBA",
+   "adaptation": [
+    [
+     "swap",
+     "CN",
+     "C"
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    1784972,
+    13115439,
+    15910938
+   ],
+   "rating": 73,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "letters",
+    "letters": "CBA",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1784972,
+     "suit2": 13115439,
+     "pattern": "stripe",
+     "cap": 1784972,
+     "capTrim": 13115439,
+     "number": 13115439
+    },
+    "away": {
+     "suit": 13115439,
+     "suit2": 1784972,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "mediterrani",
+   "baseClubId": "mediterrani",
+   "officialReferenceName": "CE Mediterrani",
+   "city": "Barcelona",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Mediterrani Barcelona",
+   "shortName": "MED",
+   "adaptation": [
+    [
+     "drop",
+     "CE"
+    ],
+    [
+     "add",
+     "Barcelona"
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    1287880,
+    16777215,
+    734544
+   ],
+   "rating": 70,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "star",
+    "letters": "MED",
+    "pattern": "stripe",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 1287880,
+     "suit2": 16777215,
+     "pattern": "chevron",
+     "cap": 1287880,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1287880,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 1287880,
+     "number": 1287880
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "canoe",
+   "baseClubId": "canoe",
+   "officialReferenceName": "Real Canoe NC",
+   "city": "Madrid",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Canoe Madrid",
+   "shortName": "CAN",
+   "adaptation": [
+    [
+     "drop",
+     "Real"
+    ],
+    [
+     "drop",
+     "NC"
+    ],
+    [
+     "add",
+     "Madrid"
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    16777215,
+    1784972,
+    14168606
+   ],
+   "rating": 70,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "letters",
+    "letters": "CAN",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 16777215,
+     "suit2": 1784972,
+     "pattern": "plain",
+     "cap": 16777215,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "away": {
+     "suit": 1784972,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "echeyde",
+   "baseClubId": "echeyde",
+   "officialReferenceName": "SC Tenerife Echeyde",
+   "city": "Santa Cruz de Tenerife",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Echeyde Tenerife",
+   "shortName": "ECH",
+   "adaptation": [
+    [
+     "drop",
+     "SC"
+    ],
+    [
+     "keep",
+     [
+      1,
+      0
+     ]
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    15910938,
+    1798072,
+    16777215
+   ],
+   "rating": 72,
+   "logo": {
+    "shape": "hex",
+    "symbol": "fin",
+    "letters": "ECH",
+    "pattern": "ring",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 15910938,
+     "suit2": 1798072,
+     "pattern": "plain",
+     "cap": 15910938,
+     "capTrim": 1798072,
+     "number": 1798072
+    },
+    "away": {
+     "suit": 1798072,
+     "suit2": 15910938,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "rubi",
+   "baseClubId": "rubi",
+   "officialReferenceName": "CN Rubí",
+   "city": "Rubí",
+   "country": "ESP",
+   "competition": "División de Honor (RFEN)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://es.wikipedia.org/wiki/Divisi%C3%B3n_de_Honor_de_waterpolo",
+    "https://lewaterpolo.com/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Rubi Polo",
+   "shortName": "RUB",
+   "adaptation": [
+    [
+     "drop",
+     "CN"
+    ],
+    [
+     "letter",
+     [
+      0,
+      3
+     ],
+     "i"
+    ],
+    [
+     "add",
+     "Polo"
+    ]
+   ],
+   "gameCompetition": "Liga de Honor",
+   "colors": [
+    8007632,
+    16777215,
+    2755914
+   ],
+   "rating": 68,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "trident",
+    "letters": "RUB",
+    "pattern": "halves",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 8007632,
+     "suit2": 16777215,
+     "pattern": "sash",
+     "cap": 8007632,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 8007632,
+     "pattern": "chevron",
+     "cap": 16054008,
+     "capTrim": 8007632,
+     "number": 8007632
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "ferencvaros",
+   "baseClubId": "ferencvaros",
+   "officialReferenceName": "Ferencvárosi TC",
+   "city": "Budapest",
+   "country": "HUN",
+   "competition": "Országos Bajnokság I (MVLSZ)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Orsz%C3%A1gos_Bajnoks%C3%A1g_I_(men%27s_water_polo)",
+    "https://total-waterpolo.com/category/featured/hungarian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Ferencváros Budapest",
+   "shortName": "FEB",
+   "adaptation": [
+    [
+     "drop",
+     "TC"
+    ],
+    [
+     "letter",
+     [
+      0,
+      11
+     ],
+     ""
+    ],
+    [
+     "add",
+     "Budapest"
+    ]
+   ],
+   "gameCompetition": "Magyar Liga I",
+   "colors": [
+    2067002,
+    16777215,
+    735770
+   ],
+   "rating": 85,
+   "logo": {
+    "shape": "circle",
+    "symbol": "fin",
+    "letters": "FEB",
+    "pattern": "ring",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 2067002,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 2067002,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 2067002,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 2067002,
+     "number": 2067002
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "vasas",
+   "baseClubId": "vasas",
+   "officialReferenceName": "Vasas SC",
+   "city": "Budapest",
+   "country": "HUN",
+   "competition": "Országos Bajnokság I (MVLSZ)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Orsz%C3%A1gos_Bajnoks%C3%A1g_I_(men%27s_water_polo)",
+    "https://total-waterpolo.com/category/featured/hungarian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Vasas Budapest",
+   "shortName": "VAS",
+   "adaptation": [
+    [
+     "drop",
+     "SC"
+    ],
+    [
+     "add",
+     "Budapest"
+    ]
+   ],
+   "gameCompetition": "Magyar Liga I",
+   "colors": [
+    1982346,
+    14168606,
+    16777215
+   ],
+   "rating": 78,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "drop",
+    "letters": "VAS",
+    "pattern": "stripe",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1982346,
+     "suit2": 14168606,
+     "pattern": "plain",
+     "cap": 1982346,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "away": {
+     "suit": 14168606,
+     "suit2": 1982346,
+     "pattern": "chevron",
+     "cap": 16054008,
+     "capTrim": 1982346,
+     "number": 1982346
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "bvsc",
+   "baseClubId": "bvsc",
+   "officialReferenceName": "BVSC",
+   "city": "Budapest",
+   "country": "HUN",
+   "competition": "Országos Bajnokság I (MVLSZ)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Orsz%C3%A1gos_Bajnoks%C3%A1g_I_(men%27s_water_polo)",
+    "https://total-waterpolo.com/category/featured/hungarian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "BV Budapest",
+   "shortName": "BVU",
+   "adaptation": [
+    [
+     "swap",
+     "BVSC",
+     "BV"
+    ],
+    [
+     "add",
+     "Budapest"
+    ]
+   ],
+   "gameCompetition": "Magyar Liga I",
+   "colors": [
+    14168606,
+    16777215,
+    1447965
+   ],
+   "rating": 76,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "goal",
+    "letters": "BVU",
+    "pattern": "none",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 14168606,
+     "suit2": 16777215,
+     "pattern": "chevron",
+     "cap": 14168606,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 14168606,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "szolnok",
+   "baseClubId": "szolnok",
+   "officialReferenceName": "Szolnoki Dózsa",
+   "city": "Szolnok",
+   "country": "HUN",
+   "competition": "Országos Bajnokság I (MVLSZ)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Orsz%C3%A1gos_Bajnoks%C3%A1g_I_(men%27s_water_polo)",
+    "https://total-waterpolo.com/category/featured/hungarian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Szolnok Polo",
+   "shortName": "SZO",
+   "adaptation": [
+    [
+     "letter",
+     [
+      0,
+      7
+     ],
+     ""
+    ],
+    [
+     "drop",
+     "Dózsa"
+    ],
+    [
+     "add",
+     "Polo"
+    ]
+   ],
+   "gameCompetition": "Magyar Liga I",
+   "colors": [
+    1989592,
+    15910938,
+    16777215
+   ],
+   "rating": 76,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "fin",
+    "letters": "SZO",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1989592,
+     "suit2": 15910938,
+     "pattern": "sash",
+     "cap": 1989592,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "away": {
+     "suit": 15910938,
+     "suit2": 1989592,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 1989592,
+     "number": 1989592
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "eger",
+   "baseClubId": "eger",
+   "officialReferenceName": "Egri VK",
+   "city": "Eger",
+   "country": "HUN",
+   "competition": "Országos Bajnokság I (MVLSZ)",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Orsz%C3%A1gos_Bajnoks%C3%A1g_I_(men%27s_water_polo)",
+    "https://total-waterpolo.com/category/featured/hungarian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Eger Polo",
+   "shortName": "EGE",
+   "adaptation": [
+    [
+     "drop",
+     "VK"
+    ],
+    [
+     "swap",
+     "Egri",
+     "Eger"
+    ],
+    [
+     "add",
+     "Polo"
+    ]
+   ],
+   "gameCompetition": "Magyar Liga I",
+   "colors": [
+    1784972,
+    16777215,
+    15910938
+   ],
+   "rating": 75,
+   "logo": {
+    "shape": "shield",
+    "symbol": "trident",
+    "letters": "EGE",
+    "pattern": "halves",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1784972,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 1784972,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1784972,
+     "pattern": "sash",
+     "cap": 16054008,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "olympiacos",
+   "baseClubId": "olympiacos",
+   "officialReferenceName": "Olympiacos Piraeus",
+   "city": "Piraeus",
+   "country": "GRE",
+   "competition": "A1 Ethniki",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/A1_Ethniki_Water_Polo",
+    "https://en.wikipedia.org/wiki/Ethnikos_Piraeus_Water_Polo_Club"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Olympic Piraeus",
+   "shortName": "OLY",
+   "adaptation": [
+    [
+     "swap",
+     "Olympiacos",
+     "Olympic"
+    ]
+   ],
+   "gameCompetition": "Hellas A1",
+   "colors": [
+    13115439,
+    16777215,
+    5901332
+   ],
+   "rating": 84,
+   "logo": {
+    "shape": "circle",
+    "letters": "OLY",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 13115439,
+     "suit2": 16777215,
+     "cap": 13115439,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 13115439,
+     "cap": 16054008,
+     "capTrim": 13115439,
+     "number": 13115439
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "vouliagmeni",
+   "baseClubId": "vouliagmeni",
+   "officialReferenceName": "NO Vouliagmeni",
+   "city": "Vouliagmeni",
+   "country": "GRE",
+   "competition": "A1 Ethniki",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/A1_Ethniki_Water_Polo",
+    "https://en.wikipedia.org/wiki/Ethnikos_Piraeus_Water_Polo_Club"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Vouliagmeni Athens",
+   "shortName": "VOU",
+   "adaptation": [
+    [
+     "drop",
+     "NO"
+    ],
+    [
+     "add",
+     "Athens"
+    ]
+   ],
+   "gameCompetition": "Hellas A1",
+   "colors": [
+    880568,
+    16777215,
+    404554
+   ],
+   "rating": 76,
+   "logo": {
+    "shape": "pennant",
+    "letters": "VOU",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 880568,
+     "suit2": 16777215,
+     "cap": 880568,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 880568,
+     "cap": 16054008,
+     "capTrim": 880568,
+     "number": 880568
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "panathinaikos",
+   "baseClubId": "panathinaikos",
+   "officialReferenceName": "Panathinaikos",
+   "city": "Athens",
+   "country": "GRE",
+   "competition": "A1 Ethniki",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/A1_Ethniki_Water_Polo",
+    "https://en.wikipedia.org/wiki/Ethnikos_Piraeus_Water_Polo_Club"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Panathinai Athens",
+   "shortName": "PAN",
+   "adaptation": [
+    [
+     "swap",
+     "Panathinaikos",
+     "Panathinai"
+    ],
+    [
+     "add",
+     "Athens"
+    ]
+   ],
+   "gameCompetition": "Hellas A1",
+   "colors": [
+    2067002,
+    16777215,
+    735770
+   ],
+   "rating": 75,
+   "logo": {
+    "shape": "roundel",
+    "letters": "PAN",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 2067002,
+     "suit2": 16777215,
+     "cap": 2067002,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 2067002,
+     "cap": 16054008,
+     "capTrim": 2067002,
+     "number": 2067002
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "ethnikos",
+   "baseClubId": "ethnikos",
+   "officialReferenceName": "Ethnikos Piraeus",
+   "city": "Piraeus",
+   "country": "GRE",
+   "competition": "A1 Ethniki",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/A1_Ethniki_Water_Polo",
+    "https://en.wikipedia.org/wiki/Ethnikos_Piraeus_Water_Polo_Club"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Ethniko Piraeus",
+   "shortName": "ETH",
+   "adaptation": [
+    [
+     "letter",
+     [
+      0,
+      7
+     ],
+     ""
+    ]
+   ],
+   "gameCompetition": "Hellas A1",
+   "colors": [
+    1798072,
+    16777215,
+    729928
+   ],
+   "rating": 73,
+   "logo": {
+    "shape": "shield",
+    "symbol": "wave",
+    "letters": "ETH",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1798072,
+     "suit2": 16777215,
+     "cap": 1798072,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1798072,
+     "cap": 16054008,
+     "capTrim": 1798072,
+     "number": 1798072
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "jadran",
+   "baseClubId": "jadran",
+   "officialReferenceName": "VK Jadran Split",
+   "city": "Split",
+   "country": "CRO",
+   "competition": "Prva hrvatska vaterpolska liga",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Croatian_First_League_of_Water_Polo",
+    "https://total-waterpolo.com/category/featured/croatian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Split Jadra",
+   "shortName": "SPL",
+   "adaptation": [
+    [
+     "drop",
+     "VK"
+    ],
+    [
+     "letter",
+     [
+      0,
+      5
+     ],
+     ""
+    ],
+    [
+     "keep",
+     [
+      1,
+      0
+     ]
+    ]
+   ],
+   "gameCompetition": "Hrvatska Liga",
+   "colors": [
+    16777215,
+    1784972,
+    14168606
+   ],
+   "rating": 82,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "letters",
+    "letters": "SPL",
+    "pattern": "stripe",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 16777215,
+     "suit2": 1784972,
+     "pattern": "plain",
+     "cap": 16777215,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "away": {
+     "suit": 1784972,
+     "suit2": 16777215,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "mladost",
+   "baseClubId": "mladost",
+   "officialReferenceName": "HAVK Mladost",
+   "city": "Zagreb",
+   "country": "CRO",
+   "competition": "Prva hrvatska vaterpolska liga",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Croatian_First_League_of_Water_Polo",
+    "https://total-waterpolo.com/category/featured/croatian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Mladost Zgb",
+   "shortName": "MLA",
+   "adaptation": [
+    [
+     "drop",
+     "HAVK"
+    ],
+    [
+     "add",
+     "Zgb"
+    ]
+   ],
+   "gameCompetition": "Hrvatska Liga",
+   "colors": [
+    1989592,
+    16777215,
+    729928
+   ],
+   "rating": 79,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "star",
+    "letters": "MLA",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1989592,
+     "suit2": 16777215,
+     "pattern": "chevron",
+     "cap": 1989592,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1989592,
+     "pattern": "stripe",
+     "cap": 16054008,
+     "capTrim": 1989592,
+     "number": 1989592
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "jug",
+   "baseClubId": "jug",
+   "officialReferenceName": "VK Jug Dubrovnik",
+   "city": "Dubrovnik",
+   "country": "CRO",
+   "competition": "Prva hrvatska vaterpolska liga",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Croatian_First_League_of_Water_Polo",
+    "https://total-waterpolo.com/category/featured/croatian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "J Dubrovnik",
+   "shortName": "DUB",
+   "adaptation": [
+    [
+     "drop",
+     "VK"
+    ],
+    [
+     "swap",
+     "Jug",
+     "J"
+    ]
+   ],
+   "gameCompetition": "Hrvatska Liga",
+   "colors": [
+    14168606,
+    16777215,
+    1447965
+   ],
+   "rating": 78,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "trident",
+    "letters": "DUB",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 14168606,
+     "suit2": 16777215,
+     "pattern": "halves",
+     "cap": 14168606,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 14168606,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "primorje",
+   "baseClubId": "primorje",
+   "officialReferenceName": "PVK Primorje",
+   "city": "Rijeka",
+   "country": "CRO",
+   "competition": "Prva hrvatska vaterpolska liga",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Croatian_First_League_of_Water_Polo",
+    "https://total-waterpolo.com/category/featured/croatian-water-polo-league/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Primorje Rijeka",
+   "shortName": "PRI",
+   "adaptation": [
+    [
+     "drop",
+     "PVK"
+    ],
+    [
+     "add",
+     "Rijeka"
+    ]
+   ],
+   "gameCompetition": "Hrvatska Liga",
+   "colors": [
+    1798072,
+    16777215,
+    15910938
+   ],
+   "rating": 73,
+   "logo": {
+    "shape": "pennant",
+    "letters": "PRI",
+    "pattern": "none",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1798072,
+     "suit2": 16777215,
+     "cap": 1798072,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1798072,
+     "cap": 16054008,
+     "capTrim": 1798072,
+     "number": 1798072
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "novibeograd",
+   "baseClubId": "novibeograd",
+   "officialReferenceName": "VK Novi Beograd",
+   "city": "Belgrade",
+   "country": "SRB",
+   "competition": "Superliga Srbije",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Serbian_Water_Polo_Super_League",
+    "https://total-waterpolo.com/radnicki-downs-novi-beograd-for-3rd-time-to-retain-serbian-title/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "N. Beograd",
+   "shortName": "BEO",
+   "adaptation": [
+    [
+     "drop",
+     "VK"
+    ],
+    [
+     "swap",
+     "Novi",
+     "N."
+    ]
+   ],
+   "gameCompetition": "Srpska Superliga",
+   "colors": [
+    1447965,
+    15910938,
+    16777215
+   ],
+   "rating": 83,
+   "logo": {
+    "shape": "roundel",
+    "symbol": "letters",
+    "letters": "BEO",
+    "pattern": "stripe",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1447965,
+     "suit2": 15910938,
+     "pattern": "sash",
+     "cap": 1447965,
+     "capTrim": 15910938,
+     "number": 15910938
+    },
+    "away": {
+     "suit": 15910938,
+     "suit2": 1447965,
+     "pattern": "halves",
+     "cap": 16054008,
+     "capTrim": 1447965,
+     "number": 1447965
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "radnicki",
+   "baseClubId": "radnicki",
+   "officialReferenceName": "VK Radnički Kragujevac",
+   "city": "Kragujevac",
+   "country": "SRB",
+   "competition": "Superliga Srbije",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Serbian_Water_Polo_Super_League",
+    "https://total-waterpolo.com/radnicki-downs-novi-beograd-for-3rd-time-to-retain-serbian-title/"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Radnicki K.",
+   "shortName": "RAD",
+   "adaptation": [
+    [
+     "drop",
+     "VK"
+    ],
+    [
+     "letter",
+     [
+      0,
+      5
+     ],
+     "c"
+    ],
+    [
+     "swap",
+     "Kragujevac",
+     "K."
+    ]
+   ],
+   "gameCompetition": "Srpska Superliga",
+   "colors": [
+    14168606,
+    1784972,
+    16777215
+   ],
+   "rating": 81,
+   "logo": {
+    "shape": "hex",
+    "symbol": "letters",
+    "letters": "RAD",
+    "pattern": "halves",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 14168606,
+     "suit2": 1784972,
+     "pattern": "chevron",
+     "cap": 14168606,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "away": {
+     "suit": 1784972,
+     "suit2": 14168606,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "hannover",
+   "baseClubId": "hannover",
+   "officialReferenceName": "Waspo 98 Hannover",
+   "city": "Hannover",
+   "country": "GER",
+   "competition": "Deutsche Wasserball-Liga",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Deutsche_Wasserball-Liga",
+    "https://en.wikipedia.org/wiki/Wasserfreunde_Spandau_04"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "Wasp Hannover",
+   "shortName": "WAS",
+   "adaptation": [
+    [
+     "drop",
+     "98"
+    ],
+    [
+     "swap",
+     "Waspo",
+     "Wasp"
+    ]
+   ],
+   "gameCompetition": "Wasserball Liga",
+   "colors": [
+    1989592,
+    14168606,
+    16777215
+   ],
+   "rating": 78,
+   "logo": {
+    "shape": "diamond",
+    "symbol": "trident",
+    "letters": "WAS",
+    "pattern": "ring",
+    "border": "double"
+   },
+   "kits": {
+    "home": {
+     "suit": 1989592,
+     "suit2": 14168606,
+     "pattern": "stripe",
+     "cap": 1989592,
+     "capTrim": 14168606,
+     "number": 14168606
+    },
+    "away": {
+     "suit": 14168606,
+     "suit2": 1989592,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 1989592,
+     "number": 1989592
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  },
+  {
+   "id": "spandau",
+   "baseClubId": "spandau",
+   "officialReferenceName": "Wasserfreunde Spandau 04",
+   "city": "Berlin",
+   "country": "GER",
+   "competition": "Deutsche Wasserball-Liga",
+   "gender": "men",
+   "season": "2025-26",
+   "source": [
+    "https://en.wikipedia.org/wiki/Deutsche_Wasserball-Liga",
+    "https://en.wikipedia.org/wiki/Wasserfreunde_Spandau_04"
+   ],
+   "lastUpdated": "2026-10-06",
+   "gameClubName": "WF Spandau",
+   "shortName": "SPA",
+   "adaptation": [
+    [
+     "drop",
+     "Wasserfreunde"
+    ],
+    [
+     "drop",
+     "04"
+    ],
+    [
+     "add",
+     "WF",
+     "start"
+    ]
+   ],
+   "gameCompetition": "Wasserball Liga",
+   "colors": [
+    1784972,
+    16777215,
+    15910938
+   ],
+   "rating": 76,
+   "logo": {
+    "shape": "pennant",
+    "symbol": "star",
+    "letters": "SPA",
+    "pattern": "none",
+    "border": "single"
+   },
+   "kits": {
+    "home": {
+     "suit": 1784972,
+     "suit2": 16777215,
+     "pattern": "halves",
+     "cap": 1784972,
+     "capTrim": 16777215,
+     "number": 16777215
+    },
+    "away": {
+     "suit": 16777215,
+     "suit2": 1784972,
+     "pattern": "plain",
+     "cap": 16054008,
+     "capTrim": 1784972,
+     "number": 1784972
+    },
+    "goalkeeper": {
+     "cap": 14162463,
+     "capTrim": 16777215,
+     "number": 16777215
+    }
+   }
+  }
+ ]
+}

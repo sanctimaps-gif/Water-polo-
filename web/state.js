@@ -4,6 +4,7 @@
 // photos (see docs/UI.md). Real data can be plugged in later through the same structures,
 // with `source` / `lastUpdated` fields filled from official sources.
 import { Rng, N, TACTICS } from './sim.js';
+import CLUB_DB from './data/clubs.js';
 
 const SAVE_KEY = 'wp26.save', SAVE_VERSION = 1;
 const DATA_SOURCE = { source: 'WP26 original fictional data', lastUpdated: '2026-10-04', licensed: false };
@@ -24,15 +25,21 @@ export const ROLE_ABBR = { GOALKEEPER: 'GB', CENTER: 'PV', DEFENDER: 'DF', WINGE
 const PERSONALITIES = ['LEADER', 'CREATIVE', 'CALM', 'AGGRESSIVE', 'TEAM_PLAYER', 'TACTICAL', 'RISK_TAKER'];
 const STAT_KEYS = ['speed', 'accel', 'stamina', 'passing', 'shooting', 'power', 'accuracy', 'defense', 'reaction', 'positioning', 'technique', 'intelligence', 'physical', 'goalkeeping'];
 
-export const CLUBS = [
-  { id: 'sharks', name: 'Ocean Sharks', short: 'OCS', color: 0x0f4c81, color2: 0xffffff, rating: 74, logo: { shape: 'shield', symbol: 'fin' } },
-  { id: 'barracudas', name: 'Marina Barracudas', short: 'MAB', color: 0x1f8a70, color2: 0xf2c81a, rating: 71, logo: { shape: 'circle', symbol: 'wave' } },
-  { id: 'orcas', name: 'Coral Bay Orcas', short: 'CBO', color: 0x222b38, color2: 0xff6b4a, rating: 76, logo: { shape: 'hex', symbol: 'trident' } },
-  { id: 'seals', name: 'Nordfjord Seals', short: 'NFS', color: 0x5b6c8f, color2: 0xe8eef7, rating: 66, logo: { shape: 'circle', symbol: 'star' } },
-  { id: 'dolphins', name: 'Riviera Dolphins', short: 'RIV', color: 0x1e5bd8, color2: 0xffffff, rating: 72, logo: { shape: 'shield', symbol: 'wave' } },
-  { id: 'waves', name: 'Atlas Waves', short: 'ATW', color: 0x7a2fd0, color2: 0x38c8ff, rating: 69, logo: { shape: 'hex', symbol: 'ball' } },
-  { id: 'titans', name: 'Lagoon Titans', short: 'LGT', color: 0xb8321e, color2: 0xffd21a, rating: 79, logo: { shape: 'shield', symbol: 'trident' } },
-];
+// Clubs of the game: REAL clubs as reference data (web/data/clubs.json: official name, city, country,
+// competition, sources) with an ADAPTED identity used everywhere in the game (adapted name, original
+// logo and kits, game rating). The official name is never displayed by default.
+export const LEAGUES = CLUB_DB.leagues;
+export const CLUBS = CLUB_DB.clubs.map((c) => ({
+  id: c.id, name: c.gameClubName, short: c.shortName, color: c.colors[0], color2: c.colors[1], color3: c.colors[2], rating: c.rating,
+  logo: c.logo, kits: c.kits, country: c.country, city: c.city, competition: c.gameCompetition,
+  ref: { officialReferenceName: c.officialReferenceName, competition: c.competition, season: c.season, source: c.source, lastUpdated: c.lastUpdated },
+}));
+export const COUNTRY_LEAGUES = [...new Set(CLUBS.map((c) => c.country))];
+/** Default kits for a club identity (home: colours 1/2, away: colour 2 with white cap, GK red cap). */
+export function defaultKits(c1, c2, c3 = c2) {
+  return { home: { suit: c1, suit2: c2, pattern: 'plain', cap: c1, capTrim: c2, number: c2 },
+    away: { suit: c2, suit2: c1, pattern: 'plain', cap: 0xf4f6f8, capTrim: c1, number: c1 }, goalkeeper: { cap: 0xd81a1f, capTrim: 0xffffff, number: 0xffffff }, c3 };
+}
 export const POOLS = [{ id: 'aqua', name: 'AQUA ARENA' }, { id: 'oceanic', name: 'OCEANIC CENTER' }, { id: 'city', name: 'CITY AQUATIC' }];
 
 export const SHOP_ITEMS = [
@@ -49,6 +56,19 @@ export const EVENTS = [
   { id: 'weekend', name: 'event.weekend', tier: 'special', matches: 2, ratings: [72, 78], reward: { coins: 350, gems: 10, token: 1, energy: 2 }, schedule: 'weekend' },
   { id: 'elite', name: 'event.elite', tier: 'major', matches: 4, ratings: [76, 79, 82, 85], reward: { coins: 900, gems: 20, token: 2 }, schedule: 'weekly', minLevel: 5 },
   { id: 'gala', name: 'event.gala', tier: 'premium', matches: 3, ratings: [82, 85, 88], reward: { coins: 1500, gems: 40, token: 3 }, schedule: 'weekly', needTrophy: true },
+];
+
+// Tournaments of the game, inspired by real competition formats (names adapted, no official marks):
+// national cups of each country, continental club competitions, international club events.
+const FLAG_NAMES = { FRA: 'France', ITA: 'Italia', ESP: 'España', HUN: 'Magyar', GRE: 'Hellas', CRO: 'Hrvatska', SRB: 'Srbija', GER: 'Deutschland' };
+export const TOURNAMENTS = [
+  ...['FRA', 'ITA', 'ESP', 'HUN', 'GRE', 'CRO'].map((c) => ({ id: 'cup-' + c, scope: 'national', country: c, countries: [c], name: `Coupe ${FLAG_NAMES[c]}`,
+    format: 'ko', size: ['HUN', 'GRE', 'CRO', 'SRB', 'GER'].includes(c) ? 4 : 8, reward: { coins: 700, gems: 8, token: 1 }, inspiredBy: 'national cup' })),
+  { id: 'adria', scope: 'regional', name: 'Adria League', countries: ['CRO', 'SRB'], format: 'league', size: 6, reward: { coins: 900, gems: 12, token: 1 }, minLevel: 2, inspiredBy: 'regional league (Adriatic)' },
+  { id: 'euro-challenge', scope: 'continental', name: 'Euro Challenge Cup', format: 'ko', size: 8, skipTop: 8, reward: { coins: 1200, gems: 15, token: 2 }, minLevel: 3, inspiredBy: 'second European club cup' },
+  { id: 'med-cup', scope: 'continental', name: 'Mediterranean Club Cup', countries: ['FRA', 'ITA', 'ESP', 'GRE', 'CRO'], format: 'groups', groupSize: 4, size: 8, reward: { coins: 1400, gems: 18, token: 2 }, minLevel: 4, inspiredBy: 'Mediterranean club tournaments' },
+  { id: 'euro-champions', scope: 'continental', name: 'Euro Champions Aqua', format: 'groups', groupSize: 4, size: 16, reward: { coins: 2500, gems: 30, token: 3 }, minLevel: 6, inspiredBy: 'European club champions competition' },
+  { id: 'world-masters', scope: 'international', name: 'World Club Masters', format: 'ko', size: 8, reward: { coins: 3000, gems: 40, token: 3 }, minLevel: 8, inspiredBy: 'international club tournaments' },
 ];
 
 const OBJECTIVE_POOL = [
@@ -158,20 +178,22 @@ export function formatDuration(ms) {
 }
 
 // ---------------------------------------------------------------- league
-function roundRobin(ids) {
+function roundRobin(ids0) {
+  const ids = ids0.length % 2 ? [...ids0, null] : ids0.slice();   // odd: one club rests each round (bye)
   const n = ids.length, arr = ids.slice(), rounds = [];
   for (let r = 0; r < n - 1; r++) {
     const pairs = [];
     for (let i = 0; i < n / 2; i++) { const a = arr[i], b = arr[n - 1 - i]; pairs.push(r % 2 ? [b, a] : [a, b]); }
-    rounds.push(pairs.map(([h, a]) => ({ home: h, away: a, hs: null, as: null })));
+    rounds.push(pairs.filter(([h, a]) => h && a).map(([h, a]) => ({ home: h, away: a, hs: null, as: null })));
     arr.splice(1, 0, arr.pop());
   }
   return rounds;
 }
-function newLeague(season) {
-  const ids = ['user', ...CLUBS.map((c) => c.id)];
+/** National championship of the user's club country: the user's club replaces its base club. */
+function newLeague(season, country = 'FRA', baseClubId = null) {
+  const ids = ['user', ...CLUBS.filter((c) => c.country === country && c.id !== baseClubId).map((c) => c.id)];
   const table = {}; for (const id of ids) table[id] = { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
-  return { season, round: 0, rounds: roundRobin(ids), table, champion: null };
+  return { season, country, round: 0, rounds: roundRobin(ids), table, champion: null, name: (LEAGUES[country] || {}).game || 'League' };
 }
 
 // ---------------------------------------------------------------- state
@@ -181,7 +203,10 @@ function defaultState() {
     profile: { level: 1, xp: 0, matches: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, trophies: [], history: [] },
     currencies: { coins: 1000, gems: 10, tp: 300, medkits: 3, energy: 3, tokens: [1, 0, 0, 0] },
     recruits: 0,
-    club: { name: 'Aqua Lions', short: 'AQL', color: 0x1e5bd8, color2: 0xffffff, logo: { shape: 'shield', symbol: 'wave' }, pool: 'aqua', tactic: 'BALANCED' },
+    club: { name: 'Aqua Lions', short: 'AQL', city: 'Marseille', country: 'FRA', color: 0x1e5bd8, color2: 0xffffff, color3: 0x0b2348, logo: { shape: 'shield', symbol: 'wave', letters: 'AQL', pattern: 'none', border: 'single' },
+      kits: defaultKits(0x1e5bd8, 0xffffff, 0x0b2348), ball: 'classic', pool: 'aqua', tactic: 'BALANCED', formation: 'arc', baseClubId: null, customClubId: null, createdAt: Date.now() },
+    clubChosen: false,
+    tournaments: {},
     squad: generateSquad('user', 70),
     lineup: null,
     inventory: { owned: [], equipped: { cap: null, trim: null, celebration: null } },
@@ -207,6 +232,13 @@ export class GameState {
         // Saves made before the progression system: add the new fields.
         const c = raw.currencies; c.tp ??= 300; c.medkits ??= 3; c.energy ??= 3; c.tokens ??= [1, 0, 0, 0]; raw.recruits ??= 0;
         raw.squad.forEach(ensurePlayer);
+        // Saves made before the real-clubs system: club identity fields, league of the club's country.
+        const cl = raw.club, d = defaultState().club;
+        for (const k of ['city', 'country', 'color3', 'ball', 'formation', 'baseClubId', 'customClubId']) cl[k] ??= d[k];
+        cl.kits ??= defaultKits(cl.color, cl.color2, cl.color3); cl.logo.letters ??= cl.short; cl.logo.pattern ??= 'none'; cl.logo.border ??= 'single';
+        raw.tournaments ??= {}; raw.clubChosen ??= true;
+        const known = new Set(['user', ...CLUBS.map((x) => x.id)]);
+        if (!raw.league.country || Object.keys(raw.league.table).some((id) => !known.has(id))) raw.league = newLeague(raw.league.season || 1, cl.country, cl.baseClubId);
         return raw;
       }
     } catch { /* corrupted or unavailable storage: start fresh */ }
@@ -215,6 +247,162 @@ export class GameState {
   save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); } catch { /* private mode */ } this.listeners.forEach((f) => f()); }
   onChange(f) { this.listeners.add(f); return () => this.listeners.delete(f); }
   reset() { this.data = defaultState(); this.autoLineup(false); this.refreshDaily(); this.save(); }
+
+  // ------------------------------------------------ club choice (real club base -> own version)
+  /** Real club of the database (game identity). */
+  baseClub(id) { return CLUBS.find((c) => c.id === id) || null; }
+  /** Identity draft from a real club (for "JOUER AVEC" or as the starting point of "CRÉER MA VERSION"). */
+  draftFrom(baseId) {
+    const b = baseId ? this.baseClub(baseId) : null;
+    if (!b) { const d = defaultState().club; return { ...d, name: 'Mon Club', short: 'MON', logo: { ...d.logo, letters: 'MON' }, baseClubId: null }; }
+    return { name: b.name, short: b.short, city: b.city, country: b.country, color: b.color, color2: b.color2, color3: b.color3,
+      logo: { ...b.logo }, kits: JSON.parse(JSON.stringify(b.kits)), ball: 'classic', pool: 'aqua', tactic: 'BALANCED', formation: 'arc', baseClubId: b.id };
+  }
+  /**
+   * Starts the career with a club. mode 'with' = the club of the game as it is; 'version' = the user's own
+   * version (identity edited in the editor, kept with baseClubId). squad: 'start' (starting squad generated
+   * from the club level) or 'own' (younger squad + recruitment budget).
+   */
+  chooseClub(identity, { mode = 'with', squad = 'start' } = {}) {
+    const b = identity.baseClubId ? this.baseClub(identity.baseClubId) : null, rating = b ? b.rating - 2 : 68;
+    const club = { ...defaultState().club, ...identity, tactic: identity.tactic || 'BALANCED', createdAt: Date.now() };
+    club.customClubId = mode === 'version' || !b ? 'my-' + Date.now().toString(36) : null;
+    club.short = String(club.short || 'MON').toUpperCase().slice(0, 4); club.logo.letters ??= club.short;
+    this.data.club = club;
+    this.data.squad = generateSquad('user-' + (club.customClubId || b.id), squad === 'own' ? rating - 6 : rating);
+    if (squad === 'own') this.grant({ coins: 3000, tp: 600 });
+    this.autoLineup(false);
+    this.data.league = newLeague((this.data.league && this.data.league.season) || 1, club.country, club.baseClubId);
+    this.data.tournaments = {}; this.data.clubChosen = true; this.data.clubMode = mode; this.data.squadMode = squad;
+    this.save();
+  }
+  /** Saved custom club (MON CLUB), as stored in the local save. */
+  customClub() {
+    const c = this.data.club;
+    return { customClubId: c.customClubId, baseClubId: c.baseClubId, name: c.name, shortName: c.short, city: c.city, country: c.country,
+      colors: [c.color, c.color2, c.color3], logo: c.logo, homeKit: c.kits.home, awayKit: c.kits.away, capDesign: { cap: c.kits.home.cap, capTrim: c.kits.home.capTrim, number: c.kits.home.number }, ballDesign: c.ball, pool: c.pool };
+  }
+  /** Fictional budget of the club (career screen): from the club level, the results and the trophies. */
+  budget() { const pr = this.data.profile; return 400000 + pr.level * 60000 + pr.wins * 15000 + pr.trophies.length * 250000; }
+
+  // ------------------------------------------------ tournaments (national cups, continental, international)
+  tournamentTeams(def) {
+    const myBase = this.data.club.baseClubId;
+    let pool = CLUBS.filter((c) => c.id !== myBase && (!def.countries || def.countries.includes(c.country)));
+    pool.sort((a, b) => b.rating - a.rating);
+    if (def.skipTop) pool = pool.slice(def.skipTop);
+    let ids = ['user', ...pool.slice(0, def.size - 1).map((c) => c.id)];
+    // knockout: power of two; groups: multiple of the group size
+    if (def.format === 'ko') ids = ids.slice(0, 2 ** Math.floor(Math.log2(ids.length)));
+    if (def.format === 'groups') ids = ids.slice(0, Math.max(def.groupSize, ids.length - (ids.length % def.groupSize)));
+    return ids;
+  }
+  tournamentState(def) { const t = this.data.tournaments[def.id]; return t && t.season === this.data.league.season ? t : null; }
+  tournamentStatus(def) {
+    const pr = this.data.profile, t = this.tournamentState(def);
+    if (def.minLevel && pr.level < def.minLevel) return 'LOCKED';
+    if (!t) return 'AVAILABLE';
+    if (t.stage === 'done') return t.champion === 'user' ? 'WON' : 'OUT';
+    return 'ACTIVE';
+  }
+  startTournament(def) {
+    const ids = this.tournamentTeams(def), rng = new Rng((Date.now() & 0xffffff) ^ def.id.length);
+    for (let i = ids.length - 1; i > 1; i--) { const j = 1 + Math.floor(rng.f() * i); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+    const t = { id: def.id, season: this.data.league.season, stage: 'ko', round: 0, groups: [], ko: [], champion: null, log: [] };
+    if (def.format === 'groups') {
+      t.stage = 'groups';
+      const per = def.groupSize || 4;
+      for (let g = 0; g < ids.length / per; g++) {
+        const gi = ids.slice(g * per, g * per + per), table = {};
+        for (const id of gi) table[id] = { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+        t.groups.push({ ids: gi, rounds: roundRobin(gi), table });
+      }
+    } else if (def.format === 'league') {
+      t.stage = 'league'; const table = {}; for (const id of ids) table[id] = { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+      t.groups.push({ ids, rounds: roundRobin(ids), table });
+    } else t.ko = [this.pairUp(ids)];
+    this.data.tournaments[def.id] = t; this.save(); return t;
+  }
+  pairUp(ids) { const out = []; for (let i = 0; i < ids.length; i += 2) out.push({ a: ids[i], b: ids[i + 1], as: null, bs: null, winner: null }); return out; }
+  koRoundName(n) { return n === 2 ? 'final' : n === 4 ? 'semi' : n === 8 ? 'quarter' : 'r16'; }
+  /** The user's next match in a tournament: { opponent, label } or null. */
+  nextTournamentMatch(def) {
+    const t = this.tournamentState(def); if (!t || t.stage === 'done') return null;
+    if (t.stage === 'groups' || t.stage === 'league') {
+      const g = t.groups.find((x) => x.ids.includes('user')); if (t.round >= g.rounds.length) return null;
+      const f = g.rounds[t.round].find((x) => x.home === 'user' || x.away === 'user');
+      if (!f) return { opponent: null, bye: true, label: { kind: t.stage, n: t.round + 1, of: g.rounds.length } };
+      return { opponent: f.home === 'user' ? f.away : f.home, label: { kind: t.stage, n: t.round + 1, of: g.rounds.length } };
+    }
+    const r = t.ko[t.ko.length - 1], m = r.find((x) => x.a === 'user' || x.b === 'user');
+    return m && !m.winner ? { opponent: m.a === 'user' ? m.b : m.a, label: { kind: this.koRoundName(r.length * 2) } } : null;
+  }
+  simScore(home, away, rng, ko = false) {
+    const th = this.clubInfo(home).total, ta = this.clubInfo(away).total;
+    const goals = (atk, def) => { const lam = Math.max(1.5, 5 + (atk - def) * 0.18); let k = 0, p = Math.exp(-lam), s = p, u = rng.f(); while (u > s && k < 20) { k++; p *= lam / k; s += p; } return k; };
+    let hs = goals(th, ta), as = goals(ta, th), pens = null;
+    if (ko && hs === as) { pens = rng.f() < 0.5 + (th - ta) * 0.02 ? 'home' : 'away'; }
+    return { hs, as, pens };
+  }
+  /** Records the user's result (hs = user goals) and plays the rest of the round. */
+  playTournamentRound(def, hs, as) {
+    const t = this.tournamentState(def), rng = new Rng((Date.now() & 0xffffff) + t.round * 7 + t.ko.length * 31), out = { def: def.id };
+    const rec = (table, h, a, x, y) => { const H = table[h], A = table[a]; H.p++; A.p++; H.gf += x; H.ga += y; A.gf += y; A.ga += x;
+      if (x > y) { H.w++; A.l++; H.pts += 3; } else if (x < y) { A.w++; H.l++; A.pts += 3; } else { H.d++; A.d++; H.pts++; A.pts++; } };
+    if (t.stage === 'groups' || t.stage === 'league') {
+      for (const g of t.groups) {
+        for (const f of g.rounds[t.round] || []) {
+          if (f.home === 'user' || f.away === 'user') { if (f.home === 'user') { f.hs = hs; f.as = as; } else { f.hs = as; f.as = hs; } }
+          else { const r = this.simScore(f.home, f.away, rng); f.hs = r.hs; f.as = r.as; }
+          rec(g.table, f.home, f.away, f.hs, f.as);
+        }
+      }
+      t.round++;
+      const rounds = Math.max(...t.groups.map((g) => g.rounds.length));
+      if (t.round >= rounds) {
+        const sorted = t.groups.map((g) => this.sortTable(g.table));
+        if (t.stage === 'league') { t.stage = 'done'; t.champion = sorted[0][0]; }
+        else {
+          // top 2 of each group -> knockout (winners against runners-up of another group)
+          const q = [], G = sorted.length; for (let g = 0; g < G; g++) q.push(sorted[g][0], sorted[(g + 1) % G][1]);
+          t.stage = 'ko'; t.ko = [this.pairUp(q)]; out.qualified = q.includes('user');
+          if (!out.qualified) { this.finishTournamentSim(t, rng); }
+        }
+      }
+    } else {
+      const r = t.ko[t.ko.length - 1];
+      for (const m of r) {
+        if (m.winner) continue;
+        if (m.a === 'user' || m.b === 'user') {
+          const mine = hs, theirs = as; let pens = null;
+          if (mine === theirs) pens = rng.f() < 0.5 ? 'user' : 'opp';
+          m.as = m.a === 'user' ? mine : theirs; m.bs = m.a === 'user' ? theirs : mine;
+          m.winner = mine > theirs || pens === 'user' ? 'user' : m.a === 'user' ? m.b : m.a; m.pens = !!pens; out.pens = pens;
+        } else { const x = this.simScore(m.a, m.b, rng, true); m.as = x.hs; m.bs = x.as; m.winner = x.hs > x.as || x.pens === 'home' ? m.a : m.b; m.pens = !!x.pens; }
+      }
+      out.eliminated = !r.some((m) => m.winner === 'user');
+      if (r.length === 1) { t.stage = 'done'; t.champion = r[0].winner; }
+      else if (out.eliminated) this.finishTournamentSim(t, rng);
+      else t.ko.push(this.pairUp(r.map((m) => m.winner)));
+    }
+    if (t.stage === 'done') {
+      out.champion = t.champion === 'user';
+      if (out.champion) { this.data.profile.trophies.push({ name: def.id, season: t.season, date: Date.now() }); this.grant(def.reward); out.reward = def.reward; }
+    }
+    return out;
+  }
+  finishTournamentSim(t, rng) {
+    if (t.stage !== 'ko') t.stage = 'ko';
+    while (true) {
+      const r = t.ko[t.ko.length - 1];
+      for (const m of r) if (!m.winner) { const x = this.simScore(m.a, m.b, rng, true); m.as = x.hs; m.bs = x.as; m.winner = x.hs > x.as || x.pens === 'home' ? m.a : m.b; m.pens = !!x.pens; }
+      if (r.length === 1) { t.stage = 'done'; t.champion = r[0].winner; return; }
+      t.ko.push(this.pairUp(r.map((m) => m.winner)));
+    }
+  }
+  sortTable(table) {
+    return Object.entries(table).sort(([ia, a], [ib, b]) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || this.clubInfo(ia).name.localeCompare(this.clubInfo(ib).name)).map(([id]) => id);
+  }
 
   // ------------------------------------------------ squad / lineup / TOTAL
   get squad() { return this.data.squad; }
@@ -336,7 +524,7 @@ export class GameState {
 
   // ------------------------------------------------ teams for the match engine
   clubInfo(id) {
-    if (id === 'user') { const c = this.data.club; return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, logo: c.logo, total: this.teamTotal().total }; }
+    if (id === 'user') { const c = this.data.club; return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, country: c.country, city: c.city, competition: this.data.league.name, total: this.teamTotal().total }; }
     const c = CLUBS.find((x) => x.id === id);
     return { ...c, total: this.opponentTotal(id) };
   }
@@ -353,12 +541,12 @@ export class GameState {
       for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, ms[k] + b));
       return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id, look: lookOf(p) };
     };
-    return { id: 'user', name: c.name, short: c.short, color: c.color, tactic: c.tactic,
+    return { id: 'user', name: c.name, short: c.short, color: c.color, kits: c.kits, tactic: c.tactic, formation: c.formation,
       players: [toDef(this.player(L.gk), -1), ...L.slots.map((id, i) => toDef(this.player(id), i))] };
   }
   opponentTeamDef(id, rating) {
     const c = CLUBS.find((x) => x.id === id), sq = this.opponentSquad(id, rating).slice(0, 7);
-    return { id, name: c.name, short: c.short, color: c.color, tactic: TACTICS[[...id].length % TACTICS.length],
+    return { id, name: c.name, short: c.short, color: c.color, kits: c.kits, tactic: TACTICS[[...id].length % TACTICS.length],
       players: sq.map((p) => ({ name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot: p.slot ?? -1, look: lookOf(p) })) };
   }
 
@@ -502,8 +690,13 @@ export class GameState {
       if (out.league.finished) {
         lg.champion = this.standings()[0].id;
         if (lg.champion === 'user') { pr.trophies.push({ name: 'league', season: lg.season, date: Date.now() }); this.grant({ coins: 1000, gems: 25, token: 2 }); out.league.champion = true; }
-        this.data.league = newLeague(lg.season + 1);
+        this.data.league = newLeague(lg.season + 1, this.data.club.country, this.data.club.baseClubId);
       }
+    }
+    // Tournament
+    if (ctx.mode === 'tournament') {
+      const def = TOURNAMENTS.find((d) => d.id === ctx.tournamentId);
+      out.tournament = this.playTournamentRound(def, res.hs, res.as);
     }
     // Event
     if (ctx.mode === 'event') {

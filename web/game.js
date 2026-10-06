@@ -123,12 +123,28 @@ selArrow.renderOrder = 10; scene.add(selArrow);
 const passRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x4dff73, transparent: true, opacity: 0.8, depthWrite: false }));
 passRing.renderOrder = 5; scene.add(passRing);
 
+// ------------------------------------------------------------------ kits
+// Club kits (home / away / goalkeeper) -> Athlete options. Water polo: one team in dark caps, the other in
+// white / light caps; goalkeepers in red caps.
+const lum = (c) => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255; };
+function kitOptions(kit, gk, isGK, user) {
+  const cap = isGK ? gk.cap : (user && state.equippedColor('cap')) ?? kit.cap, trim = (user && state.equippedColor('trim')) ?? kit.suit2;
+  return { teamColor: kit.suit, suit2: kit.suit2, suitPattern: kit.pattern, trimColor: trim, capColor: cap,
+    capTrim: isGK ? gk.capTrim : kit.capTrim, numberColor: isGK ? gk.number : kit.number };
+}
+function matchKits(defA, defB) {
+  const fall = (d) => d.kits || { home: { suit: d.color, suit2: 0xffffff, pattern: 'plain', cap: d.color, capTrim: 0xffffff, number: 0xffffff }, away: { suit: 0xffffff, suit2: d.color, pattern: 'plain', cap: 0xf4f6f8, capTrim: d.color, number: d.color }, goalkeeper: { cap: 0xd81a1f, capTrim: 0xffffff, number: 0xffffff } };
+  const A = fall(defA), B = fall(defB);
+  const ka = A.home, kb = lum(ka.cap) > 0.55 ? (lum(B.home.cap) <= 0.55 ? B.home : { ...B.home, cap: 0x1b2f5a, number: 0xffffff }) : B.away;
+  return [{ kit: ka, gk: A.goalkeeper }, { kit: kb, gk: B.goalkeeper }];
+}
+
 // Menu hero: one athlete treading water in front of the camera while the quick-match screen is shown.
 let hero = null;
 function buildHero() {
   if (hero) scene.remove(hero.root);
   const c = state.data.club;
-  hero = new Athlete({ teamColor: c.color, capColor: state.equippedColor('cap') ?? c.color, trimColor: state.equippedColor('trim') ?? c.color2, number: 7, role: 'CENTER', isGK: false, seed: 7, preset });
+  hero = new Athlete({ ...kitOptions(c.kits.home, c.kits.goalkeeper, false, true), number: 7, role: 'CENTER', isGK: false, seed: 7, preset });
   scene.add(hero.root);
 }
 
@@ -283,13 +299,14 @@ let currentMove = { x: 0, y: 0, z: 0 };
 
 // ------------------------------------------------------------------ actors
 let athletes = [];
-const capColorFor = (m, p) => (p.isGK ? 0xd81a1f : p.team === 0 ? (state.equippedColor('cap') ?? m.teams[0].def.color) : 0xf2f4f7);
-const trimFor = (m, p) => (p.team === 0 ? (state.equippedColor('trim') ?? state.data.club.color2) : m.teams[1].def.color);
 function buildActors(m) {
   for (const a of athletes) scene.remove(a.root);
+  const kits = matchKits(m.teams[0].def, m.teams[1].def);
+  m.kits = kits;
   athletes = m.players.map((p) => {
-    // Appearance tied to the squad player (same face / body in the cards and every match).
-    const a = new Athlete({ teamColor: m.teams[p.team].def.color, capColor: capColorFor(m, p), trimColor: trimFor(m, p), number: p.number,
+    // Appearance tied to the squad player (same face / body in the cards and every match); kit of the club.
+    const K = kits[p.team];
+    const a = new Athlete({ ...kitOptions(K.kit, K.gk, p.isGK, p.team === 0 && m.teams[0].def.id === 'user'), number: p.number,
       role: p.role, bodyRole: p.look ? p.look.role : p.role, isGK: p.isGK, seed: p.look ? p.look.seed : p.id * 31 + p.team * 977 + 5, preset });
     a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
     a.onDrip = (x, y, z) => { vfx.drip(x, y, z); };
@@ -826,7 +843,7 @@ function resize() {
 const portraitCache = new Map();
 let portraitRig = null;
 function portraitFor(p, capColor) {
-  const key = `${p.id}|${capColor}|${p.number}|3`;
+  const K0 = state.data.club.kits.home, key = `${p.id}|${JSON.stringify(K0)}|${state.equippedColor('cap')}|${p.number}|4`;
   if (portraitCache.has(key)) return portraitCache.get(key);
   if (!portraitRig) {
     const sc = new THREE.Scene();
@@ -839,7 +856,8 @@ function portraitFor(p, capColor) {
     portraitRig = { sc, rt, cam: new THREE.PerspectiveCamera(24, 160 / 200, 0.05, 10), cv, buf: new Uint8Array(160 * 200 * 4) };
   }
   const R = portraitRig, look = lookOf(p), gk = p.role === 'GOALKEEPER';
-  const a = new Athlete({ teamColor: state.data.club.color, capColor: gk ? 0xd81a1f : capColor, trimColor: state.equippedColor('trim') ?? state.data.club.color2, number: p.number,
+  const K = state.data.club.kits;
+  const a = new Athlete({ ...kitOptions(K.home, K.goalkeeper, gk, true), number: p.number,
     role: p.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset: { ...PRESETS.ULTRA } });
   a.root.position.y = 0.25; R.sc.add(a.root);
   const st = { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 0.6, 3), receive: false };

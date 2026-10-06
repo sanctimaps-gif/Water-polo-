@@ -18,7 +18,7 @@ ok(st.teamTotal().total >= t.total, `MEILLEUR TOTAL restores the best lineup (${
 // position bonus reaches the match engine
 const def = st.userTeamDef(), p0 = st.player(st.lineup.slots[5]);
 ok(def.players[6].stats.physical === Math.min(99, matchStats(p0).physical + st.slotBonus(p0, 5)), 'match stats include skills, form and the position bonus');
-const m = new Match({ seed: 1, humanTeam: 0 }, def, st.opponentTeamDef('sharks')); m.start(); for (let i = 0; i < 200; i++) m.step();
+const m = new Match({ seed: 1, humanTeam: 0 }, def, st.opponentTeamDef('recco')); m.start(); for (let i = 0; i < 200; i++) m.step();
 ok(m.teams[0].def.name === st.data.club.name, 'match uses the club and its lineup');
 
 // PROGRESSION — training costs training points and raises the rating, up to the cap of the quality tier
@@ -40,21 +40,22 @@ ok(st.trade([benchP.id]) === val && st.squad.length === n0 - 1 && st.data.curren
 // career stats + form after a match: starters get the match stats and tire, the bench recovers
 { const st = new GameState(); const sId = st.lineup.slots[2], s = st.player(sId), b = st.bench()[0], g0 = s.career.goals, m0 = s.career.matches, f0 = s.form, bf = (b.form = 50);
   const zero = { goals: 0, passes: 0, passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 };
-  st.applyResult({ mode: 'quick', opponent: 'sharks' }, { hs: 2, as: 1, stats: zero, players: { [sId]: { goals: 2, assists: 1, shots: 3, steals: 0, saves: 0, passes: 4 } } });
+  st.applyResult({ mode: 'quick', opponent: 'recco' }, { hs: 2, as: 1, stats: zero, players: { [sId]: { goals: 2, assists: 1, shots: 3, steals: 0, saves: 0, passes: 4 } } });
   ok(s.career.goals === g0 + 2 && s.career.matches === m0 + 1 && s.form === Math.max(0, f0 - 12) && b.form === bf + 15, 'career stats and form updated after a match'); }
 // recruit (coins) adds a player
 st.data.currencies.coins += 5000; const nr = st.squad.length, rec = st.recruit();
 ok(rec && st.squad.length === nr + 1 && rec.form === 100 && rec.skills.length === 2, 'scouting adds a new player with skills');
 
-// league season: 7 rounds, table consistent
-for (let r = 0; r < 7; r++) {
+// league season (championship of the club's country), table consistent
+const R = st.data.league.rounds.length, NT = Object.keys(st.data.league.table).length, M0 = st.data.profile.matches, W0 = st.data.profile.wins;
+for (let r = 0; r < R; r++) {
   const nm = st.nextLeagueMatch(); ok(!!nm, `league round ${r + 1} has a fixture vs ${nm && nm.opponent}`);
   const out = st.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 5, as: 3, stats: { passesOk: 20, steals: 2, interceptions: 1, saves: 4, shots: 10 } });
-  if (r < 6) { const rows = st.standings(); ok(rows.reduce((a, x) => a + x.p, 0) === 8 * (r + 1), 'every club played the round'); ok(rows.reduce((a, x) => a + x.gf, 0) === rows.reduce((a, x) => a + x.ga, 0), 'goals for = goals against'); }
-  if (r === 6) ok(out.league.finished, `season finished, user ${out.league.champion ? 'champion' : 'pos ' + out.league.position}`);
+  if (r < R - 1) { const rows = st.standings(); ok(rows.reduce((a, x) => a + x.p, 0) === (NT - NT % 2) * (r + 1), 'every club played the round'); ok(rows.reduce((a, x) => a + x.gf, 0) === rows.reduce((a, x) => a + x.ga, 0), 'goals for = goals against'); }
+  if (r === R - 1) ok(out.league.finished, `season finished, user ${out.league.champion ? 'champion' : 'pos ' + out.league.position}`);
 }
 ok(st.data.league.season === 2 && st.data.league.round === 0, 'new season starts');
-ok(st.data.profile.matches === 7 && st.data.profile.wins === 7, 'profile counts matches and wins');
+ok(st.data.profile.matches === M0 + R && st.data.profile.wins === W0 + R, 'profile counts matches and wins');
 
 // objectives progress from match stats and pay out once
 const ob = st.data.objectives.list.find((o) => o.progress >= o.n && !o.claimed);
@@ -76,4 +77,19 @@ for (let i = 0; i < ev.matches; i++) st.applyResult({ mode: 'event', eventId: ev
 es = st.eventState(ev); ok(es.status === 'CLAIMABLE', 'event completed -> claimable');
 const c1 = st.data.currencies.coins; st.claimEvent(ev); ok(st.data.currencies.coins === c1 + ev.reward.coins && st.eventState(ev).status === 'COMPLETED', 'event reward granted once');
 ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.length > 0, 'gala locked without trophy');
+// REAL CLUBS: reference data kept apart from the game identity; the adapted name is what the game shows
+{ const { CLUBS, TOURNAMENTS } = await import('../../web/state.js'); const db = (await import('../../web/data/clubs.js')).default;
+  ok(db.clubs.length >= 40 && db.clubs.every((c) => c.source && c.source.length && c.lastUpdated && c.officialReferenceName && c.gameClubName && c.gameClubName !== c.officialReferenceName),
+    `${db.clubs.length} real clubs: sources kept, every displayed name adapted`);
+  ok(CLUBS.every((c) => c.name === db.clubs.find((d) => d.id === c.id).gameClubName), 'the game uses gameClubName');
+  ok(new Set(CLUBS.map((c) => c.short)).size === CLUBS.length, 'short names unique');
+  const st2 = new GameState(); const draft = st2.draftFrom('marseille'); draft.name = 'Marseille Aqua 26'; draft.short = 'MA26';
+  st2.chooseClub(draft, { mode: 'version' });
+  ok(st2.data.club.name === 'Marseille Aqua 26' && st2.data.club.baseClubId === 'marseille' && st2.data.club.customClubId && !Object.keys(st2.data.league.table).includes('marseille') && st2.data.league.country === 'FRA',
+    'CRÉER MA VERSION: own name, baseClubId kept, replaces its base club in its national league');
+  const cc = st2.customClub(); ok(cc.homeKit && cc.awayKit && cc.capDesign && cc.ballDesign && cc.baseClubId === 'marseille', 'custom club saved with kits, cap, ball');
+  // tournaments: every format runs to a champion
+  st2.data.profile.level = 20; let okAll = true;
+  for (const def of TOURNAMENTS) { st2.startTournament(def); let n = 0; while (st2.nextTournamentMatch(def) && n < 30) { st2.playTournamentRound(def, 9, 2); n++; } const t = st2.tournamentState(def); okAll = okAll && t.stage === 'done' && t.champion === 'user'; }
+  ok(okAll, `${TOURNAMENTS.length} tournaments (cups, regional, continental, international) played to the end`); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

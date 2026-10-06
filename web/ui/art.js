@@ -6,6 +6,9 @@ const SHAPES = {
   shield: 'M50 4 L92 16 L88 58 Q82 84 50 98 Q18 84 12 58 L8 16 Z',
   circle: 'M50 4 A46 46 0 1 1 49.9 4 Z',
   hex: 'M50 3 L92 27 L92 73 L50 97 L8 73 L8 27 Z',
+  roundel: 'M50 6 A44 44 0 1 1 49.9 6 Z',
+  diamond: 'M50 3 L95 50 L50 97 L5 50 Z',
+  pennant: 'M10 6 H90 V62 L50 96 L10 62 Z',
 };
 const SYMBOLS = {
   wave: '<path d="M18 58 Q30 44 42 58 T66 58 T86 52" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><path d="M22 72 Q34 60 46 72 T70 72" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" opacity=".7"/><circle cx="62" cy="34" r="11" fill="currentColor"/>',
@@ -13,18 +16,34 @@ const SYMBOLS = {
   trident: '<path d="M50 22 V80 M32 30 V46 Q32 56 50 56 Q68 56 68 46 V30" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M50 14 L44 26 H56 Z M32 22 L27 33 H37 Z M68 22 L63 33 H73 Z" fill="currentColor"/>',
   fin: '<path d="M22 70 Q48 64 60 22 Q66 52 82 70 Z" fill="currentColor"/><path d="M16 78 Q34 70 50 78 T84 78" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>',
   star: '<path d="M50 20 L58 42 L82 42 L63 56 L70 79 L50 65 L30 79 L37 56 L18 42 L42 42 Z" fill="currentColor"/>',
+  goal: '<path d="M22 70 V36 H78 V70" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/><path d="M28 42 H72 M28 52 H72 M28 62 H72 M38 36 V70 M50 36 V70 M62 36 V70" stroke="currentColor" stroke-width="2.5" opacity=".7"/><circle cx="68" cy="28" r="9" fill="currentColor"/>',
+  drop: '<path d="M50 18 Q72 46 72 60 A22 22 0 0 1 28 60 Q28 46 50 18 Z" fill="currentColor"/><path d="M40 62 A10 10 0 0 0 50 72" fill="none" stroke="#fff" stroke-width="4" opacity=".5"/>',
   crown: '<path d="M22 70 L26 34 L40 50 L50 26 L60 50 L74 34 L78 70 Z" fill="currentColor"/><rect x="22" y="72" width="56" height="8" rx="3" fill="currentColor"/>',
 };
 export const LOGO_SHAPES = Object.keys(SHAPES);
-export const LOGO_SYMBOLS = ['wave', 'ball', 'trident', 'fin', 'star'];
+export const LOGO_SYMBOLS = ['wave', 'ball', 'trident', 'fin', 'star', 'goal', 'drop', 'letters'];
+export const LOGO_PATTERNS = ['none', 'halves', 'stripe', 'ring'];
+const escT = (t) => String(t || '').replace(/[^A-Za-z0-9À-ÿ]/g, '').slice(0, 4).toUpperCase();
 
-export function logoSvg(logo, color, color2, size = 48) {
-  const shape = SHAPES[logo.shape] || SHAPES.shield, sym = SYMBOLS[logo.symbol] || SYMBOLS.wave;
+/** Original club logo: shape + pattern + symbol (or letters) + border, in up to 3 colours. */
+export function logoSvg(logo, color, color2, size = 48, color3) {
+  const shapeKey = SHAPES[logo.shape] ? logo.shape : 'shield', shape = SHAPES[shapeKey], c1 = hex(color), c2 = hex(color2), c3 = hex(color3 ?? color2);
+  const id = `lg${size}${shapeKey}${(logo.pattern || 'n')[0]}${Math.random().toString(36).slice(2, 7)}`;
+  const pat = logo.pattern === 'halves' ? `<rect x="50" y="0" width="50" height="100" fill="${c3}" opacity=".9"/>`
+    : logo.pattern === 'stripe' ? `<rect x="40" y="0" width="20" height="100" fill="${c3}" opacity=".9"/>`
+    : logo.pattern === 'ring' ? `<circle cx="50" cy="52" r="30" fill="none" stroke="${c3}" stroke-width="6" opacity=".9"/>` : '';
+  const letters = escT(logo.letters);
+  const sym = logo.symbol === 'letters'
+    ? `<text x="50" y="${letters.length > 3 ? 62 : 64}" text-anchor="middle" font-family="'Barlow Condensed', Arial, sans-serif" font-weight="800" font-size="${letters.length > 3 ? 26 : letters.length === 3 ? 32 : 40}" fill="currentColor" stroke="#0006" stroke-width="1">${letters}</text>`
+    : (SYMBOLS[logo.symbol] || SYMBOLS.wave);
+  const border = logo.border === 'double' ? `<path d="${shape}" fill="none" stroke="${c2}" stroke-width="3" transform="translate(50 50) scale(.86) translate(-50 -50)"/>` : '';
   return `<svg class="logo" width="${size}" height="${size}" viewBox="0 0 100 100" aria-hidden="true">
-    <defs><linearGradient id="lg${size}${logo.shape}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient></defs>
-    <path d="${shape}" fill="${hex(color)}" stroke="${hex(color2)}" stroke-width="5"/>
-    <path d="${shape}" fill="url(#lg${size}${logo.shape})"/>
-    <g style="color:${hex(color2)}">${sym}</g></svg>`;
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
+    <clipPath id="${id}c"><path d="${shape}"/></clipPath></defs>
+    <path d="${shape}" fill="${c1}"/>
+    <g clip-path="url(#${id}c)">${pat}</g>
+    <path d="${shape}" fill="url(#${id})" stroke="${c2}" stroke-width="5"/>${border}
+    <g style="color:${c2}">${sym}</g></svg>`;
 }
 
 const I = {

@@ -295,3 +295,27 @@ html { font-size: clamp(11px, 3.25vh, 22px); }
 .sw.pick { padding: 0; width: 1.8rem; height: 1.8rem; background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); cursor: pointer; }
 .ch { color: #fff; display: flex; flex-direction: column; align-items: center; gap: .1rem; } .ch.wide { padding: .3rem .6rem; } .ch small { font-size: .65rem; color: #9fb4cc; }
 .cht { font-size: .7rem; font-weight: 800; }
+
+/* ---------- tournaments ---------- */
+.t-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem .8rem; align-content: start; }
+.t-sec h3 { margin: 0 0 .25rem; font-size: .9rem; color: var(--gold); letter-spacing: .1em; } .t-list { display: flex; flex-direction: column; gap: .3rem; }
+.t-card { display: flex; align-items: center; gap: .5rem; padding: .3rem .5rem; background: linear-gradient(120deg, var(--c1), var(--c2)); border: 2px solid #ffffff40;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - .6rem), calc(100% - .6rem) 100%, 0 100%); }
+.t-card.locked { filter: grayscale(.8) brightness(.7); } .t-card.active { border-color: var(--gold); box-shadow: inset 0 0 1rem #f2c81a55; }
+.t-trophy svg { width: 2.6rem; height: 2.6rem; } .t-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.t-txt b { font-size: 1.02rem; text-transform: uppercase; } .t-txt small { font-size: .72rem; display: flex; gap: .2rem; align-items: center; flex-wrap: wrap; }
+.ev-lock.gold { color: var(--gold); }
+.tour { flex: 1; display: grid; grid-template-columns: 19rem 1fr; grid-template-rows: 1fr auto; gap: .7rem; min-height: 0; }
+.tour-left { display: flex; flex-direction: column; gap: .4rem; min-height: 0; } .tour-left h1 { margin: 0; font-size: 1.5rem; }
+.t-next .mc-team .logo { width: 4rem; height: 4rem; }
+.t-info { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .8rem; background: #152033; border: 2px solid var(--edge); text-align: center; }
+.t-info.champ { border-color: var(--gold); } .t-info.champ > span { display: flex; align-items: center; gap: .4rem; font-weight: 800; font-size: 1.1rem; }
+.t-info.champ .logo { width: 3rem; height: 3rem; }
+.tour-right { min-height: 0; overflow: auto; display: flex; flex-wrap: wrap; gap: .5rem; align-content: flex-start; }
+.table.small { width: auto; flex: 1 1 15rem; font-size: .8rem; } .table.small .logo { width: 1.1rem; height: 1.1rem; } .table tr.q td:first-child { box-shadow: inset 3px 0 0 var(--green); }
+.bracket { display: flex; gap: .6rem; width: 100%; } .b-col { display: flex; flex-direction: column; justify-content: space-around; gap: .35rem; flex: 1; min-width: 9rem; }
+.b-col h4 { margin: 0; font-size: .75rem; color: var(--gold); letter-spacing: .08em; }
+.b-m { background: #121c2c; border: 2px solid var(--edge); } .b-m.me { border-color: var(--cyan); }
+.b-t { display: flex; align-items: center; gap: .3rem; padding: .1rem .3rem; font-size: .75rem; } .b-t span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-t .logo { width: 1rem; height: 1rem; flex: none; } .b-t.w { font-weight: 800; } .b-t.l { opacity: .55; } .b-t b { min-width: 1.2rem; text-align: right; }
+.b-m.tbd { opacity: .45; border-style: dashed; }

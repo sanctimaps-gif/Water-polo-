@@ -2,6 +2,14 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'tour.title': 'TOURNOIS', 'tour.note': 'Formats inspirés des compétitions réelles (coupes nationales, ligue régionale, coupes d’Europe, tournois internationaux). Noms adaptés, aucune marque officielle.',
+    'tour.s_national': 'COUPES NATIONALES', 'tour.s_regional': 'RÉGIONAL', 'tour.s_continental': 'CONTINENTAL', 'tour.s_international': 'INTERNATIONAL',
+    'tour.f_ko': 'Élimination directe · {0} clubs', 'tour.f_groups': 'Groupes + phase finale · {0} clubs', 'tour.f_league': 'Ligue · {0} clubs',
+    'tour.only': 'Clubs {0} uniquement', 'tour.won': 'VAINQUEUR', 'tour.out': 'ÉLIMINÉ', 'tour.view': 'VOIR', 'tour.enter': 'PARTICIPER', 'tour.champ': 'Vainqueur : {0}',
+    'tour.group_day': 'Phase de groupes · journée {0}/{1}', 'tour.league_day': 'Journée {0}/{1}', 'tour.final': 'FINALE', 'tour.semi': 'DEMI-FINALES', 'tour.quarter': 'QUARTS DE FINALE', 'tour.r16': 'HUITIÈMES',
+    'tour.bye': 'Journée de repos pour ton club', 'tour.sim_day': 'SIMULER LA JOURNÉE', 'tour.champion': 'VAINQUEUR', 'tour.next_season': 'Nouvelle édition la saison prochaine.',
+    'tour.group': 'GROUPE {0}', 'tour.pens': 'vainqueur aux tirs au but', 'tour.pens_won': 'Qualifié aux tirs au but !', 'tour.pens_lost': 'Éliminé aux tirs au but.',
+    'tour.champion_reward': 'VAINQUEUR DU TOURNOI ! {0}', 'tour.eliminated': 'Éliminé du tournoi.', 'tour.qualified': 'Qualifié pour la phase finale !',
     'club.choose': 'CHOISIS TON CLUB', 'club.real': 'CLUBS RÉELS', 'club.create': 'CRÉER MON CLUB', 'club.all': 'TOUS', 'club.start': 'CLUB DE DÉPART',
     'club.country': 'PAYS', 'club.city': 'VILLE', 'club.league': 'CHAMPIONNAT', 'club.rating': 'NOTE', 'club.play_with': 'JOUER AVEC CE CLUB', 'club.my_version': 'CRÉER MA VERSION',
     'club.pick_hint': 'Touche un club pour voir sa fiche. Les clubs s’inspirent de clubs réels (sources publiques) avec un nom adapté, un logo et des maillots originaux du jeu.',
@@ -72,6 +80,14 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'tour.title': 'TOURNAMENTS', 'tour.note': 'Formats inspired by real competitions (national cups, regional league, European cups, international tournaments). Adapted names, no official marks.',
+    'tour.s_national': 'NATIONAL CUPS', 'tour.s_regional': 'REGIONAL', 'tour.s_continental': 'CONTINENTAL', 'tour.s_international': 'INTERNATIONAL',
+    'tour.f_ko': 'Knockout · {0} clubs', 'tour.f_groups': 'Groups + finals · {0} clubs', 'tour.f_league': 'League · {0} clubs',
+    'tour.only': '{0} clubs only', 'tour.won': 'WINNER', 'tour.out': 'KNOCKED OUT', 'tour.view': 'VIEW', 'tour.enter': 'ENTER', 'tour.champ': 'Winner: {0}',
+    'tour.group_day': 'Group stage · matchday {0}/{1}', 'tour.league_day': 'Matchday {0}/{1}', 'tour.final': 'FINAL', 'tour.semi': 'SEMI-FINALS', 'tour.quarter': 'QUARTER-FINALS', 'tour.r16': 'ROUND OF 16',
+    'tour.bye': 'Your club rests this matchday', 'tour.sim_day': 'SIMULATE MATCHDAY', 'tour.champion': 'WINNER', 'tour.next_season': 'New edition next season.',
+    'tour.group': 'GROUP {0}', 'tour.pens': 'won on penalties', 'tour.pens_won': 'Through on penalties!', 'tour.pens_lost': 'Out on penalties.',
+    'tour.champion_reward': 'TOURNAMENT WINNER! {0}', 'tour.eliminated': 'Knocked out of the tournament.', 'tour.qualified': 'Qualified for the finals!',
     'club.choose': 'CHOOSE YOUR CLUB', 'club.real': 'REAL CLUBS', 'club.create': 'CREATE MY CLUB', 'club.all': 'ALL', 'club.start': 'STARTING CLUB',
     'club.country': 'COUNTRY', 'club.city': 'CITY', 'club.league': 'LEAGUE', 'club.rating': 'RATING', 'club.play_with': 'PLAY WITH THIS CLUB', 'club.my_version': 'CREATE MY VERSION',
     'club.pick_hint': 'Tap a club to see its card. Clubs are inspired by real clubs (public sources) with an adapted name and the game’s own logo and kits.',

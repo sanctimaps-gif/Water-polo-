@@ -1,5 +1,5 @@
 // WATER POLO 26 MOBILE — front-end screens (landscape only). Every value comes from GameState.
-import { EVENTS, SHOP_ITEMS, CLUBS, POOLS, LEAGUES, COUNTRY_LEAGUES, BALL_DESIGNS, defaultKits, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
+import { EVENTS, SHOP_ITEMS, TOURNAMENTS, CLUBS, POOLS, LEAGUES, COUNTRY_LEAGUES, BALL_DESIGNS, defaultKits, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
 import { TACTICS } from '../sim.js';
 import { logoSvg, icon, trophySvg, LOGO_SHAPES, LOGO_SYMBOLS, LOGO_PATTERNS } from './art.js';
 
@@ -268,6 +268,60 @@ export class App {
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
+  // ------------------------------------------------------------------ tournaments (national cups, regional, continental, international)
+  tName(def) { return def.name; }
+  tFormat(def) { return this.L('tour.f_' + def.format, def.size); }
+  scr_tournaments() {
+    const st = this.st, scopes = ['national', 'regional', 'continental', 'international'];
+    const card = (def) => {
+      const s = st.tournamentStatus(def), t = st.tournamentState(def), mine = def.scope !== 'national' || def.country === st.data.club.country;
+      const [c1, c2] = { national: ['#1a6fd8', '#0b2a63'], regional: ['#19b7c9', '#0a4a66'], continental: ['#c42aa8', '#3b0f5a'], international: ['#f2b705', '#5a3a00'] }[def.scope];
+      let action;
+      if (!mine) action = `<span class="ev-lock">${icon('lock', 16)} ${this.L('tour.only', flag(def.country) + ' ' + def.country)}</span>`;
+      else if (s === 'LOCKED') action = `<span class="ev-lock">${icon('lock', 16)} ${this.L('ui.need_level', def.minLevel)}</span>`;
+      else if (s === 'WON') action = `<span class="ev-lock gold">${icon('trophy', 16)} ${this.L('tour.won')}</span>`;
+      else if (s === 'OUT') action = `<button class="btn small" data-act="tour-open" data-arg="${def.id}">${this.L('tour.out')} · ${this.L('tour.view')}</button>`;
+      else action = `<button class="btn play small" data-act="tour-open" data-arg="${def.id}">${s === 'ACTIVE' ? this.L('ui.continue') : this.L('tour.enter')}</button>`;
+      return `<article class="t-card ${!mine || s === 'LOCKED' ? 'locked' : ''} ${s === 'ACTIVE' ? 'active' : ''}" style="--c1:${c1};--c2:${c2}">
+        <div class="t-trophy">${trophySvg(def.scope === 'international' ? '#ffe680' : '#e8eef6', def.scope === 'international' ? '#8a6a00' : '#7a8aa0', 44)}</div>
+        <div class="t-txt"><b>${esc(this.tName(def))}</b><small>${def.countries ? def.countries.map((c) => flag(c)).join(' ') : '🌍'} · ${this.tFormat(def)}</small>
+        <small>${s === 'ACTIVE' && t ? this.tStage(def, t) : this.reward(def.reward)}</small></div>${action}</article>`;
+    };
+    const sections = scopes.map((sc) => {
+      const list = TOURNAMENTS.filter((d) => d.scope === sc).sort((a, b) => (b.country === st.data.club.country) - (a.country === st.data.club.country));
+      return `<section class="t-sec"><h3>${this.L('tour.s_' + sc)}</h3><div class="t-list">${list.map(card).join('')}</div></section>`;
+    }).join('');
+    return `<div class="panel-screen"><h1>${this.L('tour.title')}</h1><p class="sub">${this.L('tour.note')}</p><div class="t-grid">${sections}</div><footer class="bar">${this.backBtn()}</footer></div>`;
+  }
+  tStage(def, t) {
+    if (t.stage === 'done') return t.champion === 'user' ? this.L('tour.won') : this.L('tour.champ', esc(this.st.clubInfo(t.champion).name));
+    if (t.stage === 'groups') return this.L('tour.group_day', t.round + 1, t.groups[0].rounds.length);
+    if (t.stage === 'league') return this.L('tour.league_day', t.round + 1, t.groups[0].rounds.length);
+    return this.L('tour.' + this.st.koRoundName(t.ko[t.ko.length - 1].length * 2));
+  }
+  scr_tournament({ id }) {
+    const st = this.st, def = TOURNAMENTS.find((d) => d.id === id), t = st.tournamentState(def), me = st.clubInfo('user');
+    const nm = st.nextTournamentMatch(def), team = (cid, size = 20) => { const c = st.clubInfo(cid); return `${logoSvg(c.logo, c.color, c.color2, size, c.color3)}<span>${esc(c.name)}</span>`; };
+    let left;
+    if (nm && nm.opponent) { const opp = st.clubInfo(nm.opponent);
+      left = `<button class="match-card t-next" data-act="tour-play" data-arg="${id}"><div class="mc-head"><b>${esc(def.name)}</b><small>${this.tStage(def, t)}</small></div>
+        <div class="mc-vs"><div class="mc-team">${logoSvg(me.logo, me.color, me.color2, 70, me.color3)}<span class="mc-name">${esc(me.name)}</span><span class="pill">${me.total}</span></div><div class="vs">${this.L('ui.vs')}</div>
+        <div class="mc-team">${logoSvg(opp.logo, opp.color, opp.color2, 70, opp.color3)}<span class="mc-name">${esc(opp.name)}</span><span class="pill">${opp.total}</span></div></div>
+        <div class="mc-play">${icon('play', 20)} ${this.L('ui.play')}</div></button>`; }
+    else if (nm && nm.bye) left = `<div class="t-info"><b>${this.L('tour.bye')}</b><button class="btn cyan" data-act="tour-bye" data-arg="${id}">${this.L('tour.sim_day')}</button></div>`;
+    else if (t && t.stage === 'done') left = `<div class="t-info champ">${trophySvg('#ffe680', '#8a6a00', 90)}<b>${this.L('tour.champion')}</b>${team(t.champion, 54)}
+      ${t.champion === 'user' ? `<span>${this.reward(def.reward)}</span>` : ''}<small class="sub">${this.L('tour.next_season')}</small></div>`;
+    else left = `<div class="t-info"><b>${this.L('tour.out')}</b></div>`;
+    const tables = t ? t.groups.map((g, gi) => `<table class="table small"><thead><tr><th class="l">${t.groups.length > 1 ? this.L('tour.group', String.fromCharCode(65 + gi)) : this.L('ui.ranking')}</th><th>${this.L('ui.p')}</th><th>${this.L('ui.gd')}</th><th>${this.L('ui.pts')}</th></tr></thead><tbody>
+      ${st.sortTable(g.table).map((cid, i) => { const r = g.table[cid]; return `<tr class="${cid === 'user' ? 'me' : ''} ${t.groups.length > 1 && i < 2 ? 'q' : ''}"><td class="l">${i + 1}. ${team(cid)}</td><td>${r.p}</td><td>${r.gf - r.ga > 0 ? '+' : ''}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`; }).join('')}</tbody></table>`).join('') : '';
+    const later = []; if (t && t.ko.length && t.stage !== 'done') for (let n = t.ko[t.ko.length - 1].length / 2; n >= 1; n /= 2) later.push(n);
+    const bracket = t && t.ko.length ? `<div class="bracket">${t.ko.map((r) => `<div class="b-col"><h4>${this.L('tour.' + st.koRoundName(r.length * 2))}</h4>
+      ${r.map((m) => `<div class="b-m ${m.a === 'user' || m.b === 'user' ? 'me' : ''}">${[['a', 'as'], ['b', 'bs']].map(([k, sk]) => `<div class="b-t ${m.winner === m[k] ? 'w' : m.winner ? 'l' : ''}">${team(m[k], 16)}<b>${m[sk] ?? ''}${m.pens && m.winner === m[k] ? '*' : ''}</b></div>`).join('')}</div>`).join('')}</div>`).join('')}${later.map((n) => `<div class="b-col"><h4>${this.L('tour.' + st.koRoundName(n * 2))}</h4>${'<div class="b-m tbd"><div class="b-t"><span>?</span></div><div class="b-t"><span>?</span></div></div>'.repeat(n)}</div>`).join('')}</div>
+      ${t.ko.some((r) => r.some((m) => m.pens)) ? `<small class="sub">* ${this.L('tour.pens')}</small>` : ''}` : '';
+    return `<div class="tour"><div class="tour-left"><h1>${esc(def.name)}</h1><p class="sub">${def.countries ? def.countries.map((c) => flag(c)).join(' ') : '🌍'} · ${this.tFormat(def)} · ${this.reward(def.reward)}</p>${left}</div>
+      <div class="tour-right">${tables}${bracket}</div><footer class="bar">${this.backBtn()}</footer></div>`;
+  }
+
   // ------------------------------------------------------------------ CHOISIS TON CLUB (real clubs, adapted identity)
   /** Real clubs of the database shown with their GAME identity (adapted name, original logo, game rating).
    *  The official reference data (name, competition, sources) only appears in the ⓘ panel, labelled as such. */
@@ -435,12 +489,17 @@ export class App {
     for (const id of s.objectives) notes.push(this.L('ui.objective_done', this.L('obj.' + id, this.st.data.objectives.list.find((o) => o.id === id)?.n ?? '')));
     if (s.league) notes.push(s.league.champion ? this.L('ui.champion') : this.L('ui.league_pos', s.league.position));
     if (s.event) notes.push(this.L('ui.event_progress', s.event.progress, s.event.total));
+    if (s.tournament) { const T = s.tournament;
+      if (T.pens) notes.push(this.L(T.pens === 'user' ? 'tour.pens_won' : 'tour.pens_lost'));
+      if (T.champion) notes.push(this.L('tour.champion_reward', this.reward(T.reward).replace(/<[^>]+>/g, ' ')));
+      else if (T.eliminated || T.qualified === false) notes.push(this.L('tour.eliminated'));
+      else if (T.qualified) notes.push(this.L('tour.qualified')); }
     return `<div class="results ${hs > as ? 'win' : hs < as ? 'loss' : 'draw'}"><h1>${this.L(title)}</h1>
       <div class="res-score"><span>${esc(this.st.data.club.short)}</span><b>${hs} - ${as}</b><span>${esc(opponent)}</span></div>
       <div class="res-body"><div class="res-stats">${rows.map(([x, k, y]) => `<div class="sr"><b>${x}</b><span>${this.L(k)}</span><b>${y}</b></div>`).join('')}</div>
       <div class="res-rew"><div class="rw">${icon('coin', 30)}<b>+${s.coins}</b></div><div class="rw">${icon('star', 30)}<b>+${s.xp} ${this.L('ui.xp')}</b></div><div class="rw">${icon('dumbbell', 30)}<b>+${s.tp}</b></div>${s.medkits ? `<div class="rw">${icon('medkit', 30)}<b>+${s.medkits}</b></div>` : ''}
       ${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div></div>
-      <button class="btn play big" data-act="home">${this.L('ui.continue')}</button></div>`;
+      <button class="btn play big" data-act="${s.tournament ? 'tour-back' : 'home'}" data-arg="${s.tournament ? s.tournament.def : ''}">${this.L('ui.continue')}</button></div>`;
   }
 
   // ------------------------------------------------------------------ actions
@@ -497,6 +556,10 @@ export class App {
       case 'prematch-event': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }
       case 'quick': { const c = CLUBS[Math.floor(Math.random() * CLUBS.length)]; this.show('prematch', { mode: 'quick', opponent: c.id, title: this.L('ui.quick') }); break; }
       case 'go': this.hide(); this.api.startMatch(this.current.params); break;
+      case 'tour-open': { const def = TOURNAMENTS.find((d) => d.id === arg); if (!st.tournamentState(def)) st.startTournament(def); this.show('tournament', { id: arg }); break; }
+      case 'tour-play': { const def = TOURNAMENTS.find((d) => d.id === arg), nm = st.nextTournamentMatch(def); if (nm && nm.opponent) this.show('prematch', { mode: 'tournament', tournamentId: arg, opponent: nm.opponent, title: `${def.name} · ${this.tStage(def, st.tournamentState(def))}` }); break; }
+      case 'tour-back': this.stack = [{ name: 'home', params: {} }, { name: 'tournaments', params: {} }]; this.show('tournament', { id: arg }, false); break;
+      case 'tour-bye': { const def = TOURNAMENTS.find((d) => d.id === arg); st.playTournamentRound(def, 0, 0); st.save(); this.render(); break; }
       case 'club-tab': this.clubTab = arg; this.render(); break;
       case 'club-country': this.clubCountry = arg; this.render(); break;
       case 'club-pick': this.pickId = arg; this.showRef = false; this.api.haptic(10); this.render(); break;

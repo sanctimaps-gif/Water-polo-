@@ -552,12 +552,12 @@ export class GameState {
       for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, ms[k] + b));
       return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id, look: lookOf(p) };
     };
-    return { id: 'user', name: c.name, short: c.short, color: c.color, kits: c.kits, tactic: c.tactic, formation: c.formation,
+    return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: c.tactic, formation: c.formation,
       players: [toDef(this.player(L.gk), -1), ...L.slots.map((id, i) => toDef(this.player(id), i))] };
   }
   opponentTeamDef(id, rating) {
     const c = CLUBS.find((x) => x.id === id), sq = this.opponentSquad(id, rating).slice(0, 7);
-    return { id, name: c.name, short: c.short, color: c.color, kits: c.kits, tactic: TACTICS[[...id].length % TACTICS.length],
+    return { id, name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: TACTICS[[...id].length % TACTICS.length],
       players: sq.map((p) => ({ name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot: p.slot ?? -1, look: lookOf(p) })) };
   }
 

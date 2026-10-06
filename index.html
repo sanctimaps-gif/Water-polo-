@@ -29,9 +29,11 @@
 
   <div id="board">
     <div class="teams">
-      <span id="home-chip" class="chip"><span id="home-name">RIV</span></span>
+      <span id="home-crest" class="crest"></span>
+      <span id="home-chip" class="chip"><span id="home-name">RIV</span><u class="poss"></u></span>
       <b id="home-score">0</b><i>-</i><b id="away-score">0</b>
-      <span id="away-chip" class="chip"><span id="away-name">NOR</span></span>
+      <span id="away-chip" class="chip"><span id="away-name">NOR</span><u class="poss"></u></span>
+      <span id="away-crest" class="crest"></span>
     </div>
     <div class="clocks"><span id="clock">P1 02:00</span><span id="shotclock">30</span></div>
     <div id="manup" hidden></div>
@@ -45,6 +47,9 @@
   <canvas id="radar" width="162" height="126"></canvas>
 
   <div id="toast"></div>
+  <div id="banner" class="hidden"></div>
+  <div id="flash"></div>
+  <div id="tacpanel" class="hidden"></div>
   <div id="intro" class="hidden"></div>
   <div id="bars">
     <div id="who"></div>
@@ -60,11 +65,17 @@
 </div>
 
 <div id="pause" class="hidden">
-  <div class="menu-card">
-    <h1 id="pause-title">PAUSE</h1>
-    <p id="pause-note"></p>
-    <button id="pause-resume">REPRENDRE</button>
-    <button id="pause-quit">QUITTER</button>
+  <div class="pause-wrap">
+    <div class="pause-side">
+      <div id="pause-score"></div>
+      <h1 id="pause-title">PAUSE</h1>
+      <button id="pause-resume" class="pm-btn primary">REPRENDRE</button>
+      <button id="pause-tactics" class="pm-btn">TACTIQUES</button>
+      <button id="pause-controls" class="pm-btn">COMMANDES</button>
+      <button id="pause-settings" class="pm-btn">PARAMÈTRES</button>
+      <button id="pause-quit" class="pm-btn danger">QUITTER LE MATCH</button>
+    </div>
+    <div id="pause-panel" class="pause-panel"></div>
   </div>
 </div>
 

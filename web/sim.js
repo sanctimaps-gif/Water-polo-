@@ -102,6 +102,13 @@ const BALL_R = 0.11, HOLD_H = 0.45, G = 9.81;
 export const CHARGE_TIME = 0.9, EXC_MIN = 0.72, EXC_MAX = 0.86;
 // Attack shape over the full width of the pool: wings near the side lines at 2 m, flats at 5 m.
 const ATT_D = [2.8, 5.2, 7.0, 5.2, 2.8, 2.5], ATT_Z = [-7.0, -4.4, 0, 4.4, 7.0, 0];
+// Attacking formations (slot -> distance from the goal line, lateral position): 'arc' = 3-3 (default),
+// 'umbrella' = 5 shooters on an arc around 5-6 m + centre, '4-2' = 4 players on the 2 m line, 2 drivers out.
+export const FORMATIONS = {
+  arc: [ATT_D, ATT_Z],
+  umbrella: [[4.4, 5.8, 6.6, 5.8, 4.4, 2.4], [-7.4, -4.8, 0, 4.8, 7.4, 0]],
+  '4-2': [[2.3, 6.2, 6.2, 2.4, 2.3, 2.4], [-7.0, -3.0, 3.0, 2.6, 7.0, -2.6]],
+};
 
 export const Ev = {
   PERIOD_START: 'PeriodStart', SWIM_OFF: 'SwimOff', POSSESSION: 'PossessionWon', PASS: 'PassMade', PASS_OK: 'PassCompleted',
@@ -122,7 +129,7 @@ export class Match {
     this.time = 0; this.tick = 0; this.events = [];
     this.players = []; this.teams = [];
     [home, away].forEach((def, ti) => {
-      const team = { index: ti, def, players: [], field: [], gk: null, score: 0, tactic: def.tactic, tp: tacticParams(def.tactic) };
+      const team = { index: ti, def, players: [], field: [], gk: null, score: 0, tactic: def.tactic, tp: tacticParams(def.tactic), formation: def.formation || 'arc' };
       for (const pd of def.players) {
         const p = {
           id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, look: pd.look || null, pid: pd.playerId || null, isGK: pd.role === Role.GK,
@@ -245,12 +252,13 @@ export class Match {
     if (best && best !== h && bs < score(h) - 1.5) { this.setHuman(best, true); this.lastSwitch = this.time; }
   }
   setTactic(team, style) { this.teams[team].tactic = style; this.teams[team].tp = tacticParams(style); }
+  setFormation(team, f) { if (FORMATIONS[f]) this.teams[team].formation = f; }
 
   // --- formation
   attackSpot(team, slot, tp) {
-    slot = clamp(slot, 0, 5); const c = this.cfg;
-    const z = clamp(ATT_Z[slot] * tp.width, -c.hw + 1, c.hw - 1);
-    return V(this.targetGoal(team).x - this.sign(team) * ATT_D[slot] / Math.max(0.5, tp.depth), 0, z);
+    slot = clamp(slot, 0, 5); const c = this.cfg, [FD, FZ] = FORMATIONS[this.teams[team].formation] || FORMATIONS.arc;
+    const z = clamp(FZ[slot] * tp.width, -c.hw + 1, c.hw - 1);
+    return V(this.targetGoal(team).x - this.sign(team) * FD[slot] / Math.max(0.5, tp.depth), 0, z);
   }
 
   // =============================================================== step

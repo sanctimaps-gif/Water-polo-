@@ -1,7 +1,8 @@
 // WATER POLO 26 MOBILE — web build: match presentation (Three.js) + touch controls + HUD over the
 // deterministic JS simulation. Rendering modules live in web/render/.
 import * as THREE from './vendor/three.module.min.js';
-import { Match, Ev, TACTICS } from './sim.js';
+import { Match, Ev, TACTICS, FORMATIONS } from './sim.js';
+import { logoSvg } from './ui/art.js';
 import { GameState, lookOf, POOLS, BALL_DESIGNS } from './state.js';
 import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
@@ -51,6 +52,8 @@ const GRAPHICS = ['AUTO', ...TIERS];
 // Match cameras (Settings > Match, and the CAM chip in the match): attack (high, end-on, looking at the
 // goal we attack, like console rugby / football games), broadcast, wide, close, dynamic side,
 // top view, behind the controlled player, pool deck (low side).
+const HUD_CAMS = ['STANDARD', 'ATTACK', 'WIDE'];   // HUD CAM chip: TV / MATCH / LARGE (all cameras in the settings)
+const CAM_LABEL = { STANDARD: 'cam.tv', ATTACK: 'cam.match', WIDE: 'cam.large' };
 const CAMERAS = ['ATTACK', 'STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK'];
 const AMBIENCES = ['EVENT', 'DAY', 'EVENING', 'NIGHT'];
 const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIVE: 'tactic.offensive', DEFENSIVE: 'tactic.defensive', PRESSURE: 'tactic.pressure', CENTER: 'tactic.center', COUNTER: 'tactic.counter' };
@@ -112,6 +115,19 @@ function ballTextures(design = 'classic') {
 const bt = ballTextures();
 const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 32, 20), new THREE.MeshStandardMaterial({ map: bt.map, bumpMap: bt.bump, bumpScale: 0.8, roughness: 0.32, envMapIntensity: 1.3 }));
 let ballDesign = 'classic';
+// Light trajectory trail behind the ball in flight (additive line fading to black = transparent).
+const TRAIL_N = 26;
+const trail = { n: 0, pts: new Float32Array(TRAIL_N * 3), geo: new THREE.BufferGeometry() };
+trail.geo.setAttribute('position', new THREE.BufferAttribute(trail.pts, 3));
+{ const col = new Float32Array(TRAIL_N * 3); for (let i = 0; i < TRAIL_N; i++) { const k = 1 - i / (TRAIL_N - 1); col[i * 3] = k; col[i * 3 + 1] = k * 0.92; col[i * 3 + 2] = k * 0.6; }
+  trail.geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); }
+trail.line = new THREE.Line(trail.geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+trail.line.frustumCulled = false; trail.line.renderOrder = 6;
+function updateTrail(flying, p) {
+  if (!flying) { trail.n = Math.max(0, trail.n - 2); } else trail.n = Math.min(TRAIL_N, trail.n + 1);
+  trail.pts.copyWithin(3, 0, (TRAIL_N - 1) * 3); trail.pts[0] = p.x; trail.pts[1] = p.y; trail.pts[2] = p.z;
+  trail.geo.setDrawRange(0, trail.n); trail.geo.attributes.position.needsUpdate = true; trail.line.visible = trail.n > 1;
+}
 function setBall(design) {
   if (design === ballDesign || !BALL_DESIGNS[design]) return;
   const t = ballTextures(design), m = ballMesh.material; m.map.dispose(); m.bumpMap.dispose();
@@ -119,7 +135,7 @@ function setBall(design) {
 }
 ballMesh.castShadow = true; scene.add(ballMesh);
 const ballShadow = new THREE.Mesh(new THREE.CircleGeometry(0.15, 20).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x021c2c, transparent: true, opacity: 0.45, depthWrite: false }));
-ballShadow.renderOrder = 4; scene.add(ballShadow);
+ballShadow.renderOrder = 4; scene.add(ballShadow); scene.add(trail.line);
 
 // Markers: controlled player (ring + arrow), pass target.
 const ringGeo = new THREE.RingGeometry(0.45, 0.58, 32).rotateX(-Math.PI / 2);
@@ -195,8 +211,7 @@ function contactStart(id, x, y) {
     input.stick.active = true;
   } else if (BTN[region]) {
     const st = BTN[region]();
-    st.held = true; st.press = true; st.down = performance.now(); st.sx = x; st.sy = y; $(region).classList.add('down');
-    if (navigator.vibrate) navigator.vibrate(8);
+    st.held = true; st.press = true; st.down = performance.now(); st.sx = x; st.sy = y; $(region).classList.add('down'); haptic(region === 'btnA' ? 14 : 9);
   }
 }
 function contactMove(id, x, y) {
@@ -222,9 +237,9 @@ function contactEnd(id) {
     st.held = false; st.release = true; st.dur = (performance.now() - st.down) / 1000; st.swipe = { x: c.lx - c.ox, y: c.ly - c.oy };
     $(c.region).classList.remove('down');
   } else if (c.region === 'tactic') {
-    cycleTactic();
+    openTactics(false);
   } else if (c.region === 'camBtn') {
-    opts.camera = cycle(CAMERAS, opts.camera); saveOpts(); refreshChips();
+    opts.camera = cycle(HUD_CAMS, HUD_CAMS.includes(opts.camera) ? opts.camera : HUD_CAMS[HUD_CAMS.length - 1]); saveOpts(); refreshChips(); haptic(8);
   } else if (c.region === 'pauseBtn') {
     openPause();
   } else if (c.region === 'soundBtn') {
@@ -367,7 +382,7 @@ window.__wp26log = [];
 window.__wp26match = () => match; // test hook
 window.__wp26 = () => match && match.human ? { name: match.human.name, x: +match.human.pos.x.toFixed(2), z: +match.human.pos.z.toFixed(2),
   hasBall: match.ball.owner === match.human, cmd: match.humanCmd, phase: match.phase, time: +match.time.toFixed(2), tier, replaying: !!replay } : null;
-let toastT = 0, timingT = 0, tacticIdx = 0;
+let toastT = 0, timingT = 0, tacticIdx = 0, lastOwnerTeam = -1, lastScore = [0, 0];
 const camState = { focus: new THREE.Vector3(), goalT: 0, goalPoint: new THREE.Vector3(), goalSide: 1, shotT: 0, shotGoalX: 0 };
 let replay = null, pendingReplay = null;
 
@@ -387,6 +402,8 @@ function startMatch(ctx) {
   $('hud').classList.remove('hidden');
   $('home-name').textContent = match.teams[0].def.short; $('away-name').textContent = match.teams[1].def.short;
   $('home-chip').style.background = hex(match.teams[0].def.color); $('away-chip').style.background = hex(match.teams[1].def.color);
+  $('home-crest').innerHTML = crest(match.teams[0].def); $('away-crest').innerHTML = crest(match.teams[1].def);
+  lastOwnerTeam = -1; lastScore = [0, 0]; $('banner').className = 'hidden'; trail.n = 0;
   refreshTactic(); refreshChips();
   lockLandscape();
   audio.start();
@@ -497,16 +514,18 @@ function onEvent(e) {
   }
   react(e);
   const toastMap = { [Ev.SAVE]: 'hud.save', [Ev.BLOCK]: 'hud.blocked', [Ev.FRAME]: 'hud.frame', [Ev.INTERCEPT]: 'hud.intercepted', [Ev.STEAL]: 'hud.steal', [Ev.FOUL]: 'hud.foul', [Ev.OUT]: 'hud.out', [Ev.SHOT_CLOCK]: 'hud.shotclock_violation', [Ev.SWIM_OFF]: 'hud.swimoff' };
-  if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
+  if (e.type === Ev.SAVE) banner('save', L('hud.save'), '', e.team, 1.3);
+  else if (e.type === Ev.SHOT_CLOCK) { banner('clock', L('hud.clock_title'), L('hud.shotclock_violation'), -1, 1.8); haptic(20); }
+  else if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
   if ([Ev.FOUL, Ev.OUT, Ev.SHOT_CLOCK].includes(e.type)) audio.whistle(false);
   if (e.type === Ev.OFFSIDE) { toast(L('hud.offside'), 1.8); audio.whistle(false); }
   if (e.type === Ev.NO_SHOT_5M && match && match.players[e.player] && match.players[e.player].human) toast(L('hud.no_shot_5m'), 1.8);
   if (e.type === Ev.DODGE && e.team === 0 && e.other >= 0) toast(L('hud.dodge'), 0.9);
-  if (e.type === Ev.EXCLUSION) { const p = match && match.players[e.player]; toast(L('hud.exclusion', p ? p.number : ''), 2.2); audio.whistle(true); if (navigator.vibrate) navigator.vibrate(40); }
+  if (e.type === Ev.EXCLUSION) { const p = match && match.players[e.player]; banner('excl', L('hud.excl_title'), L('hud.exclusion', p ? p.number : ''), p ? p.team : -1, 2.4); audio.whistle(true); haptic(40); }
   if (e.type === Ev.REENTRY && match && match.players[e.player] && match.players[e.player].team === 0) toast(L('hud.reentry'), 1);
   if (e.type === Ev.PERIOD_START) audio.whistle(true);
   if (e.type === Ev.GOAL) {
-    toast(L('hud.goal'), 2.5);
+    { const sc = e.player >= 0 ? m.players[e.player] : null; banner('goal', L('hud.goal'), sc ? `#${sc.number} ${sc.name || ''}` : '', e.team, 2.8); flash(); }
     camState.goalT = 1.5; camState.goalPoint.set(e.pos.x, 0, e.pos.z); camState.goalSide = Math.sign(e.pos.x) || 1;
     if (opts.replays) pendingReplay = { at: 1.5 };
     // Team-mates close to the scorer join the celebration.
@@ -514,7 +533,7 @@ function onEvent(e) {
     if (scorer) for (const p of m.teams[scorer.team].field) if (p !== scorer && Math.hypot(p.pos.x - scorer.pos.x, p.pos.z - scorer.pos.z) < 5) athletes[p.id].playCelebrate('arms');
     if (e.team === human && navigator.vibrate) navigator.vibrate([60, 40, 120]);
   }
-  if (e.type === Ev.PERIOD_END) { toast(L('hud.period_end', e.value), 2.5); audio.whistle(true); arena.cheer(-1, 0.8); }
+  if (e.type === Ev.PERIOD_END) { banner('period', L('hud.period_end', e.value), `${m.teams[0].def.short} ${m.teams[0].score} - ${m.teams[1].score} ${m.teams[1].def.short}`, -1, 2.8); audio.whistle(true); arena.cheer(-1, 0.8); }
   if (e.type === Ev.RESTART || e.type === Ev.PERIOD_START) camState.goalT = 0;
   if (e.type === Ev.SHOT && e.team === human && e.timing && e.timing !== 'NONE') {
     const el = $('timing'); el.textContent = L('hud.timing.' + e.timing.toLowerCase()); el.className = 't-' + e.timing.toLowerCase(); timingT = 1.2;
@@ -568,7 +587,7 @@ function updateCamera(dt, v) {
     c.focus.lerp(tmp2.set(fx, 0, fz), 1 - Math.exp(-dt / 0.3));
     const back = 9 * zoom, h = Math.min(14, 6.6 * zoom);
     camera.position.lerp(tmp.set(Math.max(-23, Math.min(23, c.focus.x - dir * back)), h, c.focus.z * 0.5), 1 - Math.exp(-dt * 4));
-    camera.lookAt(c.focus.x + dir * 4.5, 0, c.focus.z * 0.8); setFov(c.shotT > 0 ? 50 : 54, dt, 3);
+    camera.lookAt(c.focus.x + dir * 4.5, 0, c.focus.z * 0.8); setFov(c.shotT > 0 ? 47 : 54, dt, 3);
     userPan += (0 - userPan) * Math.min(1, dt * 0.8);
     return;
   }
@@ -588,7 +607,7 @@ function updateCamera(dt, v) {
   else if (cam === 'DECK') { height = 1.9; back = 10 + 2.6; fov = 46; clampX = 4; zk = 0.5; lookY = 0.2; }
   else { height = 9.5 - 1.5 * near; back = 10 + 7.5 - 1.5 * near; fov = 48 - 6 * near; }
   height *= zoom; back = 10 + (back - 10) * zoom;
-  if (c.shotT > 0) fov -= 4;
+  if (c.shotT > 0) fov -= 4 + 4 * Math.min(1, c.shotT);   // small zoom on shots
   target.x = Math.max(-12.5 + clampX, Math.min(12.5 - clampX, target.x + userPan));
   target.z = Math.max(-3.5, Math.min(3.5, target.z * zk)); target.y = 0;
   if (c.goalT > 0) {
@@ -632,6 +651,7 @@ function updateWorld(dt, v) {
   if (v.owner < 0 && prevBallY > 0.2 && ballMesh.position.y <= 0.16) {
     const sp = Math.hypot(bvx, bvz); vfx.burst(ballMesh.position.x, ballMesh.position.z, Math.min(1.4, 0.2 + sp / 10)); audio.splash(Math.min(1, sp / 10));
   }
+  updateTrail(v.owner < 0 && Math.hypot(bvx, bvz) > 4, ballMesh.position);
   prevBallY = ballMesh.position.y; prevBallPos.copy(ballMesh.position);
   // Drops falling from the ball held up.
   dripT -= dt; if (v.owner >= 0 && dripT <= 0) { dripT = 0.18; vfx.drip(ballMesh.position.x, ballMesh.position.y - 0.08, ballMesh.position.z); }
@@ -689,17 +709,100 @@ function leaveMatch() {
   $('hud').classList.add('hidden'); $('pause').classList.add('hidden');
   buildHero();
 }
+// ------------------------------------------------------------------ premium HUD: banners, tactics panel, pause menu
+const HUD_ICONS = {
+  shoot: '<circle cx="9" cy="14" r="5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M13 9l7-5m-5 8l7-1m-8 4l6 3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  pass: '<path d="M3 12h13m-5-6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  defend: '<path d="M12 2l8 3v6c0 5-3.5 9-8 11-4.5-2-8-6-8-11V5Z" fill="none" stroke="currentColor" stroke-width="2.2"/>',
+  switch: '<path d="M4 8h12l-3-3m7 11H8l3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+  sprint: '<path d="M13 2L4 14h6l-1 8 9-12h-6Z" fill="currentColor"/>',
+  dodge: '<path d="M4 18c4 0 5-12 10-12h5m-3-3l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+const hudIcon = (k, s = 22) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[k]}</svg>`;
+const btnCache = {};
+function setBtn(id, mode, label) {
+  const k = mode + '|' + label; if (btnCache[id] === k) return; btnCache[id] = k;
+  const b = $(id); b.innerHTML = `${hudIcon(mode)}<span>${label}</span>`; if (b.dataset.mode !== undefined || mode) b.dataset.mode = mode;
+}
+const haptic = (p) => { if (opts.haptics !== false && navigator.vibrate) navigator.vibrate(p); };
+const crest = (def, size = 34) => logoSvg(def.logo || { shape: 'shield', symbol: 'wave' }, def.color, def.color2 ?? 0xffffff, size, def.color3);
+
+/** Big animated banner (goal, save, exclusion, 30 s, period end). */
+let bannerT = 0;
+function banner(kind, title, sub = '', team = -1, dur = 2) {
+  const el = $('banner'), def = team >= 0 && match ? match.teams[team].def : null;
+  el.className = 'b-' + kind; void el.offsetWidth;
+  el.innerHTML = `${def ? `<span class="b-crest">${crest(def, 56)}</span>` : ''}<div><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  el.classList.add('show'); bannerT = dur;
+  if (def) el.style.setProperty('--team', hexCss(def.color));
+}
+if (new URLSearchParams(location.search).has('debug')) window.__hud = { banner: (...a) => banner(...a) };   // HUD checks
+function flash() { const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
+
+// Tactics panel: 5 game styles (+ 2 specialists) and the attacking formation; pauses the match while open.
+const STYLE_MAIN = ['OFFENSIVE', 'BALANCED', 'DEFENSIVE', 'PRESSURE', 'COUNTER'], STYLE_MORE = ['FAST', 'CENTER'];
+const FORMS = ['arc', 'umbrella', '4-2'];
+let tacFromPause = false;
+function tacticsHtml() {
+  const t = match.teams[match.human ? match.human.team : 0], sel = (on) => (on ? 'on' : '');
+  const formSvg = (f) => { const [D, Z] = FORMATIONS[f]; return `<svg viewBox="0 0 60 40" width="60" height="40"><rect x="1" y="1" width="58" height="38" rx="3" fill="#0b5d84" stroke="#fff6"/><rect x="56" y="15" width="3" height="10" fill="#fff"/>
+    ${D.map((d, i) => `<circle cx="${56 - d * 4.4}" cy="${20 + Z[i] * 2.2}" r="3" fill="${i === 5 ? '#ffd21a' : '#fff'}"/>`).join('')}</svg>`; };
+  return `<div class="tp-box"><h2>${L('btn.tactic')}</h2>
+    <div class="tp-styles">${[...STYLE_MAIN, ...STYLE_MORE].map((s) => `<button class="tp-st ${sel(t.tactic === s)} ${STYLE_MORE.includes(s) ? 'more' : ''}" data-style="${s}"><b>${L(TACTIC_KEYS[s])}</b><small>${L('tdesc.' + s)}</small></button>`).join('')}</div>
+    <h3>${L('hud.formation')}</h3><div class="tp-forms">${FORMS.map((f) => `<button class="tp-fm ${sel(t.formation === f)}" data-form="${f}">${formSvg(f)}<b>${L('form.' + f)}</b></button>`).join('')}</div>
+    <button class="pm-btn primary tp-close">${L(tacFromPause ? 'ui.back' : 'ui.resume')}</button></div>`;
+}
+function openTactics(fromPause = false) {
+  if (!match || !match.human) return;
+  tacFromPause = fromPause; paused = true;
+  const el = fromPause ? $('pause-panel') : $('tacpanel');
+  el.innerHTML = tacticsHtml(); if (!fromPause) el.classList.remove('hidden');
+  el.onclick = (e) => {
+    const team = match.human.team, s = e.target.closest('[data-style]'), f = e.target.closest('[data-form]');
+    if (s) { match.setTactic(team, s.dataset.style); tacticIdx = TACTICS.indexOf(s.dataset.style); refreshTactic(); haptic(12); el.innerHTML = tacticsHtml(); return; }
+    if (f) { match.setFormation(team, f.dataset.form); haptic(12); el.innerHTML = tacticsHtml(); return; }
+    if (e.target.closest('.tp-close')) { if (fromPause) el.innerHTML = ''; else { el.classList.add('hidden'); paused = false; } }
+  };
+}
+function pausePanel(kind) {
+  const el = $('pause-panel'); el.onclick = null;
+  document.querySelectorAll('.pm-btn').forEach((b) => b.classList.toggle('sel', b.id === 'pause-' + kind));
+  if (kind === 'tactics') return openTactics(true);
+  if (kind === 'controls') {
+    el.innerHTML = `<div class="tp-box"><h2>${L('ui.controls')}</h2><div class="ctl-list">
+      ${[['stick', 'ctl.stick'], ['shoot', 'ctl.shoot'], ['pass', 'ctl.pass'], ['defend', 'ctl.defend'], ['switch', 'ctl.switch'], ['sprint', 'ctl.sprint'], ['dodge', 'ctl.dodge'], ['pass', 'ctl.passes']]
+        .map(([i, k]) => `<div>${i === 'stick' ? '<i class="ctl-stick"></i>' : `<i class="ctl-i m-${i}">${hudIcon(i, 18)}</i>`}<span>${L(k)}</span></div>`).join('')}</div></div>`;
+    return;
+  }
+  if (kind === 'settings') {
+    const rows = [['menu.camera', L(CAM_LABEL[opts.camera] || 'cam.' + opts.camera.toLowerCase()), 'camera'], ['menu.zoom', `${opts.zoom ?? 5} / 10`, 'zoom'], ['menu.radar', L(opts.radar !== false ? 'value.on' : 'value.off'), 'radar'],
+      ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound'], ['menu.haptics', L(opts.haptics !== false ? 'value.on' : 'value.off'), 'haptics'], ['menu.autoswitch', L(opts.autoSwitch !== false ? 'value.on' : 'value.off'), 'autoSwitch']];
+    el.innerHTML = `<div class="tp-box"><h2>${L('ui.settings')}</h2><div class="set-list">${rows.map(([k, v, key]) => `<div><span>${L(k)}</span><button data-set="${key}">${v}</button></div>`).join('')}</div></div>`;
+    el.onclick = async (e) => { const b = e.target.closest('[data-set]'); if (!b) return; if (b.dataset.set === 'haptics') { opts.haptics = opts.haptics === false; saveOpts(); } else await app.api.changeSetting(b.dataset.set); refreshChips(); pausePanel('settings'); };
+    return;
+  }
+  if (kind === 'quit') {
+    el.innerHTML = `<div class="tp-box"><h2>${L('ui.quit')}</h2><p>${matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn')}</p>
+      <button class="pm-btn danger" id="quit-yes">${L('ui.confirm')}</button></div>`;
+    el.onclick = (e) => { if (e.target.id === 'quit-yes') { closePause(); finishMatch(matchCtx.mode !== 'quick'); } };
+    return;
+  }
+  el.innerHTML = '';
+}
 function openPause() {
   if (!match || match.finished) return;
-  paused = true; $('pause').classList.remove('hidden');
-  $('pause-title').textContent = L('ui.pause'); $('pause-resume').textContent = L('ui.resume'); $('pause-quit').textContent = L('ui.quit');
-  $('pause-note').textContent = matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn');
+  paused = true; $('pause').classList.remove('hidden'); $('tacpanel').classList.add('hidden');
+  const T = match.teams;
+  $('pause-score').innerHTML = `${crest(T[0].def, 40)}<b>${T[0].score} - ${T[1].score}</b>${crest(T[1].def, 40)}<small>${$('clock').textContent}</small>`;
+  $('pause-title').textContent = L('ui.pause'); $('pause-resume').textContent = L('ui.resume'); $('pause-tactics').textContent = L('ui.tactics');
+  $('pause-controls').textContent = L('ui.controls'); $('pause-settings').textContent = L('ui.settings'); $('pause-quit').textContent = L('ui.quit_match');
+  pausePanel(null);
 }
-function closePause() { paused = false; $('pause').classList.add('hidden'); }
+function closePause() { paused = false; $('pause').classList.add('hidden'); $('pause-panel').innerHTML = ''; }
 
 function cycleTactic() { if (!match || !match.human) return; tacticIdx = (tacticIdx + 1) % TACTICS.length; match.setTactic(match.human.team, TACTICS[tacticIdx]); refreshTactic(); }
 function refreshTactic() { if (match) $('tactic').textContent = `${L('btn.tactic')}: ${L(TACTIC_KEYS[TACTICS[tacticIdx]])}`; }
-function refreshChips() { $('camBtn').textContent = L('cam.' + opts.camera.toLowerCase()); $('soundBtn').textContent = opts.sound ? '🔊' : '🔇'; }
+function refreshChips() { $('camBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><path d="M3 7h13v10H3zM16 10l5-3v10l-5-3" fill="currentColor"/></svg> ${L(CAM_LABEL[opts.camera] || 'cam.' + opts.camera.toLowerCase())}`; $('soundBtn').textContent = opts.sound ? '🔊' : '🔇'; }
 
 // ------------------------------------------------------------------ LANDSCAPE ONLY
 const isPortrait = () => innerHeight > innerWidth;
@@ -792,7 +895,7 @@ function frame(now) {
     camera.lookAt(-1.4 - 0.25, 0.75, -6);
     setFov(40, fdt, 10);
     water.setWakes([{ x: 0, z: -6, vx: 0, vz: 0 }]);
-    selRing.visible = selArrow.visible = passRing.visible = false; ballShadow.material.opacity = 0;
+    selRing.visible = selArrow.visible = passRing.visible = false; ballShadow.material.opacity = 0; trail.line.visible = false;
   }
   renderer.render(scene, camera);
 }
@@ -831,6 +934,7 @@ function updateHud(dt) {
     if (me !== lastWho) {   // controlled player + his poste
       lastWho = me; const w = $('who'), i = document.createElement('i'); i.textContent = L('pos.' + me.slot);
       w.textContent = `#${me.number} ${me.name || ''} · `; w.appendChild(i);
+      w.classList.remove('flash'); void w.offsetWidth; w.classList.add('flash');   // player switch
     }
     const st = $('stamina'); st.style.width = me.stamina * 100 + '%'; st.style.background = me.sprintLocked ? '#e5533d' : '#4de683';
     $('charge-wrap').style.visibility = me.charging ? 'visible' : 'hidden';
@@ -839,10 +943,20 @@ function updateHud(dt) {
   }
   const withBall = me && m.ball.owner === me;
   const A = $('btnA'), B = $('btnB');
-  $('btnS').textContent = L('btn.sprint');
-  A.textContent = L(withBall ? 'btn.shoot' : 'btn.defend'); A.dataset.mode = withBall ? 'shoot' : 'defend';
-  B.textContent = L(withBall ? 'btn.pass' : 'btn.switch'); B.dataset.mode = withBall ? 'pass' : 'switch';
-  $('btnD').textContent = L('btn.dodge'); $('btnD').classList.toggle('off', !withBall || (match.human && match.human.dodgeCd > 0));
+  setBtn('btnS', 'sprint', L('btn.sprint'));
+  setBtn('btnA', withBall ? 'shoot' : 'defend', L(withBall ? 'btn.shoot' : 'btn.defend'));
+  setBtn('btnB', withBall ? 'pass' : 'switch', L(withBall ? 'btn.pass' : 'btn.switch'));
+  setBtn('btnD', 'dodge', L('btn.dodge')); $('btnD').classList.toggle('off', !withBall || (match.human && match.human.dodgeCd > 0));
+  $('btnS').classList.toggle('off', !!(me && me.sprintLocked));
+  // possession: arrow under the team in possession, flash on change
+  const ot = m.ball.owner ? m.ball.owner.team : lastOwnerTeam;
+  if (ot !== lastOwnerTeam && ot >= 0) {
+    for (const [i, id] of [[0, 'home-chip'], [1, 'away-chip']]) { const c = $(id); c.classList.toggle('has-ball', i === ot); if (i === ot && lastOwnerTeam >= 0) { c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash'); } }
+    lastOwnerTeam = ot;
+  }
+  $('shotclock').classList.toggle('low', m.shotClockLeft <= 5 && m.phase === 'LIVE');
+  for (const i of [0, 1]) if (m.teams[i].score !== lastScore[i]) { lastScore[i] = m.teams[i].score; const el = $(i ? 'away-score' : 'home-score'); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+  if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').classList.remove('show'); }
   $('btnS').classList.toggle('on', !!(match.human && match.human.sprinting));
   if (toastT > 0) { toastT -= dt; $('toast').style.opacity = Math.min(1, toastT * 2); }
   if (timingT > 0) { timingT -= dt; if (timingT <= 0) $('timing').textContent = ''; }
@@ -986,9 +1100,10 @@ function buildShowcase() {
   setupInput();
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });
   $('pause-resume').onclick = closePause;
-  $('pause-quit').onclick = () => { closePause(); finishMatch(matchCtx.mode !== 'quick'); };
+  $('pause-tactics').onclick = () => pausePanel('tactics'); $('pause-controls').onclick = () => pausePanel('controls');
+  $('pause-settings').onclick = () => pausePanel('settings'); $('pause-quit').onclick = () => pausePanel('quit');
   if (state.data.clubChosen) app.home(); else app.show('clubs', { first: true }, false);   // first launch: CHOISIS TON CLUB
-  $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; cycleTactic(); };
+  $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; openTactics(false); };
   if (new URLSearchParams(location.search).has('showcase')) buildShowcase();
   requestAnimationFrame(frame);
   requestAnimationFrame(() => { const sp = $('splash'); sp.classList.add('done'); setTimeout(() => sp.remove(), 600); });

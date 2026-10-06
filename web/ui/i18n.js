@@ -2,6 +2,12 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'hud.formation': 'FORMATION', 'form.arc': 'ARC 3-3', 'form.umbrella': 'PARAPLUIE', 'form.4-2': '4-2', 'ui.controls': 'COMMANDES', 'ui.quit_match': 'QUITTER LE MATCH',
+    'menu.haptics': 'Vibrations', 'hud.excl_title': 'EXCLUSION', 'hud.clock_title': '30 S ÉCOULÉES', 'cam.tv': 'TV', 'cam.match': 'MATCH', 'cam.large': 'LARGE',
+    'ctl.stick': 'Joystick : nager / diriger (pousser à fond + SPRINT = sprint)', 'ctl.shoot': 'TIR : maintenir pour charger, relâcher dans la zone jaune ; glisser = viser',
+    'ctl.pass': 'PASSE : au coéquipier le plus pertinent (cercle vert), dans la direction du joystick', 'ctl.defend': 'DÉFENSE : sans ballon, presser / bloquer / voler',
+    'ctl.switch': 'CHANGER : sans ballon, contrôler le joueur le plus proche', 'ctl.sprint': 'SPRINT : maintenir, consomme l’endurance',
+    'ctl.dodge': 'PASSER LE JOUEUR : feinte pour dépasser le défenseur', 'ctl.passes': 'Appui long sur PASSE = lobe. Receveur lancé vers le but = passe en profondeur ; pointe démarquée = passe posée (cercle jaune)',
     'hub.play': 'JOUER', 'hub.club': 'MON CLUB', 'hub.career': 'CARRIÈRE', 'hub.content': 'CONTENU',
     'ui.quick_d': 'Un match amical contre un club au hasard', 'hub.tournament': 'TOURNOI', 'hub.tournament_d': 'Coupes nationales, Europe, international', 'hub.league': 'CHAMPIONNAT', 'hub.league_d': 'Classement et prochain match',
     'ui.team_d': 'Titulaires, remplaçants, TOTAL', 'hub.players': 'JOUEURS', 'hub.players_d': 'Tout l’effectif, fiches 3D', 'hub.lineup': 'COMPOSITION', 'hub.lineup_d': 'Place tes 7 titulaires', 'ui.tactics_d': 'Style de jeu', 'ui.customize_d': 'Nom, couleurs, logo, maillots',
@@ -90,6 +96,12 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'hud.formation': 'FORMATION', 'form.arc': 'ARC 3-3', 'form.umbrella': 'UMBRELLA', 'form.4-2': '4-2', 'ui.controls': 'CONTROLS', 'ui.quit_match': 'QUIT MATCH',
+    'menu.haptics': 'Vibration', 'hud.excl_title': 'EXCLUSION', 'hud.clock_title': '30 S EXPIRED', 'cam.tv': 'TV', 'cam.match': 'MATCH', 'cam.large': 'WIDE',
+    'ctl.stick': 'Joystick: swim / steer (push fully + SPRINT = sprint)', 'ctl.shoot': 'SHOOT: hold to charge, release in the yellow zone; swipe = aim',
+    'ctl.pass': 'PASS: to the best team-mate (green ring), in the joystick direction', 'ctl.defend': 'DEFEND: without the ball, press / block / steal',
+    'ctl.switch': 'SWITCH: without the ball, control the closest player', 'ctl.sprint': 'SPRINT: hold, uses stamina',
+    'ctl.dodge': 'BEAT THE PLAYER: feint to get past the defender', 'ctl.passes': 'Long press on PASS = lob. Receiver swimming to goal = pass in depth; free point = laid pass (yellow ring)',
     'hub.play': 'PLAY', 'hub.club': 'MY CLUB', 'hub.career': 'CAREER', 'hub.content': 'CONTENT',
     'ui.quick_d': 'A friendly against a random club', 'hub.tournament': 'TOURNAMENT', 'hub.tournament_d': 'National cups, Europe, international', 'hub.league': 'LEAGUE', 'hub.league_d': 'Standings and next match',
     'ui.team_d': 'Starters, bench, TOTAL', 'hub.players': 'PLAYERS', 'hub.players_d': 'Whole squad, 3D cards', 'hub.lineup': 'LINE-UP', 'hub.lineup_d': 'Set your 7 starters', 'ui.tactics_d': 'Playing style', 'ui.customize_d': 'Name, colours, logo, kits',

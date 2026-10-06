@@ -33,6 +33,7 @@ export class App {
     root.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero"]') && !e.target.closest('button')) drag = e.clientX; });
     addEventListener('pointermove', (e) => { if (drag !== null) { this.api.rotateHero((e.clientX - drag) * 0.012); drag = e.clientX; } });
     addEventListener('pointerup', () => { drag = null; });
+    document.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero3d"]')) drag = e.clientX; });
     setInterval(() => this.tick(), 1000);
     this.st.onChange(() => this.refreshHeader());
   }
@@ -137,11 +138,12 @@ export class App {
     const nextEv = evs.find(([, s]) => s.status !== 'LOCKED' && s.status !== 'COMPLETED');
     const objDone = st.data.objectives.list.filter((o) => !o.claimed && o.progress >= o.n).length;
     return `<div class="home">
-      <nav class="tiles-left">
-        <button class="tile t-green" data-act="nav" data-arg="ranking">${icon('chart', 30)}<span>${this.L('ui.ranking')}</span></button>
-        <button class="tile t-green" data-act="edit-club">${icon('cap', 30)}<span>${this.L('ui.customize')}</span></button>
-        <button class="tile t-teal" data-act="nav" data-arg="objectives">${icon('list', 30)}<span>${this.L('ui.objectives')}</span>${this.badge(objDone)}</button>
-        <button class="tile t-orange" data-act="nav" data-arg="rewards">${icon('gift', 30)}<span>${this.L('ui.free_rewards')}</span>${this.badge(st.giftAvailable() ? 1 : 0)}</button>
+      <nav class="tiles-left hubs">
+        <button class="tile t-orange" data-act="hub" data-arg="play">${icon('play', 26)}<span>${this.L('hub.play')}</span></button>
+        <button class="tile t-blue" data-act="hub" data-arg="club">${icon('team', 26)}<span>${this.L('hub.club')}</span></button>
+        <button class="tile t-green" data-act="hub" data-arg="career">${icon('star', 26)}<span>${this.L('hub.career')}</span></button>
+        <button class="tile t-magenta" data-act="hub" data-arg="content">${icon('gift', 26)}<span>${this.L('hub.content')}</span>${this.badge(objDone + (st.giftAvailable() ? 1 : 0) + evs.filter(([, s]) => s.status === 'CLAIMABLE').length)}</button>
+        <button class="tile t-violet" data-act="nav" data-arg="shop">${icon('bag', 26)}<span>${this.L('ui.shop')}</span></button>
       </nav>
       <div class="hero-space" data-act="edit-club"></div>
       <section class="home-right">
@@ -157,9 +159,8 @@ export class App {
         </button>` : ''}
         <div class="tiles-row">
           <button class="tile wide t-blue" data-act="nav" data-arg="team">${icon('team', 28)}<span>${this.L('ui.team')}</span><small>${this.L('ui.total')} ${me.total}</small></button>
-          <button class="tile wide t-magenta" data-act="nav" data-arg="events">${icon('trophy', 28)}<span>${this.L('ui.events')}</span>
-            ${nextEv ? `<small>${this.timer(Date.now() + nextEv[1].remaining, nextEv[1].status === 'UPCOMING' ? 'ui.starts_in' : 'ui.ends_in')}</small>` : ''}${this.badge(evs.filter(([, s]) => s.status === 'CLAIMABLE').length)}</button>
-          <button class="tile wide t-violet" data-act="nav" data-arg="shop">${icon('bag', 28)}<span>${this.L('ui.shop')}</span></button>
+          <button class="tile wide t-magenta" data-act="nav" data-arg="tournaments">${icon('trophy', 28)}<span>${this.L('tour.title')}</span>${this.badge(TOURNAMENTS.filter((d) => st.tournamentStatus(d) === 'ACTIVE').length)}</button>
+          <button class="tile wide t-green" data-act="nav" data-arg="myclub">${icon('star', 28)}<span>${this.L('hub.mycareer')}</span></button>
           <button class="tile wide t-dark" data-act="quick">${icon('play', 28)}<span>${this.L('ui.quick')}</span></button>
         </div>
       </section>
@@ -265,6 +266,57 @@ export class App {
         <label>${this.L('ui.shape')}</label><div class="choices">${LOGO_SHAPES.map((s) => `<button class="ch ${c.logo.shape === s ? 'on' : ''}" data-act="shape" data-arg="${s}">${logoSvg({ ...c.logo, shape: s }, c.color, c.color2, 40)}</button>`).join('')}</div>
         <label>${this.L('ui.symbol')}</label><div class="choices">${symbols.map((s) => `<button class="ch ${c.logo.symbol === s ? 'on' : ''}" data-act="symbol" data-arg="${s}">${logoSvg({ ...c.logo, symbol: s }, c.color, c.color2, 40)}</button>`).join('')}</div>
       </section>
+      <footer class="bar">${this.backBtn()}</footer></div>`;
+  }
+
+  // ------------------------------------------------------------------ hubs (JOUER / MON CLUB / CARRIÈRE / CONTENU / BOUTIQUE)
+  static HUBS = {
+    play: ['t-orange', 'play', [['quick', 'ui.quick', 'play', 'quick'], ['nav', 'hub.tournament', 'trophy', 'tournaments'], ['nav', 'hub.league', 'chart', 'ranking']]],
+    club: ['t-blue', 'team', [['nav', 'ui.team', 'team', 'team'], ['nav', 'hub.players', 'list', 'squad'], ['team-tab-go', 'hub.lineup', 'swap', 'starters'], ['team-tab-go', 'ui.tactics', 'chart', 'tactics'], ['edit-club', 'ui.customize', 'cap', '']]],
+    career: ['t-green', 'star', [['nav', 'hub.mycareer', 'trophy', 'myclub'], ['nav', 'hub.progress', 'up', 'progress'], ['nav', 'hub.stats', 'chart', 'profile']]],
+    content: ['t-magenta', 'gift', [['nav', 'hub.challenges', 'list', 'objectives'], ['nav', 'ui.events', 'trophy', 'events'], ['nav', 'ui.rewards', 'gift', 'rewards']]],
+  };
+  scr_hub({ id }) {
+    const [cls, ic, items] = App.HUBS[id];
+    return `<div class="panel-screen hub"><h1>${icon(ic, 26)} ${this.L('hub.' + id)}</h1><div class="hub-grid n${items.length}">
+      ${items.map(([act, k, ico, arg], i) => `<button class="tile ${cls} hub-tile" style="animation-delay:${i * 50}ms" data-act="${act}" data-arg="${arg}">${icon(ico, 40)}<span>${this.L(k)}</span><small>${this.L(k + '_d')}</small></button>`).join('')}</div>
+      <footer class="bar">${this.backBtn()}</footer></div>`;
+  }
+  scr_squad() {
+    const st = this.st, order = ['GOALKEEPER', 'CENTER', 'DEFENDER', 'PLAYMAKER', 'FINISHER', 'WINGER', 'ALL_ROUNDER'];
+    const list = [...st.squad].sort((a, b) => order.indexOf(a.role) - order.indexOf(b.role) || overall(b) - overall(a));
+    return `<div class="panel-screen"><h1>${this.L('hub.players')} · ${list.length}</h1><p class="sub">${this.L('hub.players_tip')}</p>
+      <div class="squad-grid">${list.map((p) => this.card(p, undefined, { act: 'sheet' })).join('')}</div><footer class="bar">${this.backBtn()}</footer></div>`;
+  }
+  scr_progress() {
+    const pr = this.st.data.profile, need = this.st.xpForLevel(pr.level), next = TOURNAMENTS.filter((d) => d.minLevel > pr.level).sort((a, b) => a.minLevel - b.minLevel)[0];
+    const ev = EVENTS.filter((e) => e.minLevel > pr.level)[0];
+    return `<div class="panel-screen"><h1>${this.L('hub.progress')}</h1>
+      <div class="prog-top"><div class="lvl-big"><small>${this.L('ui.level')}</small><b>${pr.level}</b></div>
+        <div class="xp"><div class="bar-prog big"><u style="width:${Math.round((pr.xp / need) * 100)}%"></u><span>${pr.xp} / ${need} ${this.L('ui.xp')}</span></div>
+        <p class="sub">${this.L('prog.how')}</p>
+        ${next ? `<p class="unlock">${icon('lock', 16)} ${this.L('prog.unlock', next.minLevel, esc(next.name))}</p>` : ''}${ev ? `<p class="unlock">${icon('lock', 16)} ${this.L('prog.unlock', ev.minLevel, this.L(ev.name))}</p>` : ''}</div></div>
+      <h3>${this.L('ui.objectives')}</h3>${this.scr_objectives().replace(/^[\s\S]*?<div class="list">/, '<div class="list">').replace(/<footer[\s\S]*$/, '')}
+      <footer class="bar">${this.backBtn()}</footer></div>`;
+  }
+  /** CARRIÈRE → MON CLUB: identity, level, fictional budget, squad, ranking, honours, current season. */
+  scr_myclub() {
+    const st = this.st, c = st.data.club, pr = st.data.profile, lg = st.data.league, rows = st.standings(), pos = rows.findIndex((r) => r.id === 'user') + 1;
+    const base = c.baseClubId ? CLUBS.find((x) => x.id === c.baseClubId) : null, tot = st.teamTotal().total;
+    const tname = (n) => n === 'league' ? lg.name : (TOURNAMENTS.find((d) => d.id === n) || { name: n }).name;
+    const honours = pr.trophies.length ? pr.trophies.map((t) => `<span class="hon">${trophySvg('#ffe680', '#8a6a00', 26)} ${esc(tname(t.name))} <small>${this.L('ui.season', t.season)}</small></span>`).join('') : `<span class="sub">${this.L('mc.no_honours')}</span>`;
+    const box = (k, v) => `<div><small>${this.L(k)}</small><b>${v}</b></div>`;
+    return `<div class="myclub"><section class="mc-id">${logoSvg(c.logo, c.color, c.color2, 120, c.color3)}<h1>${esc(c.name)}</h1><span class="pill">${esc(c.short)}</span>
+        <span>${esc(c.city)} · ${flag(c.country)} ${c.country}</span>${base ? `<small class="based">${this.L(c.customClubId ? 'ed.based_on' : 'mc.club_of', esc(base.name))}</small>` : `<small class="based">${this.L('ed.my_club')}</small>`}
+        <div class="mc-kits">${['home', 'away', 'goalkeeper'].map((k) => this.kitSwatch(c.kits[k], k, c.kits.home)).join('')}</div>
+        <button class="btn cyan small" data-act="edit-club">${icon('cap', 16)} ${this.L('ui.customize')}</button></section>
+      <section class="mc-data"><div class="stats-grid">${box('ui.level', pr.level)}${box('mc.budget', st.budget().toLocaleString('fr-FR') + ' €*')}${box('mc.squad', `${st.squad.length} · ${this.L('ui.total')} ${tot}`)}
+        ${box('mc.rank', `${pos} / ${rows.length}`)}${box('mc.season', `${lg.season} · ${this.L('ui.match_n', Math.min(lg.round + 1, lg.rounds.length), lg.rounds.length)}`)}</div>
+        <h3>${esc(lg.name)}</h3><div class="mini-table">${rows.slice(Math.max(0, pos - 3), Math.max(0, pos - 3) + 5).map((r) => `<span class="${r.id === 'user' ? 'me' : ''}"><i>${rows.indexOf(r) + 1}</i>${logoSvg(r.info.logo, r.info.color, r.info.color2, 18)} ${esc(r.info.name)}<b>${r.pts}</b></span>`).join('')}</div>
+        <h3>${this.L('mc.honours')}</h3><div class="honours">${honours}</div>
+        <p class="sub">* ${this.L('mc.budget_note')}</p>
+        <div class="row-btns"><button class="btn" data-act="nav" data-arg="ranking">${this.L('ui.ranking')}</button><button class="btn" data-act="nav" data-arg="tournaments">${this.L('tour.title')}</button>
+        <button class="btn danger small" data-act="change-club">${this.L('mc.change')}</button></div></section>
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
@@ -556,6 +608,10 @@ export class App {
       case 'prematch-event': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }
       case 'quick': { const c = CLUBS[Math.floor(Math.random() * CLUBS.length)]; this.show('prematch', { mode: 'quick', opponent: c.id, title: this.L('ui.quick') }); break; }
       case 'go': this.hide(); this.api.startMatch(this.current.params); break;
+      case 'hub': this.show('hub', { id: arg }); break;
+      case 'team-tab-go': this.teamTab = arg; this.show('team'); break;
+      case 'sheet': this.playerSheet(st.player(arg)); break;
+      case 'change-club': if (await this.confirm(this.L('mc.change_warn'))) { this.pickId = null; this.show('clubs'); } break;
       case 'tour-open': { const def = TOURNAMENTS.find((d) => d.id === arg); if (!st.tournamentState(def)) st.startTournament(def); this.show('tournament', { id: arg }); break; }
       case 'tour-play': { const def = TOURNAMENTS.find((d) => d.id === arg), nm = st.nextTournamentMatch(def); if (nm && nm.opponent) this.show('prematch', { mode: 'tournament', tournamentId: arg, opponent: nm.opponent, title: `${def.name} · ${this.tStage(def, st.tournamentState(def))}` }); break; }
       case 'tour-back': this.stack = [{ name: 'home', params: {} }, { name: 'tournaments', params: {} }]; this.show('tournament', { id: arg }, false); break;
@@ -627,10 +683,13 @@ export class App {
       <small class="src">${this.L('ui.source')}</small></div>`;
     const title = `<span>${esc(p.firstName)} ${esc(p.lastName)}</span><span class="ps-club">${flag(p.nationality)} ${esc(st.data.club.name)}</span>`;
     document.querySelector('.modal.sheet-modal')?.remove();
-    const m = document.createElement('div'); m.className = 'modal sheet-modal';
-    m.innerHTML = `<div class="modal-box wide anim-pop"><h2 class="ps-title">${title}</h2><div class="modal-body">${html}</div><div class="modal-actions"><button class="btn" data-close>${this.L('ui.back')}</button></div></div>`;
+    // live 3D model on the left (main scene hero: idle treading, drag to turn), sheet on the right
+    if (this.sheetPid !== p.id) { this.sheetPid = p.id; this.api.previewPlayer(p); }
+    this.api.setHero(true); document.body.classList.add('sheet-open');
+    const m = document.createElement('div'); m.className = 'modal sheet-modal sheet3d';
+    m.innerHTML = `<div class="ps-3d" data-drag="hero3d"><span class="ed-badge">${icon('cap', 14)} 3D · ⟲ ⟳</span></div><div class="modal-box wide anim-pop"><h2 class="ps-title">${title}</h2><div class="modal-body">${html}</div><div class="modal-actions"><button class="btn" data-close>${this.L('ui.back')}</button></div></div>`;
     m.addEventListener('click', (e) => {
-      if (e.target === m || e.target.closest('[data-close]')) { m.remove(); this.render(); return; }
+      if (e.target === m || e.target.closest('[data-close]')) { m.remove(); document.body.classList.remove('sheet-open'); this.sheetPid = null; this.api.preview(null); this.render(); return; }
       const t = e.target.closest('[data-stab]'); if (t) { this.playerSheet(p, t.dataset.stab); return; }
       const a = e.target.closest('[data-sact]'); if (!a) return;
       const fn = { heal: () => st.heal(p.id), energize: () => st.energize(p.id), train: () => st.upgrade(p.id), trainmax: () => st.upgradeMax(p.id) > 0, quality: () => st.upgradeQuality(p.id) }[a.dataset.sact];

@@ -152,9 +152,13 @@ function matchKits(defA, defB) {
 let hero = null, heroYaw = 0, heroPreview = null;
 function buildHero() {
   if (hero) scene.remove(hero.root);
-  const c = heroPreview ? heroPreview.club : state.data.club, view = heroPreview ? heroPreview.view : 'home', gk = view === 'gk';
+  const c = heroPreview ? heroPreview.club : state.data.club, pl = heroPreview && heroPreview.player;
+  const view = heroPreview ? heroPreview.view : 'home', gk = pl ? pl.role === 'GOALKEEPER' : view === 'gk';
   const kit = view === 'away' ? c.kits.away : c.kits.home;
-  hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, !heroPreview), number: gk ? 1 : 7, role: gk ? 'GOALKEEPER' : 'CENTER', isGK: gk, seed: 7, preset });
+  if (pl) {   // player sheet: the real 3D model of the player (same seed as in matches)
+    const look = lookOf(pl);
+    hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, true), number: pl.number, role: pl.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset });
+  } else hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, !heroPreview), number: gk ? 1 : 7, role: gk ? 'GOALKEEPER' : 'CENTER', isGK: gk, seed: 7, preset });
   scene.add(hero.root);
   setBall(c.ball || 'classic');
 }
@@ -920,6 +924,7 @@ const app = new App($('app'), {
   refreshHero: () => buildHero(),
   // club editor: live 3D preview of a draft identity (null = back to the saved club)
   preview: (club, view = 'home') => { heroPreview = club ? { club, view } : null; if (!club) heroYaw = 0; buildHero(); },
+  previewPlayer: (p) => { heroPreview = { club: state.data.club, view: 'home', player: p }; heroYaw = 0; buildHero(); },
   rotateHero: (d) => { heroYaw += d; },
   startMatch: (ctx) => {
     const el = document.documentElement;

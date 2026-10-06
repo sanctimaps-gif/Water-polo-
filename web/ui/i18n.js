@@ -2,6 +2,16 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'hub.play': 'JOUER', 'hub.club': 'MON CLUB', 'hub.career': 'CARRIÈRE', 'hub.content': 'CONTENU',
+    'ui.quick_d': 'Un match amical contre un club au hasard', 'hub.tournament': 'TOURNOI', 'hub.tournament_d': 'Coupes nationales, Europe, international', 'hub.league': 'CHAMPIONNAT', 'hub.league_d': 'Classement et prochain match',
+    'ui.team_d': 'Titulaires, remplaçants, TOTAL', 'hub.players': 'JOUEURS', 'hub.players_d': 'Tout l’effectif, fiches 3D', 'hub.lineup': 'COMPOSITION', 'hub.lineup_d': 'Place tes 7 titulaires', 'ui.tactics_d': 'Style de jeu', 'ui.customize_d': 'Nom, couleurs, logo, maillots',
+    'hub.mycareer': 'MA CARRIÈRE', 'hub.mycareer_d': 'Mon club, budget, palmarès', 'hub.progress': 'PROGRESSION', 'hub.progress_d': 'Niveau, XP, objectifs', 'hub.stats': 'STATISTIQUES', 'hub.stats_d': 'Matchs, victoires, historique',
+    'hub.challenges': 'DÉFIS', 'hub.challenges_d': 'Objectifs du jour', 'ui.events_d': 'Événements à durée limitée', 'ui.rewards_d': 'Cadeau du jour',
+    'hub.players_tip': 'Touche un joueur pour ouvrir sa fiche 3D.',
+    'prog.how': 'XP gagnée à chaque match (victoire 120, nul 70, défaite 40, +5 par but). Chaque niveau débloque des compétitions.', 'prog.unlock': 'Niveau {0} : {1}',
+    'mc.budget': 'BUDGET', 'mc.squad': 'EFFECTIF', 'mc.rank': 'CLASSEMENT', 'mc.season': 'SAISON', 'mc.honours': 'PALMARÈS', 'mc.no_honours': 'Aucun trophée pour l’instant.',
+    'mc.budget_note': 'Budget fictif calculé à partir du niveau, des victoires et des trophées.', 'mc.club_of': 'Club du jeu (club réel adapté)', 'mc.change': 'CHANGER DE CLUB',
+    'mc.change_warn': 'Changer de club démarre une nouvelle carrière : nouvel effectif, nouveau championnat. Niveau, monnaies et trophées sont conservés. Continuer ?',
     'tour.title': 'TOURNOIS', 'tour.note': 'Formats inspirés des compétitions réelles (coupes nationales, ligue régionale, coupes d’Europe, tournois internationaux). Noms adaptés, aucune marque officielle.',
     'tour.s_national': 'COUPES NATIONALES', 'tour.s_regional': 'RÉGIONAL', 'tour.s_continental': 'CONTINENTAL', 'tour.s_international': 'INTERNATIONAL',
     'tour.f_ko': 'Élimination directe · {0} clubs', 'tour.f_groups': 'Groupes + phase finale · {0} clubs', 'tour.f_league': 'Ligue · {0} clubs',
@@ -80,6 +90,16 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'hub.play': 'PLAY', 'hub.club': 'MY CLUB', 'hub.career': 'CAREER', 'hub.content': 'CONTENT',
+    'ui.quick_d': 'A friendly against a random club', 'hub.tournament': 'TOURNAMENT', 'hub.tournament_d': 'National cups, Europe, international', 'hub.league': 'LEAGUE', 'hub.league_d': 'Standings and next match',
+    'ui.team_d': 'Starters, bench, TOTAL', 'hub.players': 'PLAYERS', 'hub.players_d': 'Whole squad, 3D cards', 'hub.lineup': 'LINE-UP', 'hub.lineup_d': 'Set your 7 starters', 'ui.tactics_d': 'Playing style', 'ui.customize_d': 'Name, colours, logo, kits',
+    'hub.mycareer': 'MY CAREER', 'hub.mycareer_d': 'My club, budget, honours', 'hub.progress': 'PROGRESSION', 'hub.progress_d': 'Level, XP, objectives', 'hub.stats': 'STATISTICS', 'hub.stats_d': 'Matches, wins, history',
+    'hub.challenges': 'CHALLENGES', 'hub.challenges_d': 'Daily objectives', 'ui.events_d': 'Limited-time events', 'ui.rewards_d': 'Daily gift',
+    'hub.players_tip': 'Tap a player to open their 3D card.',
+    'prog.how': 'XP earned every match (win 120, draw 70, loss 40, +5 per goal). Each level unlocks competitions.', 'prog.unlock': 'Level {0}: {1}',
+    'mc.budget': 'BUDGET', 'mc.squad': 'SQUAD', 'mc.rank': 'POSITION', 'mc.season': 'SEASON', 'mc.honours': 'HONOURS', 'mc.no_honours': 'No trophies yet.',
+    'mc.budget_note': 'Fictional budget computed from level, wins and trophies.', 'mc.club_of': 'Game club (adapted real club)', 'mc.change': 'CHANGE CLUB',
+    'mc.change_warn': 'Changing club starts a new career: new squad, new league. Level, currencies and trophies are kept. Continue?',
     'tour.title': 'TOURNAMENTS', 'tour.note': 'Formats inspired by real competitions (national cups, regional league, European cups, international tournaments). Adapted names, no official marks.',
     'tour.s_national': 'NATIONAL CUPS', 'tour.s_regional': 'REGIONAL', 'tour.s_continental': 'CONTINENTAL', 'tour.s_international': 'INTERNATIONAL',
     'tour.f_ko': 'Knockout · {0} clubs', 'tour.f_groups': 'Groups + finals · {0} clubs', 'tour.f_league': 'League · {0} clubs',

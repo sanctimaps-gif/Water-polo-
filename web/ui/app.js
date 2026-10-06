@@ -1,7 +1,7 @@
 // WATER POLO 26 MOBILE — front-end screens (landscape only). Every value comes from GameState.
 import { EVENTS, SHOP_ITEMS, TOURNAMENTS, CLUBS, POOLS, LEAGUES, COUNTRY_LEAGUES, BALL_DESIGNS, defaultKits, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
-import { TACTICS } from '../sim.js';
-import { logoSvg, icon, trophySvg, trophyArt, flagSvg, LOGO_SHAPES, LOGO_SYMBOLS, LOGO_PATTERNS } from './art.js';
+import { TACTICS, DRILLS } from '../sim.js';
+import { logoSvg, icon, trophySvg, trophyArt, flagSvg, drillArt, LOGO_SHAPES, LOGO_SYMBOLS, LOGO_PATTERNS } from './art.js';
 
 const KIT_PATTERNS = ['plain', 'halves', 'stripe', 'sash', 'chevron'];
 
@@ -56,7 +56,7 @@ export class App {
     this.root.className = `app scr-${name}`;
     const same = this.lastScreen === name; this.lastScreen = name;   // re-render of the same screen: no slide-in (editor, filters)
     const sc = this.root.querySelector('.custom-panel, .club-grid'), scroll = same && sc ? sc.scrollTop : 0;
-    this.root.innerHTML = (name === 'results' || name === 'prematch' || name === 'editor' || params.first ? '' : this.header()) + `<main class="screen ${same ? '' : 'anim-in'}">${body}</main>`;
+    this.root.innerHTML = (name === 'results' || name === 'challenge' || name === 'prematch' || name === 'editor' || params.first ? '' : this.header()) + `<main class="screen ${same ? '' : 'anim-in'}">${body}</main>`;
     if (scroll) { const n = this.root.querySelector('.custom-panel, .club-grid'); if (n) n.scrollTop = scroll; }
     this.api.setHero(name === 'home' || name === 'customize' || name === 'editor', name);
   }
@@ -271,7 +271,7 @@ export class App {
 
   // ------------------------------------------------------------------ hubs (JOUER / MON CLUB / CARRIÈRE / CONTENU / BOUTIQUE)
   static HUBS = {
-    play: ['t-orange', 'play', [['quick', 'ui.quick', 'play', 'quick'], ['nav', 'hub.tournament', 'trophy', 'tournaments'], ['nav', 'hub.league', 'chart', 'ranking']]],
+    play: ['t-orange', 'play', [['quick', 'ui.quick', 'play', 'quick'], ['nav', 'hub.tournament', 'trophy', 'tournaments'], ['nav', 'hub.league', 'chart', 'ranking'], ['defis', 'tour.t_defi', 'bolt', '']]],
     club: ['t-blue', 'team', [['nav', 'ui.team', 'team', 'team'], ['nav', 'hub.players', 'list', 'squad'], ['team-tab-go', 'hub.lineup', 'swap', 'starters'], ['team-tab-go', 'ui.tactics', 'chart', 'tactics'], ['edit-club', 'ui.customize', 'cap', '']]],
     career: ['t-green', 'star', [['nav', 'hub.mycareer', 'trophy', 'myclub'], ['nav', 'hub.progress', 'up', 'progress'], ['nav', 'hub.stats', 'chart', 'profile']]],
     content: ['t-magenta', 'gift', [['nav', 'hub.challenges', 'list', 'objectives'], ['nav', 'ui.events', 'trophy', 'events'], ['nav', 'ui.rewards', 'gift', 'rewards']]],
@@ -341,11 +341,34 @@ export class App {
       featured = `<button class="tt feat" style="--c1:#3b2fd8;--c2:#120a52" data-act="${nm ? 'prematch-league' : 'nav'}" data-arg="ranking"><span class="tt-flag">${flagSvg(my, 40)}</span>
         <i class="feat-title">${this.L('hub.league')}</i>${trophyArt('bigear', 130)}<b>${esc(lg.name)}</b>
         <small class="tt-s">${nm ? `${icon('play', 12)} ${this.L('ui.match_n', nm.round, nm.rounds)} · ${esc(st.clubInfo(nm.opponent).name)}` : this.L('ui.season', lg.season)}</small></button>`;
-    } else list = tab === 'europe' ? byScope('regional', 'continental') : byScope('international');
-    const tabs = [['club', 'club', 'tour.t_club'], ['europe', 'star', 'tour.t_europe'], ['world', 'trophy', 'tour.t_world']];
-    return `<div class="tours tab-${tab}"><div class="tt-grid ${featured ? 'has-feat' : ''}">${featured}${list.map(tile).join('')}</div>
+    } else list = tab === 'europe' ? byScope('regional', 'continental') : tab === 'world' ? byScope('international') : [];
+    const tabs = [['club', 'club', 'tour.t_club'], ['europe', 'star', 'tour.t_europe'], ['world', 'trophy', 'tour.t_world'], ['defi', 'bolt', 'tour.t_defi']];
+    const grid = tab === 'defi' ? this.challengeTiles() : `<div class="tt-grid ${featured ? 'has-feat' : ''}">${featured}${list.map(tile).join('')}</div>`;
+    return `<div class="tours tab-${tab}">${grid}
       <nav class="tabbar"><button data-act="back">${icon('back', 22)}<span>${this.L('ui.back')}</span></button>
         ${tabs.map(([k, ic, l]) => `<button class="${tab === k ? 'on' : ''}" data-act="tour-tab" data-arg="${k}">${icon(ic === 'club' ? 'team' : ic, 22)}<span>${this.L(l)}</span></button>`).join('')}</nav></div>`;
+  }
+  /** DÉFIS: tutorial, penalty, free throw, power play — stars (★), best score, how it works. */
+  challengeTiles() {
+    const st = this.st, kinds = ['tutorial', 'penalty', 'freethrow', 'powerplay'];
+    return `<div class="tt-grid dr-grid">${kinds.map((k, i) => {
+      const c = st.challengeState(k), D = DRILLS[k], total = D.steps ? D.steps.length : D.attempts;
+      const stars = [0, 1, 2].map((j) => `<i class="${j < c.stars ? 'on' : ''}">★</i>`).join('');
+      return `<button class="tt dr ${i === 0 && !c.stars ? 'feat-new' : ''}" style="--c1:${['#7ccf2a', '#3f9d2a', '#2a8a5c', '#1f7a7a'][i]};--c2:${['#2f6a0e', '#174d12', '#0d3d2a', '#0b3a44'][i]}" data-act="challenge" data-arg="${k}">
+        <i class="dr-title">${this.L('drill.' + k)}</i>${drillArt(k, 150)}<small class="dr-how">${this.L('drill.' + k + '_tile')}</small>
+        <span class="dr-stars">${stars}</span><small class="tt-s">${c.plays ? this.L('drill.best', c.best, total) : this.L('drill.new')}</small></button>`;
+    }).join('')}</div>`;
+  }
+  /** Result of a challenge: score, attempts, stars, rewards, REJOUER. */
+  scr_challenge({ result: r }) {
+    const stars = [0, 1, 2].map((j) => `<i class="${j < r.stars ? 'on' : ''}" style="animation-delay:${300 + j * 250}ms">★</i>`).join('');
+    const dots = r.results.map((ok) => `<i class="${ok ? 'ok' : 'ko'}">${ok ? '✓' : '✗'}</i>`).join('');
+    const rw = this.reward(r.reward);
+    return `<div class="results dr-res ${r.stars ? 'win' : 'draw'}"><h1>${this.L(r.stars ? 'drill.success' : 'drill.done')}</h1><h2>${this.L('drill.' + r.kind)}</h2>
+      <div class="dr-big">${r.made} / ${r.total}</div><div class="dr-stars big">${stars}</div><div class="dr-dots">${dots}</div>
+      <p class="sub">${this.L('drill.best', r.best, r.total)}${r.levelUps ? ' · ' + this.L('ui.level_up', this.st.data.profile.level) : ''}</p>
+      ${rw ? `<div class="res-rew row">${rw}</div>` : r.stars ? `<p class="sub">${this.L('drill.no_reward')}</p>` : ''}
+      <div class="pm-actions"><button class="btn" data-act="defis">${this.L('ui.continue')}</button><button class="btn play big" data-act="challenge" data-arg="${r.kind}">${icon('play', 20)} ${this.L('drill.retry')}</button></div></div>`;
   }
   tStage(def, t) {
     if (t.stage === 'done') return t.champion === 'user' ? this.L('tour.won') : this.L('tour.champ', esc(this.st.clubInfo(t.champion).name));
@@ -618,6 +641,11 @@ export class App {
       case 'sheet': this.playerSheet(st.player(arg)); break;
       case 'change-club': if (await this.confirm(this.L('mc.change_warn'))) { this.pickId = null; this.show('clubs'); } break;
       case 'tour-tab': this.tourTab = arg; this.render(); break;
+      case 'defis': this.tourTab = 'defi'; this.stack = [{ name: 'home', params: {} }]; this.show('tournaments', {}, false); break;
+      case 'challenge': {   // opponent goalkeeper / defenders: the club of the user's league closest to the user's level
+        const me = st.teamTotal().total, opp = Object.keys(st.data.league.table).filter((id) => id !== 'user').sort((a, b) => Math.abs(st.clubInfo(a).total - me) - Math.abs(st.clubInfo(b).total - me))[0];
+        this.hide(); this.api.startMatch({ mode: 'challenge', drill: arg, opponent: opp }); break;
+      }
       case 'tour-open': { const def = TOURNAMENTS.find((d) => d.id === arg); if (!st.tournamentState(def)) st.startTournament(def); this.show('tournament', { id: arg }); break; }
       case 'tour-play': { const def = TOURNAMENTS.find((d) => d.id === arg), nm = st.nextTournamentMatch(def); if (nm && nm.opponent) this.show('prematch', { mode: 'tournament', tournamentId: arg, opponent: nm.opponent, title: `${def.name} · ${this.tStage(def, st.tournamentState(def))}` }); break; }
       case 'tour-back': this.stack = [{ name: 'home', params: {} }, { name: 'tournaments', params: {} }]; this.show('tournament', { id: arg }, false); break;

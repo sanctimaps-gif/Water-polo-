@@ -27,3 +27,5 @@ jobs:
         run: node tools/web-tests/positioning.mjs 20
       - name: Web build — front crawl arms turn the right way
         run: node tools/web-tests/crawl.mjs
+      - name: Web build — DÉFIS (penalty, free throw, power play, tutorial)
+        run: node tools/web-tests/challenges.mjs

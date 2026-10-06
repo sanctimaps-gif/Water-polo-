@@ -104,6 +104,14 @@ export const CHARGE_TIME = 0.9, EXC_MIN = 0.72, EXC_MAX = 0.86;
 const ATT_D = [2.8, 5.2, 7.0, 5.2, 2.8, 2.5], ATT_Z = [-7.0, -4.4, 0, 4.4, 7.0, 0];
 // Attacking formations (slot -> distance from the goal line, lateral position): 'arc' = 3-3 (default),
 // 'umbrella' = 5 shooters on an arc around 5-6 m + centre, '4-2' = 4 players on the 2 m line, 2 drivers out.
+/** Challenges: attempts, time per attempt (s), successes needed to pass; tutorial = ordered steps. */
+export const DRILLS = {
+  tutorial: { steps: ['swim', 'sprint', 'pass', 'shoot', 'goal', 'steal'], pass: 6 },
+  penalty: { attempts: 5, time: 5, pass: 3, stars: [2, 3, 4] },
+  freethrow: { attempts: 5, time: 4, pass: 2, stars: [1, 2, 3] },
+  powerplay: { attempts: 3, time: 20, pass: 1, stars: [1, 2, 3] },
+};
+const FT_SPOTS = [[6.5, 0], [7, -3.5], [7, 3.5], [6, -2], [8, 2]];
 export const FORMATIONS = {
   arc: [ATT_D, ATT_Z],
   umbrella: [[4.4, 5.8, 6.6, 5.8, 4.4, 2.4], [-7.4, -4.8, 0, 4.8, 7.4, 0]],
@@ -114,7 +122,7 @@ export const Ev = {
   PERIOD_START: 'PeriodStart', SWIM_OFF: 'SwimOff', POSSESSION: 'PossessionWon', PASS: 'PassMade', PASS_OK: 'PassCompleted',
   INTERCEPT: 'PassIntercepted', SHOT: 'ShotTaken', SAVE: 'ShotSaved', BLOCK: 'ShotBlocked', OFF: 'ShotOffFrame', FRAME: 'ShotHitFrame',
   GOAL: 'Goal', STEAL: 'Steal', FOUL: 'Foul', OUT: 'BallOut', SHOT_CLOCK: 'ShotClockViolation', RESTART: 'Restart',
-  PERIOD_END: 'PeriodEnd', END: 'MatchEnd', SWITCH: 'HumanPlayerSwitched', EXCLUSION: 'Exclusion', REENTRY: 'ReEntry', OFFSIDE: 'Offside2m', NO_SHOT_5M: 'NoDirectShot5m', DODGE: 'Dodge', DODGE_FAIL: 'DodgeFail',
+  PERIOD_END: 'PeriodEnd', END: 'MatchEnd', SWITCH: 'HumanPlayerSwitched', EXCLUSION: 'Exclusion', REENTRY: 'ReEntry', DRILL: 'DrillResult', OFFSIDE: 'Offside2m', NO_SHOT_5M: 'NoDirectShot5m', DODGE: 'Dodge', DODGE_FAIL: 'DodgeFail',
 };
 
 // ---------------------------------------------------------------- simulation
@@ -269,6 +277,8 @@ export class Match {
     this.time += dt; this.tick++;
     if (this.phase === 'NOT_STARTED') this.start();
     if (this.phase === 'ENDED') return;
+    if (this.drill) this.drillTick(dt);
+    if (this.phase === 'ENDED') return;
     this.rulesTick(dt);
     if (this.phase !== 'LIVE') {
       for (const p of this.players) this.motor(p, V(), false, this.ball.owner === p, dt);
@@ -308,8 +318,92 @@ export class Match {
       if (!b.owner) this.settle();
     }
     if (b.possTeam >= 0) this.stats.teams[b.possTeam].possession += dt;
+    if (this.drill && this.phase !== 'DRILL_PAUSE') this.drillCheck(dt);
   }
   consumeOneShots() { const h = this.humanCmd; h.pass = h.shootReleased = h.quickShot = h.defend = h.hasAim = h.lobShot = h.dodge = false; }
+
+  // =============================================================== challenges (DÉFIS)
+  // Scripted situations played with the real match engine: penalty (5 m), direct free throw outside 5 m
+  // against one defender, power play 6 v 5 (20 s), and a guided tutorial. Players not involved are
+  // "benched" (out of the water, ignored by every rule and contact).
+  startDrill(kind) {
+    const D = DRILLS[kind];
+    this.drill = { kind, n: 0, total: D.steps ? D.steps.length : D.attempts, made: 0, results: [], pause: 0, shot: false, acc: 0, base: {}, step: null, target: null };
+    this.period = 1; this.periodLeft = 1e9;
+    this.drillSetup();
+  }
+  bench(p, on) {
+    p.benched = on; p.excluded = on ? 1e9 : 0; p.vel = V(); this.resetAction(p);
+    if (on) p.pos = V(this.ownGoal(p.team).x * 0.6 + p.slot, 0, (p.team ? 1 : -1) * (this.cfg.hw + 3));
+  }
+  drillSetup() {
+    const d = this.drill, D = DRILLS[d.kind], c = this.cfg, s = this.sign(0), tg = this.targetGoal(0), og = this.ownGoal(0);
+    const at = (dx, z) => V(tg.x - s * dx, 0, z), keep = new Set();
+    for (const p of this.players) { this.bench(p, false); p.stamina = 1; p.facing = V(this.sign(p.team), 0, 0); }
+    const b = this.ball; Object.assign(b, { owner: null, lastTouch: null, possTeam: -1, vel: V(), shooter: null, receiver: null, landing: null });
+    this.freeThrow = null; this.restart = null; d.shot = false; d.acc = 0; d.target = null;
+    const gk1 = this.teams[1].gk, gk0 = this.teams[0].gk, me = this.slot(0, 2);
+    gk1.pos = add(tg, V(-s * 0.5, 0, 0)); gk0.pos = add(og, V(s * 0.5, 0, 0)); keep.add(gk1);
+    let owner = me, time = D.time || 99;
+    if (d.kind === 'penalty') { me.pos = at(5, 0); keep.add(me); }
+    else if (d.kind === 'freethrow') {
+      const [dx, z] = FT_SPOTS[d.n % FT_SPOTS.length]; me.pos = at(dx, z); keep.add(me);
+      const def = this.slot(1, 3); def.pos = add(me.pos, mul(norm(flat(sub(tg, me.pos))), 1.3)); keep.add(def);
+      this.freeThrow = { taker: me, inside5: false };
+    } else if (d.kind === 'powerplay') {
+      for (const p of this.teams[0].field) { p.pos = this.ppSpot(0, p.slot); keep.add(p); }
+      for (const p of this.teams[1].field) { p.pos = add(this.ppSpot(0, p.slot), V(s * 1.2, 0, -Math.sign(this.ppSpot(0, p.slot).z) * 0.4)); keep.add(p); }
+      keep.add(gk0);
+    } else {   // tutorial steps
+      const st = d.step = D.steps[d.n];
+      if (st === 'swim') { me.pos = V(-2, 0, 0); d.target = V(5, 0, 4); keep.add(me); }
+      else if (st === 'sprint') { me.pos = V(-6, 0, -3); d.target = V(8, 0, 2); keep.add(me); }
+      else if (st === 'pass') { me.pos = at(8, 0); const a = this.slot(0, 1), b2 = this.slot(0, 3); a.pos = at(5, -4); b2.pos = at(5, 4); keep.add(me).add(a).add(b2); }
+      else if (st === 'shoot' || st === 'goal') { me.pos = at(st === 'shoot' ? 7 : 5.5, 0); keep.add(me); }
+      else if (st === 'steal') { const o = this.slot(1, 2); o.pos = V(1, 0, 0); o.facing = V(-1, 0, 0); me.pos = V(-1.2, 0, 0.3); keep.add(me).add(o).add(gk0); owner = o; }
+      d.base = { passesOk: this.stats.teams[0].passesOk };
+    }
+    for (const p of this.players) if (!keep.has(p)) this.bench(p, true);
+    for (const p of this.players) if (!p.benched && !p.isGK) p.facing = norm(flat(sub(this.targetGoal(p.team), p.pos)));
+    this.setHuman(me, false); this.give(owner, false);
+    if (d.kind === 'powerplay') this.exclude(this.slot(1, 5), null);
+    if (d.kind === 'freethrow') this.freeThrow = { taker: me, inside5: false };
+    this.shotClockLeft = time; this.phase = 'LIVE';
+    this.emit(Ev.RESTART, 0, owner.id, -1, owner.pos);
+  }
+  /** Ends the current attempt (ok = success) and pauses before the next one. */
+  drillResult(ok, why) {
+    const d = this.drill; d.results.push(ok); if (ok) d.made++; d.lastOk = ok;
+    this.emit(Ev.DRILL, 0, this.human ? this.human.id : -1, -1, this.ball.pos, ok ? 1 : 0);
+    d.why = why; this.phase = 'DRILL_PAUSE'; d.pause = 1.8;
+  }
+  drillTick(dt) {
+    const d = this.drill;
+    if (this.phase === 'DRILL_PAUSE') {
+      d.pause -= dt; if (d.pause > 0) return;
+      if (d.step) { if (d.lastOk) d.n++; } else d.n++;
+      if (d.n >= d.total) { this.phase = 'ENDED'; this.emit(Ev.END, d.made >= DRILLS[d.kind].pass ? 0 : 1, -1, -1, V(), d.made); return; }
+      this.drillSetup(); return;
+    }
+    this.periodLeft = 1e9; if (d.step) this.shotClockLeft = 99;
+  }
+  drillCheck(dt) {
+    const d = this.drill, b = this.ball, me = this.human;
+    if (this.phase === 'DEAD') {   // out, foul, shot-clock: fail (a foul for the attackers in a power play keeps it going)
+      if (d.kind === 'powerplay' && this.restart && this.restart.team === 0 && !this.restart.afterGoal) return;
+      return this.drillResult(false, 'dead');
+    }
+    if (this.phase !== 'LIVE') return;
+    if (b.state === 'SHOT') d.shot = true;
+    if (b.owner && b.owner.team === 1 && d.step !== 'steal') return this.drillResult(false, b.owner.isGK ? 'save' : 'stop');
+    if ((d.kind === 'penalty' || d.kind === 'freethrow' || d.step === 'goal') && d.shot && b.state !== 'SHOT' && b.state !== 'GOAL' && b.stateTime > 0.6) return this.drillResult(false, 'miss');
+    if (!d.step) return;
+    if (d.step === 'swim' && me && fdist(me.pos, d.target) < 1.4) return this.drillResult(true, 'ok');
+    if (d.step === 'sprint') { if (me && me.sprinting) d.acc += dt; if (d.acc >= 1.2) return this.drillResult(true, 'ok'); }
+    if (d.step === 'pass' && this.stats.teams[0].passesOk > d.base.passesOk) return this.drillResult(true, 'ok');
+    if (d.step === 'shoot' && d.shot) return this.drillResult(true, 'ok');
+    if (d.step === 'steal' && b.owner && b.owner.team === 0) return this.drillResult(true, 'ok');
+  }
 
   // =============================================================== rules
   rulesTick(dt) {
@@ -358,6 +452,7 @@ export class Match {
     this.phase = 'BREAK'; this.phaseTimer = this.cfg.periodBreak;
   }
   onGoal(team) {
+    if (this.drill) { this.teams[team].score++; this.stats.teams[team].goals++; this.drillResult(team === 0, 'goal'); return; }
     this.teams[team].score++;
     const st = this.stats.teams[team];
     if (this.shortHanded(1 - team)) st.ppGoals++;
@@ -392,10 +487,11 @@ export class Match {
     this.emit(Ev.EXCLUSION, p.team, p.id, fouled ? fouled.id : -1, p.pos, this.cfg.exclusion);
     if (p.human) { const q = this.teams[p.team].field.find((x) => x !== p && x.excluded <= 0); if (q) this.setHuman(q, true); }
   }
-  endExclusion(p) { if (p.excluded <= 0) return; p.excluded = 0; this.emit(Ev.REENTRY, p.team, p.id, -1, p.pos); }
+  endExclusion(p) { if (p.excluded <= 0 || p.benched) return; p.excluded = 0; this.emit(Ev.REENTRY, p.team, p.id, -1, p.pos); }
   exclusionTick(dt) {
     for (const p of this.players) {
       if (p.excluded <= 0) continue;
+      if (p.benched) { p.vel = V(); continue; }
       p.excluded -= dt; p.vel = V(); p.pos = this.reentrySpot(p);
       if (p.excluded <= 0) { p.excluded = 1e-6; this.endExclusion(p); }
     }
@@ -470,13 +566,13 @@ export class Match {
   spacing() {
     const P = this.players;
     for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
-      const a = P[i], b = P[j]; const d = flat(sub(b.pos, a.pos)); const l = len(d);
+      const a = P[i], b = P[j]; if (a.benched || b.benched) continue; const d = flat(sub(b.pos, a.pos)); const l = len(d);
       if (l >= 0.75) continue;
       const n = l > 1e-4 ? mul(d, 1 / l) : V(1, 0, 0);
       const wa = 0.5 + (N(b.stats.physical) - N(a.stats.physical)) * 0.3, push = 0.75 - l;
       a.pos = sub(a.pos, mul(n, push * wa)); b.pos = add(b.pos, mul(n, push * (1 - wa)));
     }
-    for (const p of P) this.clampField(p);
+    for (const p of P) if (!p.benched) this.clampField(p);
     if (this.ball.owner) this.snap();
   }
 
@@ -844,7 +940,7 @@ export class Match {
     const b = this.ball; if (b.stateTime < 0.08 || b.pos.y > 2.2) return;
     const speed = len(b.vel);
     for (const o of this.players) {
-      if (o.team === b.possTeam || o.stun > 0 || b.tried.has(o.id)) continue;
+      if (o.team === b.possTeam || o.stun > 0 || o.excluded > 0 || b.tried.has(o.id)) continue;
       const rad = 0.35 + 0.3 * N(o.stats.reaction) + 0.15 * this.effDef(o) + (o.isGK ? 0.3 : 0);
       if (fdist(o.pos, b.pos) > rad || b.pos.y > 1.5) continue;
       b.tried.add(o.id);
@@ -873,7 +969,7 @@ export class Match {
   shotBlocks() {
     const b = this.ball; if (b.stateTime < 0.05 || b.pos.y > 1.5) return;
     for (const d of this.teams[1 - b.shooter.team].field) {
-      if (b.tried.has(d.id) || d.stun > 0) continue;
+      if (b.tried.has(d.id) || d.stun > 0 || d.excluded > 0) continue;
       const rad = 0.35 + (d.block > 0 ? 0.5 : 0.15) + 0.2 * this.effDef(d);
       if (fdist(d.pos, b.pos) > rad) continue;
       b.tried.add(d.id);
@@ -887,7 +983,7 @@ export class Match {
     const b = this.ball; if (b.pos.y > 0.9 || len(flat(b.vel)) > 7) return;
     let best = null, bd = 1e9;
     for (const p of this.players) {
-      if (p.stun > 0) continue;
+      if (p.stun > 0 || p.excluded > 0) continue;
       const d = fdist(p.pos, b.pos);
       if (d <= 0.55 + 0.25 * N(p.stats.reaction) && d < bd) { best = p; bd = d; }
     }

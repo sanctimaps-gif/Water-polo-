@@ -114,3 +114,21 @@ const TROPHIES = {
 export function trophyArt(kind, size = 64) {
   return `<svg class="trophy-art" width="${size}" height="${size}" viewBox="0 0 100 84" fill="#fff" aria-hidden="true">${TROPHIES[kind] || TROPHIES.goblet}</svg>`;
 }
+
+/** DÉFIS pictograms: top view of the situation (original line drawings). */
+export function drillArt(kind, w = 150) {
+  const goal = '<path d="M140 38v24" stroke="#fff" stroke-width="5"/><path d="M140 38h6v24h-6" fill="none" stroke="#fff" stroke-width="2"/>';
+  const dot = (x, y, c = '#fff', r = 5) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" stroke="#0006" stroke-width="1.5"/>`;
+  const ball = (x, y) => `<circle cx="${x}" cy="${y}" r="3.2" fill="#ffd21a" stroke="#0007"/>`;
+  const line = (x, dash = '4 4') => `<path d="M${x} 6v88" stroke="#fff8" stroke-width="2" stroke-dasharray="${dash}"/>`;
+  const arrow = (x1, y1, x2, y2) => `<path d="M${x1} ${y1}L${x2} ${y2}" stroke="#ffd21a" stroke-width="2.5" stroke-dasharray="5 4" marker-end="url(#ah)"/>`;
+  const S = {
+    penalty: `${line(100)}${goal}${dot(136, 50, '#e5402e')}${dot(100, 50)}${ball(106, 49)}${arrow(110, 49, 136, 42)}<text x="94" y="92" fill="#fff" font-size="11" font-weight="800">5 m</text>`,
+    freethrow: `${line(100)}${line(80, '2 5')}${goal}${dot(136, 50, '#e5402e')}${dot(70, 34)}${ball(76, 34)}${dot(86, 38, '#1b2f5a')}<path d="M86 38l4-9" stroke="#fff" stroke-width="3"/>${arrow(80, 30, 136, 56)}`,
+    powerplay: `${line(100)}${goal}${dot(136, 50, '#e5402e')}${[[128, 36], [128, 64], [108, 24], [104, 42], [104, 58], [108, 76]].map(([x, y]) => dot(x, y)).join('')}
+      ${[[122, 44], [122, 58], [114, 32], [114, 68], [110, 50]].map(([x, y]) => dot(x, y, '#1b2f5a')).join('')}${ball(98, 42)}<text x="20" y="56" fill="#fff" font-size="22" font-weight="900">6 c 5</text>`,
+    tutorial: `${[30, 55, 80, 105].map((x, i) => `<path d="M${x - 6} ${70 - i * 12}h12l-6-14Z" fill="#ffd21a"/>`).join('')}${dot(14, 82)}${ball(20, 82)}${arrow(22, 76, 120, 26)}${goal}`,
+  };
+  return `<svg class="drill-art" width="${w}" height="${Math.round(w * 0.66)}" viewBox="0 0 150 100" aria-hidden="true"><defs><marker id="ah" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#ffd21a"/></marker></defs>
+    <rect x="2" y="4" width="146" height="92" rx="6" fill="#0003" stroke="#fff5"/>${S[kind] || ''}</svg>`;
+}

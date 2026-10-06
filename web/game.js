@@ -1,7 +1,7 @@
 // WATER POLO 26 MOBILE — web build: match presentation (Three.js) + touch controls + HUD over the
 // deterministic JS simulation. Rendering modules live in web/render/.
 import * as THREE from './vendor/three.module.min.js';
-import { Match, Ev, TACTICS, FORMATIONS } from './sim.js';
+import { Match, Ev, TACTICS, FORMATIONS, DRILLS } from './sim.js';
 import { logoSvg } from './ui/art.js';
 import { GameState, lookOf, POOLS, BALL_DESIGNS } from './state.js';
 import { App } from './ui/app.js';
@@ -145,6 +145,9 @@ const selArrow = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.42, 4).rotateX(Ma
 selArrow.renderOrder = 10; scene.add(selArrow);
 const passRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0x4dff73, transparent: true, opacity: 0.8, depthWrite: false }));
 passRing.renderOrder = 5; scene.add(passRing);
+// DÉFIS tutorial: target ring on the water.
+const goalRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd21a, transparent: true, opacity: 0.85, depthWrite: false }));
+goalRing.renderOrder = 5; goalRing.visible = false; scene.add(goalRing);
 
 // ------------------------------------------------------------------ kits
 // Club kits (home / away / goalkeeper) -> Athlete options. Water polo: one team in dark caps, the other in
@@ -395,7 +398,8 @@ function startMatch(ctx) {
   const pool = POOLS.find((x) => x.id === state.data.club.pool);   // the club's home pool sets the arena ambience
   arena.setAmbience(ctx.away || !pool ? opts.ambience : pool.ambience);
   tacticIdx = Math.max(0, TACTICS.indexOf(state.data.club.tactic));
-  match.start();
+  if (ctx.mode === 'challenge') match.startDrill(ctx.drill); else match.start();
+  drillKey = '';
   tape.length = 0; record(match, []); record(match, []);
   buildActors(match);
   replay = null; pendingReplay = null; camState.goalT = 0;
@@ -407,7 +411,8 @@ function startMatch(ctx) {
   refreshTactic(); refreshChips();
   lockLandscape();
   audio.start();
-  if (opts.intro !== false) startIntro(); else audio.whistle(true);
+  $('shotclock').style.visibility = ''; $('drill').classList.toggle('hidden', ctx.mode !== 'challenge'); document.body.classList.toggle('challenge', ctx.mode === 'challenge');
+  if (opts.intro !== false && ctx.mode !== 'challenge') startIntro(); else audio.whistle(true);
 }
 
 // ------------------------------------------------------------------ pool entry cinematic
@@ -514,7 +519,14 @@ function onEvent(e) {
   }
   react(e);
   const toastMap = { [Ev.SAVE]: 'hud.save', [Ev.BLOCK]: 'hud.blocked', [Ev.FRAME]: 'hud.frame', [Ev.INTERCEPT]: 'hud.intercepted', [Ev.STEAL]: 'hud.steal', [Ev.FOUL]: 'hud.foul', [Ev.OUT]: 'hud.out', [Ev.SHOT_CLOCK]: 'hud.shotclock_violation', [Ev.SWIM_OFF]: 'hud.swimoff' };
+  if (e.type === Ev.DRILL) {
+    const d = m.drill; drillKey = '';
+    if (e.value && d.why !== 'goal') banner('ok', L('drill.step_ok'), '', -1, 1.4);
+    else if (!e.value && d.why !== 'save') banner('excl', L(d.why === 'dead' && m.shotClockLeft <= 0 ? 'drill.time' : 'drill.missed'), '', -1, 1.4);
+    haptic(e.value ? [30, 30, 60] : 40);
+  }
   if (e.type === Ev.SAVE) banner('save', L('hud.save'), '', e.team, 1.3);
+  else if (e.type === Ev.SHOT_CLOCK && m.drill) { /* challenge timer: reported by the DrillResult banner */ }
   else if (e.type === Ev.SHOT_CLOCK) { banner('clock', L('hud.clock_title'), L('hud.shotclock_violation'), -1, 1.8); haptic(20); }
   else if (toastMap[e.type]) toast(L(toastMap[e.type]), 1.1);
   if ([Ev.FOUL, Ev.OUT, Ev.SHOT_CLOCK].includes(e.type)) audio.whistle(false);
@@ -527,7 +539,7 @@ function onEvent(e) {
   if (e.type === Ev.GOAL) {
     { const sc = e.player >= 0 ? m.players[e.player] : null; banner('goal', L('hud.goal'), sc ? `#${sc.number} ${sc.name || ''}` : '', e.team, 2.8); flash(); }
     camState.goalT = 1.5; camState.goalPoint.set(e.pos.x, 0, e.pos.z); camState.goalSide = Math.sign(e.pos.x) || 1;
-    if (opts.replays) pendingReplay = { at: 1.5 };
+    if (opts.replays && matchCtx.mode !== 'challenge') pendingReplay = { at: 1.5 };
     // Team-mates close to the scorer join the celebration.
     const scorer = e.player >= 0 ? m.players[e.player] : null;
     if (scorer) for (const p of m.teams[scorer.team].field) if (p !== scorer && Math.hypot(p.pos.x - scorer.pos.x, p.pos.z - scorer.pos.z) < 5) athletes[p.id].playCelebrate('arms');
@@ -642,6 +654,7 @@ function updateWorld(dt, v) {
     // Look: the goal while winding up a shot / holding the ball, the ball otherwise.
     if (s.hasBall && match) { const g = match.targetGoal(match.players[i].team); lookGoal.set(g.x, 0.9, g.z); s.look = s.charging ? lookGoal : null; } else s.look = null;
     athletes[i].update(dt, s);
+    if (match) athletes[i].root.visible = !match.players[i].benched;   // DÉFIS: players not involved are out of the water
   }
   // Ball: in the hand when held, simulated position otherwise.
   if (v.owner >= 0) athletes[v.owner].ballWorld(ballMesh.position, time); else ballMesh.position.copy(v.ball);
@@ -696,6 +709,12 @@ function finishMatch(forfeit) {
   if (forfeit) { hs = 0; as = 5; }
   const players = {};   // career stats of the squad players who played
   m.players.forEach((p, i) => { if (p.team === 0 && p.pid) players[p.pid] = m.pstats[i]; });
+  if (ctx.mode === 'challenge') {   // DÉFIS: stars and rewards (a quit challenge is not recorded)
+    const d = m.drill, result = forfeit ? null : { ...state.recordChallenge(ctx.drill, d.made, d.total), results: d.results.slice() };
+    leaveMatch(); goalRing.visible = false;
+    if (result) { audio.whistle(false); app.show('challenge', { result }, false); } else { app.tourTab = 'defi'; app.show('tournaments', {}, false); }
+    return;
+  }
   const summary = ctx.mode === 'quick' && forfeit ? null : state.applyResult(ctx, { hs, as, stats, players });
   leaveMatch();
   if (summary) { audio.whistle(false); app.show('results', { summary, hs, as, stats, statsOpp, opponent: m.teams[1].def.short }, false); }
@@ -782,7 +801,7 @@ function pausePanel(kind) {
     return;
   }
   if (kind === 'quit') {
-    el.innerHTML = `<div class="tp-box"><h2>${L('ui.quit')}</h2><p>${matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn')}</p>
+    el.innerHTML = `<div class="tp-box"><h2>${L('ui.quit')}</h2><p>${matchCtx.mode === 'challenge' ? L('drill.quit') : matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn')}</p>
       <button class="pm-btn danger" id="quit-yes">${L('ui.confirm')}</button></div>`;
     el.onclick = (e) => { if (e.target.id === 'quit-yes') { closePause(); finishMatch(matchCtx.mode !== 'quick'); } };
     return;
@@ -917,17 +936,30 @@ function drawRadar(m) {
   }
   g.fillStyle = '#ffd21a'; g.beginPath(); g.arc(X(m.ball.pos.x), Z(m.ball.pos.z), 3, 0, 7); g.fill();
 }
+// DÉFIS panel: name, attempts (✓ / ✗), instruction; the shot clock shows the time left for the attempt.
+let drillKey = '';
+function updateDrill(m) {
+  const d = m.drill, key = `${d.n}|${d.results.length}|${d.step}`;
+  $('clock').textContent = L('drill.' + d.kind); $('shotclock').style.visibility = d.step ? 'hidden' : '';
+  goalRing.visible = !!d.target && m.phase === 'LIVE';
+  if (d.target) { goalRing.position.set(d.target.x, 0.05, d.target.z); goalRing.scale.setScalar(2.2 + Math.sin(performance.now() / 200) * 0.25); }
+  if (key === drillKey) return; drillKey = key;
+  const dots = d.step ? DRILLS.tutorial.steps.map((st, i) => `<i class="${i < d.n ? 'ok' : i === d.n ? 'cur' : ''}">${i + 1}</i>`).join('')
+    : Array.from({ length: d.total }, (_, i) => `<i class="${i < d.results.length ? (d.results[i] ? 'ok' : 'ko') : i === d.results.length ? 'cur' : ''}">${i < d.results.length ? (d.results[i] ? '✓' : '✗') : i + 1}</i>`).join('');
+  $('drill').innerHTML = `<div class="dr-dots">${dots}</div><p>${L(d.step ? 'drill.t_' + d.step : 'drill.' + d.kind + '_how')}</p>`;
+}
 const hexCss = (c) => '#' + c.toString(16).padStart(6, '0');
 function updateHud(dt) {
   const m = match;
   radarT -= dt; if (radarT <= 0) { radarT = 1 / 15; drawRadar(m); }
   $('home-score').textContent = m.teams[0].score; $('away-score').textContent = m.teams[1].score;
   const t = Math.max(0, m.periodLeft);
-  $('clock').textContent = `${L('hud.period', m.period)}  ${String((t / 60) | 0).padStart(2, '0')}:${String((t | 0) % 60).padStart(2, '0')}`;
+  if (m.drill) updateDrill(m);
+  else $('clock').textContent = `${L('hud.period', m.period)}  ${String((t / 60) | 0).padStart(2, '0')}:${String((t | 0) % 60).padStart(2, '0')}`;
   $('shotclock').textContent = Math.ceil(Math.max(0, m.shotClockLeft));
   // Power play indicator: "6 v 5 · 14 s" while a player is excluded
-  const ex = m.players.find((p) => p.excluded > 0), mu = $('manup');
-  if (ex) { const n = (t) => 6 - m.teams[t].field.filter((p) => p.excluded > 0).length; mu.textContent = L('hud.manup', n(1 - ex.team), n(ex.team), Math.ceil(ex.excluded)); mu.className = ex.team === 0 ? 'down' : 'up'; mu.hidden = false; }
+  const ex = m.players.find((p) => p.excluded > 0 && !p.benched), mu = $('manup');
+  if (ex) { const n = (t) => 6 - m.teams[t].field.filter((p) => p.excluded > 0 && !p.benched).length; mu.textContent = L('hud.manup', n(1 - ex.team), n(ex.team), Math.ceil(ex.excluded)); mu.className = ex.team === 0 ? 'down' : 'up'; mu.hidden = false; }
   else mu.hidden = true;
   const me = m.human;
   if (me) {

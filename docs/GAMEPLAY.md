@@ -231,6 +231,23 @@ CONTRE-ATTAQUE, les 2 spécialisés RAPIDE / CENTRE, et la **formation d'attaque
 | PARAPLUIE | 5 tireurs en arc à 4,4–6,6 m autour du pivot |
 | 4-2 | ailes et deux postes à 2,3 m, deux joueurs mobiles à 6 m |
 
+### DÉFIS (version web, `startDrill` dans `web/sim.js`) — testés par `tools/web-tests/challenges.mjs`
+
+Situations jouées avec le vrai moteur de match ; les joueurs non concernés sortent de l'eau (ignorés
+par toutes les règles et tous les contacts).
+
+| Défi | Situation | Essais | Étoiles | Mesuré (tirs dans les coins, IA gardien) |
+|---|---|---|---|---|
+| TUTORIEL | 6 étapes : nager jusqu'au cercle, sprinter 1,2 s, réussir une passe, tirer, marquer à 5,5 m, voler le ballon | étape rejouée tant qu'elle n'est pas réussie | 3 ★ une fois terminé | complété par un joueur scripté |
+| PENALTY | tireur seul à 5 m face au gardien, 5 s par tir | 5 | 2 / 3 / 4 buts | 66 % de buts (penaltys élite ≈ 70 %) |
+| COUP FRANC | faute hors des 5 m : tir direct autorisé (règle), un défenseur à 1,3 m bras levé, 4 s | 5 | 1 / 2 / 3 buts | 17 % |
+| SUPÉRIORITÉ 6 C 5 | un adversaire exclu 20 s, attaque placée en 4-2 de supériorité | 3 | 1 / 2 / 3 buts | 50 % (≈ 47 % en match réel) |
+
+Fin d'un essai : but, arrêt / ballon perdu, tir manqué, ballon sorti, temps écoulé (horloge des 30 s
+utilisée comme compte à rebours). En supériorité, une faute pour l'attaque relance l'action.
+Récompenses une seule fois : 60 pièces par nouvelle étoile, 5 gemmes au premier 3 ★ (tutoriel :
+200 pièces, 100 points d'entraînement, 1 trousse) ; XP à chaque partie ; meilleur score sauvegardé.
+
 ## 8. Règles (`RuleManager`)
 
 IMPLÉMENTÉ : 4 périodes à chrono courant (durée réglable), sprint d'engagement au début de chaque

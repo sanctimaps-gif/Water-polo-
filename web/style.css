@@ -223,3 +223,12 @@ body.replaying #stick-zone, body.replaying .action, body.replaying #bars { opaci
 .set-list button { min-width: 110px; min-height: 36px; background: #19d3f5; color: #06101f; font: 800 15px "Barlow Condensed", sans-serif; border: 0; }
 @keyframes pslide { from { transform: translateX(-40px); opacity: 0; } } @keyframes pmin { from { transform: scale(.92); opacity: 0; } }
 @media (max-height: 420px) { #banner b { font-size: 34px; } #banner.b-goal b { font-size: 48px; } .tp-st { min-height: 54px; } .pm-btn { min-height: 40px; font-size: 17px; } }
+/* DÉFIS panel in match */
+#drill { position: absolute; top: calc(92px + var(--safe-t)); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+  font-family: "Barlow Condensed", sans-serif; max-width: min(520px, 60vw); text-align: center; }
+#drill.hidden { display: none; }
+#drill .dr-dots { display: flex; gap: 4px; } #drill .dr-dots i { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font: 800 13px "Barlow Condensed", sans-serif; font-style: normal; background: rgba(4,10,22,.7); color: #fff; border: 1px solid #fff4; }
+#drill .dr-dots i.ok { background: #2fbf71; } #drill .dr-dots i.ko { background: #e5402e; } #drill .dr-dots i.cur { box-shadow: 0 0 0 2px #ffd21a; }
+#drill p { margin: 0; padding: 3px 10px; background: rgba(4,10,22,.72); border-left: 3px solid #b6ff1a; color: #fff; font: 600 14px -apple-system, sans-serif; }
+#banner.b-ok { border-left-color: #2fbf71; --team: #2fbf71; } #banner.b-ok b { color: #8af7b8; }
+body.challenge #banner { top: 58%; }

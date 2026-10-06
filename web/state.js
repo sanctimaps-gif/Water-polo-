@@ -3,7 +3,7 @@
 // Clubs, players and competitions are FICTIONAL: no licence is held for real names, logos or
 // photos (see docs/UI.md). Real data can be plugged in later through the same structures,
 // with `source` / `lastUpdated` fields filled from official sources.
-import { Rng, N, TACTICS } from './sim.js';
+import { Rng, N, TACTICS, DRILLS } from './sim.js';
 import CLUB_DB from './data/clubs.js';
 
 const SAVE_KEY = 'wp26.save', SAVE_VERSION = 1;
@@ -212,6 +212,7 @@ function defaultState() {
       kits: defaultKits(0x1e5bd8, 0xffffff, 0x0b2348), ball: 'classic', pool: 'aqua', tactic: 'BALANCED', formation: 'arc', baseClubId: null, customClubId: null, createdAt: Date.now() },
     clubChosen: false,
     tournaments: {},
+    challenges: {},
     squad: generateSquad('user', 70),
     lineup: null,
     inventory: { owned: [], equipped: { cap: null, trim: null, celebration: null } },
@@ -241,7 +242,7 @@ export class GameState {
         const cl = raw.club, d = defaultState().club;
         for (const k of ['city', 'country', 'color3', 'ball', 'formation', 'baseClubId', 'customClubId']) cl[k] ??= d[k];
         cl.kits ??= defaultKits(cl.color, cl.color2, cl.color3); cl.logo.letters ??= cl.short; cl.logo.pattern ??= 'none'; cl.logo.border ??= 'single';
-        raw.tournaments ??= {}; raw.clubChosen ??= true;
+        raw.tournaments ??= {}; raw.clubChosen ??= true; raw.challenges ??= {};
         const known = new Set(['user', ...CLUBS.map((x) => x.id)]);
         if (!raw.league.country || Object.keys(raw.league.table).some((id) => !known.has(id))) raw.league = newLeague(raw.league.season || 1, cl.country, cl.baseClubId);
         return raw;
@@ -287,6 +288,21 @@ export class GameState {
     for (const k of ['name', 'short', 'city', 'color', 'color2', 'color3', 'logo', 'kits', 'ball', 'pool']) if (identity[k] !== undefined) c[k] = JSON.parse(JSON.stringify(identity[k]));
     c.short = String(c.short).toUpperCase().slice(0, 4); c.customClubId ??= 'my-' + Date.now().toString(36);
     this.save();
+  }
+  // ------------------------------------------------ DÉFIS (challenges): best score, stars, first-time rewards
+  challengeState(kind) { return this.data.challenges[kind] || { best: 0, stars: 0, plays: 0 }; }
+  challengeStars(kind, made) {
+    const D = DRILLS[kind]; if (D.steps) return made >= D.steps.length ? 3 : 0;
+    return D.stars.filter((n) => made >= n).length;
+  }
+  /** Records a finished challenge; new stars pay 60 coins each, 3 stars the first time +5 gems, tutorial +200 coins. */
+  recordChallenge(kind, made, total) {
+    const prev = this.challengeState(kind), stars = this.challengeStars(kind, made), newStars = Math.max(0, stars - prev.stars);
+    const reward = { coins: newStars * 60 };
+    if (stars === 3 && prev.stars < 3) { if (kind === 'tutorial') { reward.coins += 200; reward.tp = 100; reward.medkits = 1; } else reward.gems = 5; }
+    this.data.challenges[kind] = { best: Math.max(prev.best, made), stars: Math.max(prev.stars, stars), plays: prev.plays + 1, last: made };
+    this.grant(reward); const levelUps = this.addXp(10 + made * 5); this.save();
+    return { kind, made, total, stars, newStars, reward, levelUps, best: this.data.challenges[kind].best };
   }
   /** Saved custom club (MON CLUB), as stored in the local save. */
   customClub() {

@@ -75,4 +75,5 @@ index.html + web/          version jouable dans le navigateur (GitHub Pages)
 
 **Paysage uniquement (LANDSCAPE ONLY)** · gameplay d'abord · fluide avant d'être beau · aucune fausse fonctionnalité (PROTOTYPE / NON IMPLÉMENTÉ
 affichés clairement) · chaque statistique a un effet testé · aucun texte en dur · pas de pay-to-win,
-pas de loot box payante opaque, publicités uniquement optionnelles · noms, équipes et compétitions fictifs.
+pas de loot box payante opaque, publicités uniquement optionnelles · clubs réels **adaptés** (nom modifié,
+logo et maillots originaux, sources conservées à part, aucune marque officielle), joueurs fictifs.

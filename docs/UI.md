@@ -8,7 +8,14 @@ l'appareil) : aucune valeur décorative. Règles vérifiées par `node tools/web
 | Écran | Contenu | Données réelles |
 |---|---|---|
 | Barre supérieure | réglages, logo + nom du club, TOTAL, niveau / XP, pièces, gemmes (+ = comment les gagner) | oui |
-| Accueil | gauche : CLASSEMENT, PERSONNALISER, OBJECTIFS, RÉCOMPENSES GRATUITES (pastille) · centre : joueur 3D aux couleurs du club · droite : carte PROCHAIN MATCH (ligue, logos, TOTAL des deux équipes, piscine, JOUER) + MON ÉQUIPE, ÉVÉNEMENTS (minuteur), BOUTIQUE, MATCH RAPIDE | oui |
+| Choisis ton club (1er lancement) | onglets CLUBS RÉELS / CRÉER MON CLUB, filtre par pays, cartes (nom adapté, pays, ville, championnat, note) ; panneau CLUB DE DÉPART (logo, maillots domicile / extérieur / gardien, JOUER AVEC CE CLUB, CRÉER MA VERSION, ⓘ DONNÉES DE RÉFÉRENCE avec sources) ; choix UTILISER EFFECTIF DE DÉPART / CRÉER MON EFFECTIF | oui |
+| Éditeur de club | onglets IDENTITÉ (nom, abréviation, ville, pays, couleurs 1/2/3), LOGO (forme, symbole, lettres / chiffres, motif, bordure), MAILLOTS (domicile, extérieur : motif uni / moitiés / bande / écharpe / chevron, 2 couleurs), BONNETS (couleur, liseré, numéro), BALLON & PISCINE ; APERÇU 3D en direct (domicile / extérieur / gardien, rotation au doigt) ; VALIDER MON CLUB | oui — sauvegardé (`customClubId`, `baseClubId`, couleurs, logo, kits, bonnet, ballon, piscine) |
+| Accueil | gauche : JOUER, MON CLUB, CARRIÈRE, CONTENU (pastille), BOUTIQUE · centre : joueur 3D aux couleurs du club · droite : carte PROCHAIN MATCH (championnat du pays du club, logos, TOTAL, piscine, JOUER) + MON ÉQUIPE, TOURNOIS, MA CARRIÈRE, MATCH RAPIDE | oui |
+| Hubs | JOUER (match rapide, tournoi, championnat) · MON CLUB (équipe, joueurs, composition, tactiques, personnaliser) · CARRIÈRE (ma carrière, progression, statistiques) · CONTENU (défis, événements, récompenses) | oui |
+| Carrière → Mon club | nom, logo, maillots, ville, pays, niveau, budget fictif (calculé : niveau, victoires, trophées), effectif, classement, saison, palmarès, CHANGER DE CLUB | oui |
+| Tournois | coupes nationales (France, Italia, España, Magyar, Hellas, Hrvatska), régional (Adria League), continental (Euro Challenge Cup, Mediterranean Club Cup, Euro Champions Aqua), international (World Club Masters) ; formats élimination directe, groupes + phase finale, ligue ; tableaux de groupes, tableau final avec tirs au but, journées de repos, champion, récompenses | oui |
+| Joueurs | tout l'effectif en cartes ; la fiche joueur montre le modèle 3D du joueur en direct (animation au repos, rotation au doigt) | oui |
+| Progression | niveau, XP, prochaines compétitions débloquées, objectifs | oui |
 | Mon équipe | formation water-polo (ailes et pivot à 2 m, demi-ailes, meneur, gardien), cartes joueurs (portrait 3D du vrai modèle du joueur, note, poste, numéro, rareté, nationalité, club, niveau, 3 stats clés, bonus de poste), panneau TOTAL / NOTE MOYENNE / BONUS DE POSTE, remplaçants, échange par touchers, MEILLEUR TOTAL, onglet TACTIQUES | oui — le bonus de poste (+2 à toutes les stats au poste naturel) est appliqué dans le match |
 | Fiche joueur | portrait 3D, note, poste, rareté, pays, âge, taille, niveau, 13–14 statistiques, AMÉLIORER (coût en pièces, +1 à toutes les stats) | oui |
 | Classement | ligue de 8 clubs, J V N D +/- PTS TOTAL ; onglets mondial / amis / régional marqués NON IMPLÉMENTÉ (serveur) | oui |
@@ -18,7 +25,9 @@ l'appareil) : aucune valeur décorative. Règles vérifiées par `node tools/web
 | Personnaliser | nom du club, couleurs, forme et symbole du logo (générés en SVG) ; le joueur 3D et les bonnets en match changent | oui |
 | Boutique | cosmétiques uniquement (bonnets, liseré, célébration, symbole), payés avec la monnaie du jeu, confirmation avant achat, équiper / déséquiper | oui — aucun achat réel, rien qui modifie les statistiques |
 | Avant-match | logos, TOTAL, compétition, piscine, gain, astuce | oui |
-| Pause (en match) | REPRENDRE, QUITTER (compétition = défaite 0-5, avec avertissement) | oui |
+| HUD de match | tableau avec écussons, flèche de possession, score animé, horloge 30 s qui clignote sous 5 s ; bandeaux animés BUT (écusson, buteur, flash), ARRÊT, EXCLUSION, 30 S ÉCOULÉES, FIN DE PÉRIODE ; boutons à icônes (états appuyé / désactivé, vibration) ; caméra TV / MATCH / LARGE | oui |
+| Tactique (en match) | OFFENSIF, ÉQUILIBRÉ, DÉFENSIF, PRESSION, CONTRE-ATTAQUE (+ RAPIDE, CENTRE) et formations ARC 3-3, PARAPLUIE, 4-2 ; le match est en pause pendant le choix | oui — changent le comportement de l'IA et les positions d'attaque |
+| Pause (en match) | REPRENDRE, TACTIQUES, COMMANDES, PARAMÈTRES (caméra, zoom, radar, son, vibrations, changement auto), QUITTER LE MATCH (confirmation ; compétition = défaite 0-5) | oui |
 | Résultats | victoire / défaite / nul, statistiques, pièces, XP, montée de niveau, objectifs atteints, place en ligue, progression d'événement | oui |
 | Paramètres | graphismes, caméra, ambiance, replays, difficulté, assistance, durée, timing, son, langue, réinitialisation (confirmée) | oui |
 
@@ -51,21 +60,32 @@ Chaque effet est réel (appliqué dans le match) et testé (`tools/web-tests/sta
   flèche de forme, éclair si PHYSIQUE actif, nom, pays, numéro.
 * **Paramètres en onglets** : MATCH, CONTRÔLES, AUDIO, GRAPHISMES, AUTRES.
 
-## Données sportives réelles — choix actuel
+## Clubs réels adaptés — choix actuel
 
-Clubs, joueurs et compétitions sont **fictifs**. Le fait qu'un nom de joueur ou de club soit public ne
-donne pas le droit de l'utiliser dans un jeu commercial (droit à l'image, marques, logos) ; aucune
-licence n'est détenue. La structure est prête pour des données réelles : chaque joueur porte
-`nationality`, `birthYear`, `height`, `source`, `lastUpdated`, `licensed`, et les statistiques de jeu
-(VITESSE, TIR…) sont des attributs propres au jeu, distincts de statistiques officielles.
-Pour intégrer de vraies équipes : fournir les droits (ou une liste autorisée) et une source officielle ;
-les écrans n'ont rien à changer.
+Les clubs du jeu s'inspirent de **clubs réels** (championnats masculins 2025-26 de France, Italie,
+Espagne, Hongrie, Grèce, Croatie, Serbie, Allemagne), avec une séparation stricte :
+
+* **Données de référence** (`web/data/clubs.json`, généré par `tools/data/build-clubs.mjs`) :
+  `officialReferenceName`, ville, pays, compétition réelle, saison, `source` (pages publiques),
+  `lastUpdated`. Jamais affichées en jeu, sauf dans le panneau ⓘ DONNÉES DE RÉFÉRENCE, marqué comme tel.
+* **Identité dans le jeu** : `gameClubName` (nom légèrement modifié : mot retiré, nom raccourci,
+  lettre modifiée, partie supprimée, abréviation modifiée, variante proche), `shortName`,
+  championnat au nom adapté, **logo et maillots originaux** générés par le jeu.
+* Aucun nom officiel, logo officiel, maillot officiel ni sponsor n'est utilisé comme si le jeu était
+  licencié. Aucun club n'est inventé en étant présenté comme réel. Les **joueurs restent fictifs**
+  (effectifs générés au niveau du club).
+* Le club créé par le joueur (« MON CLUB ») garde `baseClubId` en interne et remplace son club de
+  base dans le championnat de son pays.
+
+Sources utilisées (consultées le 6 octobre 2026) : Wikipédia (championnats de France, Espagne,
+Hongrie, Grèce, Croatie, Serbie, Allemagne ; Champions League 2025-26), OA Sport (Serie A1),
+total-waterpolo.com, lewaterpolo.com, cnmarseille.com — liste complète par club dans `clubs.json`.
 
 ## Limites
 
 Textes des menus complets en français et en anglais ; espagnol, allemand, italien et portugais
 reprennent l'anglais pour ces menus (à traduire). Sauvegarde locale uniquement (pas de cloud, pas de
-validation serveur). Carrière joueur / club, transferts, saisons et passe : NON IMPLÉMENTÉ.
+validation serveur). Transferts entre clubs, mercato, passe saisonnier, achats réels : NON IMPLÉMENTÉ.
 
 ## Logo
 

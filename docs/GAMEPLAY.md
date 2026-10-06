@@ -220,7 +220,16 @@ Ces mesures sont vérifiées en CI avec des seuils.
 | CENTRE | bonus de passe au pivot ×4, attaque plus large | ballons au pivot 77 → 116 |
 | CONTRE-ATTAQUE | sprint de transition 100 %, tempo rapide | — |
 
-La tactique se change en match (bouton en haut à droite).
+La tactique se change en match : le bouton TACTIQUE (en haut à droite) ou PAUSE > TACTIQUES ouvre un
+panneau (match en pause) avec les 5 styles principaux OFFENSIF / ÉQUILIBRÉ / DÉFENSIF / PRESSION /
+CONTRE-ATTAQUE, les 2 spécialisés RAPIDE / CENTRE, et la **formation d'attaque** (version web,
+`FORMATIONS` dans `web/sim.js`) :
+
+| Formation | Placement (distance au but, slots 0–5) |
+|---|---|
+| ARC 3-3 (défaut) | ailes et pivot à 2–3 m, demi-ailes à 5 m, pointe à 7 m (placement d'origine) |
+| PARAPLUIE | 5 tireurs en arc à 4,4–6,6 m autour du pivot |
+| 4-2 | ailes et deux postes à 2,3 m, deux joueurs mobiles à 6 m |
 
 ## 8. Règles (`RuleManager`)
 

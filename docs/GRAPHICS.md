@@ -173,8 +173,13 @@ NON IMPLÉMENTÉ : réfraction réelle (distorsion de l'image sous l'eau), camé
 
 ## Ballon, éclaboussures, filets
 
-* Ballon : texture caoutchouc jaune à rainures, relief (bump), reflets, rotation selon la vitesse,
-  gouttes qui tombent quand il est tenu, ombre au sol de l'eau.
+* Ballon : texture caoutchouc à rainures (4 modèles au choix du club : classique jaune / bleu,
+  océan, couchant, lime), relief (bump), reflets, rotation selon la vitesse, gouttes qui tombent quand
+  il est tenu, ombre au sol de l'eau, **traînée lumineuse** légère (ligne additive de 26 points qui
+  s'efface) quand il vole.
+* Maillots : chaque club a un kit domicile, extérieur et gardien (motif uni / moitiés / bande /
+  écharpe / chevron sur le maillot, 2 couleurs, bonnet + liseré + couleur du numéro). En match, une
+  équipe en bonnets foncés, l'autre en bonnets clairs ; gardiens en rouge.
 * `web/render/vfx.js` : particules en pool (1 draw call) — coups de bras, tirs, passes, ballon qui
   touche l'eau (selon sa vitesse), arrêts, contres, poteaux, buts.
 * Filets dynamiques : grille ressorts-amortisseurs, réagissent à l'impact du but puis reviennent.
@@ -199,7 +204,10 @@ derrière leur ligne de but plongent l'une après l'autre (plongeon tête la pre
 glissent jusqu'à leur position de départ ; la caméra filme chaque bout puis s'élève vers le jeu,
 coup de sifflet. ~7 s, la simulation est arrêtée pendant ce temps.
 
-**Autres caméras** (Paramètres > Match, ou bouton CAM pendant le match) : 1 Standard (TV), 2 Large,
+**Bouton CAM du HUD** : TV (standard) / MATCH (attaque) / LARGE. Petit zoom (−8° de champ) pendant
+les tirs, flash et bandeau animé au but avant le plan de but et le replay.
+
+**Autres caméras** (Paramètres > Match, ou PAUSE > PARAMÈTRES) : 1 Standard (TV), 2 Large,
 3 Courte portée, 4 Dynamique (parallèle qui suit l'attaque), 5 Tactique (haute), 6 Derrière le
 joueur (vue du dessus, depuis l'arrière : haute et plongeante, le but attaqué en haut de l'écran), 7 Bord du bassin (au ras de l'eau). **Zoom 1 à 10**.
 La caméra reste toujours dans la salle (sous le toit, devant le mur). Le joystick et la visée du tir

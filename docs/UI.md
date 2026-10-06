@@ -62,6 +62,35 @@ Chaque effet est réel (appliqué dans le match) et testé (`tools/web-tests/sta
   flèche de forme, éclair si PHYSIQUE actif, nom, pays, numéro.
 * **Paramètres en onglets** : MATCH, CONTRÔLES, AUDIO, GRAPHISMES, AUTRES.
 
+## Monde de la carrière : 5 divisions × 9 clubs par pays — IMPLÉMENTÉ
+
+* **200 pays** (`web/data/world.js`, regroupés par continent), chacun avec **5 divisions de 9 clubs**, plus le club du
+  joueur comme 10e équipe de sa division. C'est une **structure de jeu standardisée** : elle n'est pas présentée
+  comme la structure officielle des championnats du pays. Noms de divisions adaptés quand ils sont connus
+  (France : Élite France, Nationale 1, Nationale 2, Nationale 3, Régionale ; Espagne : Liga de Honor, Primera,
+  Segunda…), sinon « Division 1…5 ».
+* **Clubs** : les clubs réels vérifiés (sources conservées) sont placés en premier, les plus forts en
+  Division 1. Toutes les autres places sont des **clubs créés par le jeu** (`gameCreated: true`,
+  `verified: false`, aucune source) : nom original bâti sur une vraie ville du pays + un surnom générique,
+  logo et maillots originaux, badge « CLUB DU JEU » dans l'interface. Ils ne sont jamais présentés comme
+  des clubs réels. Les sites des fédérations étant bloqués depuis l'environnement de développement, les
+  divisions inférieures réelles (N1, N2…) restent à compléter quand des sources lisibles seront disponibles.
+* **Saison** : aller-retour (18 journées à 10 équipes), classement automatique (J, V, N, D, BP, BC, diff., pts).
+* **Fin de saison** (`finalizeSeason`, `applyMoves` dans `web/world.js`), pour toutes les divisions du pays :
+  * Divisions 2 à 5 : le **1er monte** ; le **2e et le 3e jouent un match**, le vainqueur monte aussi ;
+  * pour garder 9 clubs par division, autant de clubs IA descendent de la division du dessus (les derniers
+    classés) — **le club du joueur ne descend jamais** ;
+  * Division 1 : le 1er est **champion national** et obtient la meilleure place continentale ; le match
+    2e contre 3e donne la place suivante (puis le perdant, puis 4e, 5e… selon le nombre de places du pays).
+  * Si le joueur est 2e ou 3e, il **joue lui-même ce match** (carte « PLAYOFF » sur l'accueil).
+  * Page **FIN DE SAISON** : classement final, playoff, promus / champion, places continentales, descentes,
+    autres divisions, échelle des 5 divisions, puis animation vers la nouvelle saison. Historique conservé.
+* **Places continentales** configurables par pays (`continentalQualificationSlots` selon le niveau du pays) ;
+  Europe : Euro Champions Aqua, Euro Challenge Cup, Euro Conference Aqua, Euro Challenger Aqua, Euro Super Aqua
+  (noms adaptés ; référence : système de clubs d'European Aquatics), une coupe par autre continent, puis
+  World Club Masters pour les vainqueurs continentaux. Une compétition continentale n'est ouverte qu'au club
+  qualifié la saison précédente.
+
 ## Clubs réels adaptés — choix actuel
 
 Les clubs du jeu s'inspirent de **clubs réels** (championnats masculins 2025-26 de France, Italie,

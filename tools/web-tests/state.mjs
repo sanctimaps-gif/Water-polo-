@@ -1,5 +1,5 @@
 // Run: node tools/web-tests/state.mjs — game state rules: every displayed value must be real.
-import { GameState, CLUBS as CLUBS2, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue } from '../../web/state.js';
+import { GameState, clubById, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue } from '../../web/state.js';
 import { Match } from '../../web/sim.js';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const st = new GameState();
@@ -59,7 +59,7 @@ ok(st.data.profile.matches === M0 + R && st.data.profile.wins === W0 + R, 'profi
 // End of the championship: the club may move to another country's league (squad and trophies kept)
 { const sq = st.squad.length, tr = st.data.profile.trophies.length; ok(st.canChangeCountry() && !st.changeCountry('XXX'), 'season over: change of championship allowed (valid countries only)');
   ok(st.changeCountry('ITA') && st.data.club.country === 'ITA' && st.data.league.country === 'ITA' && st.data.league.season === 2 && Object.keys(st.data.league.table).includes('user')
-    && Object.keys(st.data.league.table).filter((id) => id !== 'user').every((id) => CLUBS2.find((c) => c.id === id).country === 'ITA') && st.squad.length === sq && st.data.profile.trophies.length === tr,
+    && Object.keys(st.data.league.table).filter((id) => id !== 'user').every((id) => clubById(id).country === 'ITA') && st.squad.length === sq && st.data.profile.trophies.length === tr,
     'club moves to the Italian championship, squad and trophies kept');
   { const s3 = new GameState(); s3.data.league.season = 2; s3.nextLeagueMatch(); ok(s3.canChangeCountry(), 'a rest round for the other clubs keeps the window open'); }
   const nm = st.nextLeagueMatch(); st.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 1, as: 0, stats: { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 } });
@@ -96,10 +96,52 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
   ok(st2.data.club.name === 'Marseille Aqua 26' && st2.data.club.baseClubId === 'marseille' && st2.data.club.customClubId && !Object.keys(st2.data.league.table).includes('marseille') && st2.data.league.country === 'FRA',
     'CRÉER MA VERSION: own name, baseClubId kept, replaces its base club in its national league');
   const cc = st2.customClub(); ok(cc.homeKit && cc.awayKit && cc.capDesign && cc.ballDesign && cc.baseClubId === 'marseille', 'custom club saved with kits, cap, ball');
-  // odd league (user replaces its base club): rest rounds are simulated, every club plays the same number of matches
-  { const st3 = new GameState(); st3.chooseClub(st3.draftFrom('recco'), { mode: 'with' }); const lg = st3.data.league, n = Object.keys(lg.table).length; let k = 0, last;
-    while (st3.data.league === lg && k < 40) { const nm = st3.nextLeagueMatch(); if (!nm) break; st3.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 3, as: 2, stats: { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 } }); last = lg; k++; }
-    ok(n % 2 === 1 && k === n - 1 && Object.values(last.table).every((r) => r.p === n - 1) && st3.data.league.season === 2, `odd league (${n} clubs): user plays ${k} matches, rest rounds simulated, season ends`); }
+  // WORLD: every country = 5 divisions × 9 clubs (+ the user's club as 10th team); real clubs first, others GAME_CREATED
+  { const W = await import('../../web/world.js'); let okAll = true, names = true;
+    for (const c of W.WORLD_COUNTRIES) { const d = W.countryClubs(c.code).divisions, ids = d.flat();
+      if (d.length !== 5 || d.some((x) => x.length !== 9) || new Set(ids).size !== 45) okAll = false;
+      const cl = ids.map(W.clubById); if (cl.some((x) => !x || [x.color, x.color2, x.kits.home.suit, x.kits.home.suit2, x.kits.away.cap, x.kits.home.number].some((v) => typeof v !== 'number') || x.rating < 40 || (x.gameCreated ? x.verified || x.ref : !x.ref.source.length))) okAll = false;
+      if (new Set(cl.map((x) => x.name)).size !== 45 || new Set(cl.map((x) => x.short)).size !== 45 || cl.some((x) => !/^[A-Z]{3,4}$/.test(x.short))) names = false; }
+    ok(okAll && W.WORLD_COUNTRIES.length > 190, `${W.WORLD_COUNTRIES.length} countries × 5 divisions × 9 clubs; game-created clubs flagged (not verified, no source)`);
+    ok(names, 'club names and 3-letter abbreviations unique in each country');
+    const ita = W.countryClubs('ITA').divisions[0].map(W.clubById); ok(ita[0].id === 'recco' && !ita[0].gameCreated, 'real clubs first, strongest in Division 1'); }
+  const R0 = { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 };
+  const playSeason = (s, score) => { let n = 0; const s0 = s.data.league.season; while (s.data.league.season === s0 && s.nextLeagueMatch() && n++ < 40) { const nm = s.nextLeagueMatch(); s.applyResult({ mode: 'league', opponent: nm.opponent }, { ...score(nm), stats: R0 }); } };
+  const check = (s, code) => { const d = s.data.world[code].divisions, ids = d.flat(); return d.every((x) => x.length === 9) && new Set(ids).size === 45 && !ids.includes('user'); };
+  { const s = new GameState(); s.chooseClub(s.draftFrom('recco'), { mode: 'with' }); const lg = s.data.league;
+    ok(Object.keys(lg.table).length === 10 && !lg.table.recco && lg.rounds.length === 18 && lg.division === 1, 'JOUER AVEC Pro Reca: Division 1 with 9 other clubs (a game club takes its place), 18 rounds home and away'); }
+  // Career from Division 5: finishing 1st every season = promoted every season, Division 1 after 4 seasons
+  { const s = new GameState(); const d = s.draftFrom(null); d.country = 'FRA'; s.chooseClub(d, { mode: 'version', division: 5 }); const path = [s.data.career.division]; let sizes = true;
+    for (let k = 0; k < 5; k++) { playSeason(s, () => ({ hs: 9, as: 1 })); path.push(s.data.career.division); sizes = sizes && check(s, 'FRA') && s.data.seasonEnd.stage === 'done'; }
+    ok(path.join() === '5,4,3,2,1,1', `1st = promoted: division ${path.join(' → ')}`); ok(sizes, 'every season: 5 divisions × 9 clubs kept, no duplicates, the user is not in the AI lists');
+    const sum = s.data.seasonEnd.summary; ok(sum.userChampion && s.data.profile.trophies.some((t) => t.name === 'league') && s.data.continental && s.data.continental.competition === 'euro-champions' && s.data.continental.seed === 1,
+      'Division 1 1st = national champion + best continental place (France: Euro Champions)');
+    ok(s.data.careerHistory.length === 5 && s.data.league.season === 6 && s.data.league.rounds.length === 18, 'history kept, new season + calendar generated');
+    const cl = s.tournamentDef('euro-champions'); ok(s.tournamentStatus(cl) === 'AVAILABLE' && s.tournamentStatus(s.tournamentDef('euro-challenge')) === 'LOCKED', 'qualification opens the continental competition (others locked)'); }
+  // Forced final table: user 2nd → plays the 2nd v 3rd playoff; winning = promoted; 1st promoted too; AI moves keep 9 per division
+  const forceTable = (s, pos) => { const lg = s.data.league, ids = Object.keys(lg.table).filter((x) => x !== 'user'); ids.splice(pos - 1, 0, 'user');
+    ids.forEach((id, i) => { lg.table[id] = { p: 18, w: 18 - i * 2, d: 0, l: i * 2, gf: 200 - i * 10, ga: 100, pts: (18 - i * 2) * 3 }; }); lg.round = lg.rounds.length; return ids; };
+  { const s = new GameState(); const d = s.draftFrom(null); d.country = 'ESP'; s.chooseClub(d, { mode: 'version', division: 3 }); const ids = forceTable(s, 2);
+    const pending = s.startSeasonEnd({ f: () => 0.3 }); const pp = s.pendingPlayoff();
+    ok(pending && pp && pp.opponent === ids[2] && pp.kind === 'promotion' && !s.canChangeCountry(), 'user 2nd: playoff vs the 3rd is played by the user');
+    const out = s.applyResult({ mode: 'playoff', opponent: pp.opponent }, { hs: 6, as: 4, stats: R0 });
+    ok(out.season && s.data.career.division === 2 && out.season.promoted.includes(ids[0]) && out.season.promoted.includes('user') && check(s, 'ESP'), 'playoff won: promoted with the 1st (Division 3 → 2)');
+    ok(s.data.world.ESP.divisions[1].includes(ids[0]) && !s.data.world.ESP.divisions[2].includes(ids[0]), 'the 1st moved up with the user'); }
+  { const s = new GameState(); const d = s.draftFrom(null); d.country = 'ESP'; s.chooseClub(d, { mode: 'version', division: 3 }); const ids = forceTable(s, 3);
+    s.startSeasonEnd({ f: () => 0.3 }); const pp = s.pendingPlayoff(); s.applyResult({ mode: 'playoff', opponent: pp.opponent }, { hs: 2, as: 5, stats: R0 });
+    ok(s.data.career.division === 3 && s.data.seasonEnd.summary.promoted.join() === [ids[0], ids[1]].join() && check(s, 'ESP'), 'user 3rd, playoff lost: stays; the 1st and the 2nd go up'); }
+  { const s = new GameState(); const d = s.draftFrom(null); d.country = 'GRE'; s.chooseClub(d, { mode: 'version', division: 2 }); forceTable(s, 10);
+    const below = s.data.world.GRE.divisions[2].slice(); s.startSeasonEnd({ f: () => 0.3 });
+    const sum = s.data.seasonEnd.summary;
+    ok(s.data.career.division === 2 && sum.relegated.length === 2 && !sum.relegated.includes('user') && sum.relegated.every((id) => s.data.world.GRE.divisions[2].includes(id)) && check(s, 'GRE'),
+      "user last: never relegated; the 2 lowest AI clubs go down to make room for the 2 promoted"); }
+  // Division 1: 1st qualified; 2nd v 3rd = next continental place (Italy: 3 places)
+  { const s = new GameState(); const d = s.draftFrom(null); d.country = 'ITA'; s.chooseClub(d, { mode: 'version', division: 1 }); const ids = forceTable(s, 2);
+    s.startSeasonEnd({ f: () => 0.3 }); const pp = s.pendingPlayoff(); ok(pp && pp.kind === 'continental', 'Division 1: 2nd v 3rd = continental playoff');
+    s.applyResult({ mode: 'playoff', opponent: pp.opponent }, { hs: 7, as: 6, stats: R0 }); const pl = s.data.seasonEnd.summary.continental;
+    ok(pl.length === 3 && pl[0].id === ids[0] && pl[1].id === 'user' && pl[2].id === ids[2] && s.data.continental.seed === 2 && s.data.career.division === 1,
+      `continental places: 1st → ${pl[0].competition}, playoff winner → ${pl[1].competition}, loser → ${pl[2].competition}`);
+    ok(s.data.world.ITA.divisions[0].length === 9 && check(s, 'ITA'), 'Division 1: 2 relegated for the 2 promoted from Division 2'); }
   // tournaments: every format runs to a champion
   st2.data.profile.level = 20; let okAll = true;
   for (const def of TOURNAMENTS) { st2.startTournament(def); let n = 0; while (st2.nextTournamentMatch(def) && n < 30) { st2.playTournamentRound(def, 9, 2); n++; } const t = st2.tournamentState(def); okAll = okAll && t.stage === 'done' && t.champion === 'user'; }

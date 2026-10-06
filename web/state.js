@@ -4,7 +4,8 @@
 // photos (see docs/UI.md). Real data can be plugged in later through the same structures,
 // with `source` / `lastUpdated` fields filled from official sources.
 import { Rng, N, TACTICS, DRILLS } from './sim.js';
-import CLUB_DB from './data/clubs.js';
+import { WORLD_COUNTRIES, REAL_CLUBS, LEAGUES as W_LEAGUES, CONTINENT_INFO, clubById, countryOf, countryClubs, reserveClub, divisionName, applyMoves, continentalPlaces, DIVS } from './world.js';
+export { WORLD_COUNTRIES, CONTINENT_INFO, clubById, countryOf, countryClubs, divisionName, DIVS };
 
 const SAVE_KEY = 'wp26.save', SAVE_VERSION = 1;
 const DATA_SOURCE = { source: 'WP26 original fictional data', lastUpdated: '2026-10-04', licensed: false };
@@ -28,13 +29,10 @@ const STAT_KEYS = ['speed', 'accel', 'stamina', 'passing', 'shooting', 'power', 
 // Clubs of the game: REAL clubs as reference data (web/data/clubs.json: official name, city, country,
 // competition, sources) with an ADAPTED identity used everywhere in the game (adapted name, original
 // logo and kits, game rating). The official name is never displayed by default.
-export const LEAGUES = CLUB_DB.leagues;
-export const CLUBS = CLUB_DB.clubs.map((c) => ({
-  id: c.id, name: c.gameClubName, short: c.shortName, color: c.colors[0], color2: c.colors[1], color3: c.colors[2], rating: c.rating,
-  logo: c.logo, kits: c.kits, country: c.country, city: c.city, competition: c.gameCompetition,
-  ref: { officialReferenceName: c.officialReferenceName, competition: c.competition, season: c.season, source: c.source, lastUpdated: c.lastUpdated },
-}));
-export const COUNTRY_LEAGUES = [...new Set(CLUBS.map((c) => c.country))];
+export const LEAGUES = W_LEAGUES;
+export const CLUBS = REAL_CLUBS;
+/** Every country of the career world (5 divisions × 9 clubs each, see web/world.js). */
+export const COUNTRY_LEAGUES = WORLD_COUNTRIES.map((c) => c.code);
 /** Default kits for a club identity (home: colours 1/2, away: colour 2 with white cap, GK red cap). */
 export function defaultKits(c1, c2, c3 = c2) {
   return { home: { suit: c1, suit2: c2, pattern: 'plain', cap: c1, capTrim: c2, number: c2 },
@@ -65,17 +63,28 @@ export const EVENTS = [
 // Tournaments of the game, inspired by real competition formats (names adapted, no official marks):
 // national cups of each country, continental club competitions, international club events.
 const FLAG_NAMES = { FRA: 'France', ITA: 'Italia', ESP: 'España', HUN: 'Magyar', GRE: 'Hellas', CRO: 'Hrvatska', SRB: 'Srbija', GER: 'Deutschland' };
+/** National cup of any country (the user's country cup is always listed). */
+export function nationalCup(c) {
+  const bg = { FRA: ['#1f4fd6', '#0b1d5c'], ITA: ['#0f9a58', '#064326'], ESP: ['#d4202b', '#5e0a10'], HUN: ['#2f8a4c', '#0f3a1e'], GRE: ['#1d7ad6', '#0a2f63'], CRO: ['#d6303a', '#3a1a6e'] }[c] || ['#2f5bd8', '#10204f'];
+  const ct = countryOf(c);
+  return { id: 'cup-' + c, scope: 'national', country: c, countries: [c], name: `Coupe ${FLAG_NAMES[c] || (ct ? ct.fr : c)}`, format: 'ko', size: 8, reward: { coins: 700, gems: 8, token: 1 }, inspiredBy: 'national cup', art: 'goblet', bg };
+}
+const EURO = { continent: 'EUR', qualify: true };
+// Continental competitions: entry by qualification (Division 1, see the end of season); reference names of the
+// European club system kept apart, adapted names shown in the game.
 export const TOURNAMENTS = [
-  ...['FRA', 'ITA', 'ESP', 'HUN', 'GRE', 'CRO'].map((c) => ({ id: 'cup-' + c, scope: 'national', country: c, countries: [c], name: `Coupe ${FLAG_NAMES[c]}`,
-    format: 'ko', size: ['HUN', 'GRE', 'CRO', 'SRB', 'GER'].includes(c) ? 4 : 8, reward: { coins: 700, gems: 8, token: 1 }, inspiredBy: 'national cup',
-    art: 'goblet', bg: { FRA: ['#1f4fd6', '#0b1d5c'], ITA: ['#0f9a58', '#064326'], ESP: ['#d4202b', '#5e0a10'], HUN: ['#2f8a4c', '#0f3a1e'], GRE: ['#1d7ad6', '#0a2f63'], CRO: ['#d6303a', '#3a1a6e'] }[c] })),
-  { id: 'adria', scope: 'regional', name: 'Adria League', countries: ['CRO', 'SRB'], format: 'league', size: 6, reward: { coins: 900, gems: 12, token: 1 }, minLevel: 2, inspiredBy: 'regional league (Adriatic)', art: 'wave', bg: ['#14b7c9', '#0a4a66'] },
-  { id: 'euro-challenge', scope: 'continental', name: 'Euro Challenge Cup', format: 'ko', size: 8, skipTop: 8, reward: { coins: 1200, gems: 15, token: 2 }, minLevel: 3, inspiredBy: 'second European club cup', art: 'tower', bg: ['#e2541c', '#4a0c08'] },
-  { id: 'med-cup', scope: 'continental', name: 'Mediterranean Club Cup', countries: ['FRA', 'ITA', 'ESP', 'GRE', 'CRO'], format: 'groups', groupSize: 4, size: 8, reward: { coins: 1400, gems: 18, token: 2 }, minLevel: 4, inspiredBy: 'Mediterranean club tournaments', art: 'plate', bg: ['#0aa37a', '#053d34'] },
-  { id: 'euro-champions', scope: 'continental', name: 'Euro Champions Aqua', format: 'groups', groupSize: 4, size: 16, reward: { coins: 2500, gems: 30, token: 3 }, minLevel: 6, inspiredBy: 'European club champions competition', art: 'bigear', bg: ['#2b2fb8', '#0a0d3e'] },
-  { id: 'world-masters', scope: 'international', name: 'World Club Masters', format: 'ko', size: 8, reward: { coins: 3000, gems: 40, token: 3 }, minLevel: 8, inspiredBy: 'international club tournaments', art: 'globe', bg: ['#f2a516', '#7a3c00'] },
+  ...['FRA', 'ITA', 'ESP', 'HUN', 'GRE', 'CRO'].map(nationalCup),
+  { id: 'adria', scope: 'regional', name: 'Adria League', countries: ['CRO', 'SRB', 'MNE', 'SLO'], format: 'league', size: 6, reward: { coins: 900, gems: 12, token: 1 }, minLevel: 2, inspiredBy: 'regional league (Adriatic)', art: 'wave', bg: ['#14b7c9', '#0a4a66'] },
+  { id: 'med-cup', scope: 'regional', name: 'Mediterranean Club Cup', countries: ['FRA', 'ITA', 'ESP', 'GRE', 'CRO', 'MLT', 'TUR', 'MNE'], format: 'groups', groupSize: 4, size: 8, reward: { coins: 1400, gems: 18, token: 2 }, minLevel: 4, inspiredBy: 'Mediterranean club tournaments', art: 'plate', bg: ['#0aa37a', '#053d34'] },
+  { id: 'euro-champions', scope: 'continental', ...EURO, officialReferenceName: 'European Aquatics Champions League', name: 'Euro Champions Aqua', format: 'groups', groupSize: 4, size: 16, reward: { coins: 2500, gems: 30, token: 3 }, art: 'bigear', bg: ['#2b2fb8', '#0a0d3e'] },
+  { id: 'euro-challenge', scope: 'continental', ...EURO, officialReferenceName: 'European Aquatics Euro Cup', name: 'Euro Challenge Cup', format: 'ko', size: 8, skipTop: 12, reward: { coins: 1500, gems: 18, token: 2 }, art: 'tower', bg: ['#e2541c', '#4a0c08'] },
+  { id: 'euro-conference', scope: 'continental', ...EURO, officialReferenceName: 'European Aquatics Conference Cup', name: 'Euro Conference Aqua', format: 'ko', size: 8, skipTop: 24, reward: { coins: 1100, gems: 12, token: 1 }, art: 'goblet', bg: ['#0f9a8a', '#06403a'] },
+  { id: 'euro-challenger', scope: 'continental', ...EURO, officialReferenceName: 'European Aquatics Challenger Cup', name: 'Euro Challenger Aqua', format: 'ko', size: 8, skipTop: 40, reward: { coins: 800, gems: 8, token: 1 }, art: 'wave', bg: ['#6b7a8f', '#222a36'] },
+  { id: 'euro-super', scope: 'continental', continent: 'EUR', officialReferenceName: 'European Aquatics Super Cup', name: 'Euro Super Aqua', format: 'ko', size: 2, reward: { coins: 1500, gems: 20, token: 2 }, requiresTrophy: ['euro-champions', 'euro-challenge'], lastSeason: true, art: 'plate', bg: ['#c9a227', '#4a3a08'] },
+  ...[['AME', 'americas-cup', 'Americas Aqua Cup', ['#1d8a4e', '#0a3a20']], ['ASI', 'asia-cup', 'Asia Aqua Cup', ['#d4202b', '#4a0a10']], ['AFR', 'africa-cup', 'Africa Aqua Cup', ['#e0a020', '#5a3a06']], ['OCE', 'oceania-cup', 'Oceania Aqua Cup', ['#1d7ad6', '#0a2f63']]]
+    .map(([continent, id, name, bg]) => ({ id, scope: 'continental', continent, qualify: true, name, format: 'ko', size: 8, reward: { coins: 1500, gems: 18, token: 2 }, art: 'goblet', bg })),
+  { id: 'world-masters', scope: 'international', name: 'World Club Masters', format: 'ko', size: 8, reward: { coins: 3000, gems: 40, token: 3 }, requiresTrophy: ['euro-champions', 'euro-challenge', 'euro-conference', 'euro-challenger', 'americas-cup', 'asia-cup', 'africa-cup', 'oceania-cup'], inspiredBy: 'international club tournaments', art: 'globe', bg: ['#f2a516', '#7a3c00'] },
 ];
-
 const OBJECTIVE_POOL = [
   { id: 'goals', n: 5, reward: { coins: 150 } },
   { id: 'passes', n: 25, reward: { coins: 120 } },
@@ -194,11 +203,17 @@ function roundRobin(ids0) {
   }
   return rounds;
 }
-/** National championship of the user's club country: the user's club replaces its base club. */
-function newLeague(season, country = 'FRA', baseClubId = null) {
-  const ids = ['user', ...CLUBS.filter((c) => c.country === country && c.id !== baseClubId).map((c) => c.id)];
-  const table = {}; for (const id of ids) table[id] = { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
-  return { season, country, round: 0, rounds: roundRobin(ids), table, champion: null, name: (LEAGUES[country] || {}).game || 'League' };
+/** Home and away: the single round robin, then the same rounds with home / away swapped. */
+function doubleRoundRobin(ids) { const one = roundRobin(ids); return [...one, ...one.map((r) => r.map((f) => ({ home: f.away, away: f.home, hs: null, as: null })))]; }
+const emptyRow = () => ({ p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 });
+function recordInto(table, h, a, x, y) {
+  const H = table[h], A = table[a]; H.p++; A.p++; H.gf += x; H.ga += y; A.gf += y; A.ga += x;
+  if (x > y) { H.w++; A.l++; H.pts += 3; } else if (x < y) { A.w++; H.l++; A.pts += 3; } else { H.d++; A.d++; H.pts++; A.pts++; }
+}
+/** Championship of one division: the 9 clubs of the division + the user's club, home and away. */
+function newLeague(season, country, division, aiIds) {
+  const ids = ['user', ...aiIds], table = {}; for (const id of ids) table[id] = emptyRow();
+  return { season, country, division, round: 0, rounds: doubleRoundRobin(ids), table, champion: null, name: divisionName(country, division) };
 }
 
 // ---------------------------------------------------------------- state
@@ -216,7 +231,8 @@ function defaultState() {
     squad: generateSquad('user', 70),
     lineup: null,
     inventory: { owned: [], equipped: { cap: null, trim: null, celebration: null } },
-    league: newLeague(1),
+    league: newLeague(1, 'FRA', 1, countryClubs('FRA').divisions[0]),
+    career: { country: 'FRA', division: 1 }, world: {}, careerHistory: [], seasonEnd: null, continental: null,
     events: {},
     objectives: { day: '', list: [] },
     gift: { lastDay: '', streak: 0 },
@@ -227,6 +243,7 @@ export class GameState {
   constructor() {
     this.listeners = new Set();
     this.data = this.load();
+    if (!this.data.league) this.data.league = this.makeLeague(1, this.data.career.country, this.data.career.division);
     if (!this.data.lineup) this.autoLineup(false);
     this.refreshDaily();
   }
@@ -243,8 +260,9 @@ export class GameState {
         for (const k of ['city', 'country', 'color3', 'ball', 'formation', 'baseClubId', 'customClubId']) cl[k] ??= d[k];
         cl.kits ??= defaultKits(cl.color, cl.color2, cl.color3); cl.logo.letters ??= cl.short; cl.logo.pattern ??= 'none'; cl.logo.border ??= 'single';
         raw.tournaments ??= {}; raw.clubChosen ??= true; raw.challenges ??= {};
-        const known = new Set(['user', ...CLUBS.map((x) => x.id)]);
-        if (!raw.league.country || Object.keys(raw.league.table).some((id) => !known.has(id))) raw.league = newLeague(raw.league.season || 1, cl.country, cl.baseClubId);
+        // Saves made before the 5-division world: career in division 1 of the club's country.
+        raw.career ??= { country: countryOf(cl.country) ? cl.country : 'FRA', division: 1 }; raw.world ??= {}; raw.careerHistory ??= []; raw.seasonEnd ??= null; raw.continental ??= null;
+        if (!raw.league.division || Object.keys(raw.league.table).some((id) => id !== 'user' && !clubById(id))) raw.league = null;   // rebuilt by the constructor
         return raw;
       }
     } catch { /* corrupted or unavailable storage: start fresh */ }
@@ -256,7 +274,23 @@ export class GameState {
 
   // ------------------------------------------------ club choice (real club base -> own version)
   /** Real club of the database (game identity). */
-  baseClub(id) { return CLUBS.find((c) => c.id === id) || null; }
+  baseClub(id) { return clubById(id); }
+
+  // ------------------------------------------------ world: 5 divisions × 9 clubs per country (+ the user's club)
+  /** Divisions of a country as they evolve in this career (promotions); the user's base club is replaced. */
+  worldState(code) {
+    let w = this.data.world[code];
+    if (!w) {
+      w = this.data.world[code] = { divisions: countryClubs(code).divisions.map((d) => d.slice()), reserve: 0, continental: null };
+      const base = this.data.club.baseClubId;
+      w.divisions.forEach((d, i) => { const k = d.indexOf(base); if (k >= 0) d[k] = reserveClub(code, i + 1, w.reserve++); });
+    }
+    return w;
+  }
+  divisionIds(code, d) { return this.worldState(code).divisions[d - 1]; }
+  /** Division (1..5) of a club at the start of a career in its country. */
+  startDivision(id) { const c = clubById(id); if (!c) return DIVS; const k = countryClubs(c.country).divisions.findIndex((d) => d.includes(id)); return k >= 0 ? k + 1 : DIVS; }
+  makeLeague(season, code, d) { return newLeague(season, code, d, this.divisionIds(code, d)); }
   /** Identity draft from a real club (for "JOUER AVEC" or as the starting point of "CRÉER MA VERSION"). */
   draftFrom(baseId) {
     const b = baseId ? this.baseClub(baseId) : null;
@@ -269,8 +303,10 @@ export class GameState {
    * version (identity edited in the editor, kept with baseClubId). squad: 'start' (starting squad generated
    * from the club level) or 'own' (younger squad + recruitment budget).
    */
-  chooseClub(identity, { mode = 'with', squad = 'start' } = {}) {
-    const b = identity.baseClubId ? this.baseClub(identity.baseClubId) : null, rating = b ? b.rating - 2 : 68;
+  chooseClub(identity, { mode = 'with', squad = 'start', division } = {}) {
+    const b = identity.baseClubId ? this.baseClub(identity.baseClubId) : null;
+    const country = countryOf(identity.country) ? identity.country : b ? b.country : 'FRA', div = division || (b ? this.startDivision(b.id) : DIVS);
+    const avg = Math.round(countryClubs(country).divisions[div - 1].reduce((a, id) => a + clubById(id).rating, 0) / 9), rating = b ? b.rating - 2 : avg - 2;
     const club = { ...defaultState().club, ...identity, tactic: identity.tactic || 'BALANCED', createdAt: Date.now() };
     club.customClubId = mode === 'version' || !b ? 'my-' + Date.now().toString(36) : null;
     club.short = String(club.short || 'MON').toUpperCase().slice(0, 4); club.logo.letters ??= club.short;
@@ -278,7 +314,8 @@ export class GameState {
     this.data.squad = generateSquad('user-' + (club.customClubId || b.id), squad === 'own' ? rating - 6 : rating);
     if (squad === 'own') this.grant({ coins: 3000, tp: 600 });
     this.autoLineup(false);
-    this.data.league = newLeague((this.data.league && this.data.league.season) || 1, club.country, club.baseClubId);
+    club.country = country; this.data.career = { country, division: div }; this.data.world = {}; this.data.seasonEnd = null; this.data.continental = null;
+    this.data.league = this.makeLeague((this.data.league && this.data.league.season) || 1, country, div);
     this.data.tournaments = {}; this.data.clubChosen = true; this.data.clubMode = mode; this.data.squadMode = squad;
     this.save();
   }
@@ -307,19 +344,79 @@ export class GameState {
   // ------------------------------------------------ change of championship (country) at the end of a season
   /** Allowed between two seasons: the championship is over and the new one has not started. */
   canChangeCountry() {   // (a rest round simulated for the other clubs does not close the window)
-    const lg = this.data.league; return lg.season > 1 && !lg.rounds.some((r) => r.some((f) => f.hs !== null && (f.home === 'user' || f.away === 'user')));
+    const lg = this.data.league; return lg.season > 1 && !this.pendingPlayoff() && !lg.rounds.some((r) => r.some((f) => f.hs !== null && (f.home === 'user' || f.away === 'user')));
   }
   /** Every national championship of the game: name, clubs, average rating. */
   leagueOptions() {
-    return COUNTRY_LEAGUES.map((c) => { const cl = CLUBS.filter((x) => x.country === c && x.id !== this.data.club.baseClubId);
-      return { country: c, name: (LEAGUES[c] || {}).game || c, clubs: cl.length + 1, avg: Math.round(cl.reduce((a, x) => a + x.rating, 0) / Math.max(1, cl.length)) }; });
+    const d = this.data.career.division;
+    return WORLD_COUNTRIES.map((ct) => { const ids = ct.code === this.data.career.country ? this.divisionIds(ct.code, d) : countryClubs(ct.code).divisions[d - 1];
+      return { country: ct.code, continent: ct.continent, name: divisionName(ct.code, d), clubs: ids.length + 1, avg: Math.round(ids.reduce((a, id) => a + clubById(id).rating, 0) / ids.length) }; });
   }
   /** Moves the club (squad, level, currencies, trophies kept) to the championship of another country. */
   changeCountry(code) {
     if (!this.canChangeCountry() || !COUNTRY_LEAGUES.includes(code) || code === this.data.club.country) return false;
     const c = this.data.club; c.country = code; c.customClubId ??= 'my-' + Date.now().toString(36);
-    this.data.league = newLeague(this.data.league.season, code, c.baseClubId);
+    this.data.career.country = code;   // same division level in the new country
+    this.data.league = this.makeLeague(this.data.league.season, code, this.data.career.division);
     this.save(); return true;
+  }
+  // ------------------------------------------------ end of season: playoffs, promotions, continental places
+  /** The user's playoff match if one is pending: { opponent, kind: 'promotion' | 'continental', home }. */
+  pendingPlayoff() {
+    const se = this.data.seasonEnd; if (!se || se.stage !== 'playoff') return null;
+    const p = se.playoff; return { opponent: p.a === 'user' ? p.b : p.a, kind: p.kind, home: p.a === 'user', season: se.season, division: se.division };
+  }
+  /** Final ranking of the user's division; the 2nd v 3rd match is played by the user if involved, else simulated. */
+  startSeasonEnd(rng) {
+    const lg = this.data.league, R = this.sortTable(lg.table);
+    this.data.seasonEnd = { stage: 'playoff', season: lg.season, country: lg.country, division: lg.division, ranking: R, table: JSON.parse(JSON.stringify(lg.table)),
+      playoff: { a: R[1], b: R[2], as: null, bs: null, winner: null, pens: false, kind: lg.division === 1 ? 'continental' : 'promotion' } };
+    if (R[1] === 'user' || R[2] === 'user') return true;
+    const p = this.data.seasonEnd.playoff, x = this.simScore(p.a, p.b, rng, true);
+    p.as = x.hs; p.bs = x.as; p.pens = !!x.pens; p.winner = x.hs > x.as || x.pens === 'home' ? p.a : p.b;
+    this.finalizeSeason(rng); return false;
+  }
+  /** Simulated season of a division (home and away). */
+  simDivision(ids, rng) {
+    const table = {}; for (const id of ids) table[id] = emptyRow();
+    for (const r of doubleRoundRobin(ids)) for (const f of r) { const x = this.simScore(f.home, f.away, rng); recordInto(table, f.home, f.away, x.hs, x.as); }
+    return table;
+  }
+  /**
+   * End of season of the user's country: every division ranked (the user's one played, the others simulated),
+   * 2nd v 3rd playoffs, promotions (1st + playoff winner) with the matching moves down (9 AI clubs per division
+   * kept, the user's club is never relegated), Division 1 champion and continental places, history, new season.
+   */
+  finalizeSeason(rng) {
+    const se = this.data.seasonEnd, code = se.country, W = this.worldState(code), d0 = se.division, pr = this.data.profile;
+    const rankings = [], playoffs = [], tables = [];
+    for (let d = 1; d <= DIVS; d++) {
+      if (d === d0) { rankings.push(se.ranking); playoffs.push(se.playoff); tables.push(se.table); continue; }
+      const t = this.simDivision(W.divisions[d - 1], rng), r = this.sortTable(t), x = this.simScore(r[1], r[2], rng, true);
+      rankings.push(r); tables.push(t); playoffs.push({ a: r[1], b: r[2], as: x.hs, bs: x.as, pens: !!x.pens, winner: x.hs > x.as || x.pens === 'home' ? r[1] : r[2], kind: d === 1 ? 'continental' : 'promotion' });
+    }
+    const moves = applyMoves(W.divisions, rankings, playoffs, d0), places = continentalPlaces(code, rankings[0], playoffs[0]);
+    W.divisions = moves.divisions; W.continental = { season: se.season + 1, places };
+    const mine = places.find((p) => p.id === 'user'), pos = se.ranking.indexOf('user') + 1, promoted = moves.userTo < d0, champion = d0 === 1 && pos === 1;
+    this.data.continental = mine ? { season: se.season + 1, competition: mine.competition, seed: mine.seed, country: code } : null;
+    const reward = {};
+    const add = (r) => { for (const k in r) reward[k] = (reward[k] || 0) + r[k]; };
+    if (champion) { pr.trophies.push({ name: 'league', season: se.season, date: Date.now() }); add({ coins: 1000, gems: 25, token: 2 }); }
+    else if (pos === 1) { pr.trophies.push({ name: 'division' + d0, season: se.season, date: Date.now() }); add({ coins: 400, gems: 5 }); }
+    if (promoted) { pr.trophies.push({ name: 'promotion' + d0, season: se.season, date: Date.now() }); add({ coins: 500, gems: 10, token: 1 }); }
+    if (mine) add({ coins: 300, gems: 5 });
+    this.grant(reward);
+    const summary = { season: se.season, country: code, division: d0, divisionName: divisionName(code, d0), newDivision: moves.userTo, newDivisionName: divisionName(code, moves.userTo),
+      table: se.table, ranking: se.ranking, position: pos, playoff: se.playoff, promoted: d0 > 1 ? moves.promoted[d0] : null, relegated: moves.relegated[d0] || [],
+      champion: rankings[0][0], continental: d0 === 1 ? places : null, myPlace: mine || null, userPromoted: promoted, userChampion: champion, reward,
+      divisions: rankings.map((r, i) => ({ division: i + 1, name: divisionName(code, i + 1), first: r[0], up: i > 0 ? moves.promoted[i + 1] : null })) };
+    this.data.careerHistory.push({ season: se.season, country: code, division: d0, position: pos, promoted, champion, continental: mine ? mine.competition : null });
+    this.data.career.division = moves.userTo;
+    this.data.league = this.makeLeague(se.season + 1, code, moves.userTo);
+    this.data.lastSeason = { season: se.season, country: code, position: pos, champion };
+    this.data.seasonEnd = { stage: 'done', summary, seen: false };
+    this.save();
+    return summary;
   }
   /** Saved custom club (MON CLUB), as stored in the local save. */
   customClub() {
@@ -331,21 +428,41 @@ export class GameState {
   budget() { const pr = this.data.profile; return 400000 + pr.level * 60000 + pr.wins * 15000 + pr.trophies.length * 250000; }
 
   // ------------------------------------------------ tournaments (national cups, continental, international)
+  /** Competitions shown to the user: the national cup of the user's country first. */
+  tournamentList() { const my = this.data.career.country; return [nationalCup(my), ...TOURNAMENTS.filter((d) => d.id !== 'cup-' + my)]; }
+  tournamentDef(id) { return this.tournamentList().find((d) => d.id === id) || (id && id.startsWith('cup-') ? nationalCup(id.slice(4)) : null); }
+  /** Division 1 of a country (as it evolves in this career for the user's country). */
+  topDivision(code) { return code === this.data.career.country ? this.divisionIds(code, 1) : countryClubs(code).divisions[0]; }
   tournamentTeams(def) {
-    const myBase = this.data.club.baseClubId;
-    let pool = CLUBS.filter((c) => c.id !== myBase && (!def.countries || def.countries.includes(c.country)));
+    const myBase = this.data.club.baseClubId, W = WORLD_COUNTRIES;
+    let ids;
+    if (def.scope === 'national') { const w = def.country === this.data.career.country ? this.worldState(def.country).divisions : countryClubs(def.country).divisions; ids = [...w[0], ...w[1]]; }
+    else if (def.countries) ids = def.countries.flatMap((c) => this.topDivision(c));
+    else if (def.continent) ids = W.filter((c) => c.continent === def.continent).flatMap((c) => this.topDivision(c.code));
+    else ids = W.filter((c) => c.level >= 3).flatMap((c) => this.topDivision(c.code));
+    let pool = [...new Set(ids)].filter((id) => id !== myBase).map((id) => clubById(id));
     pool.sort((a, b) => b.rating - a.rating);
     if (def.skipTop) pool = pool.slice(def.skipTop);
-    let ids = ['user', ...pool.slice(0, def.size - 1).map((c) => c.id)];
+    ids = ['user', ...pool.slice(0, def.size - 1).map((c) => c.id)];
     // knockout: power of two; groups: multiple of the group size
     if (def.format === 'ko') ids = ids.slice(0, 2 ** Math.floor(Math.log2(ids.length)));
     if (def.format === 'groups') ids = ids.slice(0, Math.max(def.groupSize, ids.length - (ids.length % def.groupSize)));
     return ids;
   }
   tournamentState(def) { const t = this.data.tournaments[def.id]; return t && t.season === this.data.league.season ? t : null; }
+  /** Why a competition is locked (null = open): continental qualification, trophy, level, other country. */
+  tournamentLock(def) {
+    const pr = this.data.profile, q = this.data.continental, season = this.data.league.season;
+    if (def.scope === 'national' && def.country !== this.data.career.country) return { why: 'country', country: def.country };
+    if (def.scope === 'regional' && !def.countries.includes(this.data.career.country)) return { why: 'region' };
+    if (def.qualify && !(q && q.competition === def.id && q.season === season)) return { why: 'qualify' };
+    if (def.requiresTrophy && !pr.trophies.some((t) => def.requiresTrophy.includes(t.name) && (!def.lastSeason || t.season === season - 1))) return { why: 'trophy' };
+    if (def.minLevel && pr.level < def.minLevel) return { why: 'level', level: def.minLevel };
+    return null;
+  }
   tournamentStatus(def) {
-    const pr = this.data.profile, t = this.tournamentState(def);
-    if (def.minLevel && pr.level < def.minLevel) return 'LOCKED';
+    const t = this.tournamentState(def);
+    if (this.tournamentLock(def)) return 'LOCKED';
     if (!t) return 'AVAILABLE';
     if (t.stage === 'done') return t.champion === 'user' ? 'WON' : 'OUT';
     return 'ACTIVE';
@@ -570,11 +687,15 @@ export class GameState {
   // ------------------------------------------------ teams for the match engine
   clubInfo(id) {
     if (id === 'user') { const c = this.data.club; return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, country: c.country, city: c.city, competition: this.data.league.name, total: this.teamTotal().total }; }
-    const c = CLUBS.find((x) => x.id === id);
+    const c = clubById(id);
     return { ...c, total: this.opponentTotal(id) };
   }
-  opponentSquad(id, rating) { const c = CLUBS.find((x) => x.id === id); return generateSquad(id, rating ?? c.rating); }
+  opponentSquad(id, rating) { const c = clubById(id); return generateSquad(id, rating ?? c.rating); }
   opponentTotal(id, rating) {
+    const key = id + '|' + (rating ?? ''); this._tot ??= new Map(); if (this._tot.has(key)) return this._tot.get(key);
+    const v = this.opponentTotal0(id, rating); this._tot.set(key, v); return v;
+  }
+  opponentTotal0(id, rating) {
     const sq = this.opponentSquad(id, rating);
     return Math.round(sq.slice(0, 7).reduce((a, p) => a + overall(p) + this.slotBonus(p, p.slot ?? -1), 0) / 7);
   }
@@ -590,7 +711,7 @@ export class GameState {
       players: [toDef(this.player(L.gk), -1), ...L.slots.map((id, i) => toDef(this.player(id), i))] };
   }
   opponentTeamDef(id, rating) {
-    const c = CLUBS.find((x) => x.id === id), sq = this.opponentSquad(id, rating).slice(0, 7);
+    const c = clubById(id), sq = this.opponentSquad(id, rating).slice(0, 7);
     return { id, name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: TACTICS[[...id].length % TACTICS.length],
       players: sq.map((p) => ({ name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot: p.slot ?? -1, look: lookOf(p) })) };
   }
@@ -743,16 +864,21 @@ export class GameState {
       const pos = this.standings().findIndex((r) => r.id === 'user') + 1;
       out.league = { position: pos, finished: lg.round >= lg.rounds.length };
       if (out.league.finished) {
-        lg.champion = this.standings()[0].id;
-        if (lg.champion === 'user') { pr.trophies.push({ name: 'league', season: lg.season, date: Date.now() }); this.grant({ coins: 1000, gems: 25, token: 2 }); out.league.champion = true; }
-        this.data.league = newLeague(lg.season + 1, this.data.club.country, this.data.club.baseClubId);
-        this.data.lastSeason = { season: lg.season, country: lg.country, position: out.league.position, champion: !!out.league.champion };
-        out.league.canMove = true;   // end of the championship: the club may move to another country's league
+        lg.champion = this.standings()[0].id; out.league.champion = lg.champion === 'user' && lg.division === 1;
+        out.league.playoff = this.startSeasonEnd(rng);   // 2nd v 3rd (the user plays it if involved), then moves
+        if (!out.league.playoff) { out.season = this.data.seasonEnd.summary; out.league.canMove = true; }
       }
+    }
+    // Playoff (2nd v 3rd): promotion (divisions 2-5) or continental place (division 1)
+    if (ctx.mode === 'playoff' && this.data.seasonEnd && this.data.seasonEnd.stage === 'playoff') {
+      const p = this.data.seasonEnd.playoff, userA = p.a === 'user', rng = new Rng((Date.now() & 0xffffff) ^ 0x5eed);
+      const pens = res.hs === res.as ? (rng.f() < 0.5 ? 'user' : 'opp') : null, won = res.hs > res.as || pens === 'user';
+      p.as = userA ? res.hs : res.as; p.bs = userA ? res.as : res.hs; p.pens = !!pens; p.winner = won ? 'user' : userA ? p.b : p.a;
+      out.playoff = { ...p, won }; this.finalizeSeason(rng); out.season = this.data.seasonEnd.summary; out.league = { canMove: true };
     }
     // Tournament
     if (ctx.mode === 'tournament') {
-      const def = TOURNAMENTS.find((d) => d.id === ctx.tournamentId);
+      const def = this.tournamentDef(ctx.tournamentId);
       out.tournament = this.playTournamentRound(def, res.hs, res.as);
     }
     // Event

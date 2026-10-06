@@ -416,3 +416,12 @@ body.sheet-open .app { visibility: hidden; }
 .dr-dots { display: flex; gap: .3rem; justify-content: center; } .dr-dots i { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; font-style: normal; font-weight: 900; background: #ffffff22; }
 .dr-dots i.ok { background: #2fbf71; } .dr-dots i.ko { background: #e5402e; } .dr-dots i.cur { box-shadow: 0 0 0 2px #ffd21a; }
 .res-rew.row { display: flex; gap: .8rem; font-size: 1.3rem; font-weight: 800; align-items: center; }
+
+/* ---------- change of championship ---------- */
+.lm-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; align-content: start; }
+.lm-tile { position: relative; display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .5rem .3rem; color: #1b1f3a; background: linear-gradient(160deg, #eef0fb, #c9cdea);
+  border: 3px solid transparent; animation: pop .25s backwards; } .lm-tile .flag { box-shadow: 0 1px 5px #0006; }
+.lm-tile b { font-size: 1.1rem; } .lm-tile span { font-weight: 800; font-size: .85rem; color: #3a3f6a; } .lm-tile small { font-size: .72rem; color: #4a4f72; }
+.lm-tile.on { border-color: #ff2a55; background: linear-gradient(160deg, #ffd6df, #f38aa2); } .lm-tile.lm-cur { outline: 2px dashed #ffffff88; outline-offset: -6px; }
+.lm-badge { position: absolute; top: .3rem; right: .3rem; font-style: normal; font-size: .62rem; font-weight: 900; background: #1b1f3a; color: #fff; padding: .05rem .35rem; }
+.results .pm-actions { justify-content: center; }

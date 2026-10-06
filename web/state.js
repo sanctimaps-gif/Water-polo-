@@ -304,6 +304,23 @@ export class GameState {
     this.grant(reward); const levelUps = this.addXp(10 + made * 5); this.save();
     return { kind, made, total, stars, newStars, reward, levelUps, best: this.data.challenges[kind].best };
   }
+  // ------------------------------------------------ change of championship (country) at the end of a season
+  /** Allowed between two seasons: the championship is over and the new one has not started. */
+  canChangeCountry() {   // (a rest round simulated for the other clubs does not close the window)
+    const lg = this.data.league; return lg.season > 1 && !lg.rounds.some((r) => r.some((f) => f.hs !== null && (f.home === 'user' || f.away === 'user')));
+  }
+  /** Every national championship of the game: name, clubs, average rating. */
+  leagueOptions() {
+    return COUNTRY_LEAGUES.map((c) => { const cl = CLUBS.filter((x) => x.country === c && x.id !== this.data.club.baseClubId);
+      return { country: c, name: (LEAGUES[c] || {}).game || c, clubs: cl.length + 1, avg: Math.round(cl.reduce((a, x) => a + x.rating, 0) / Math.max(1, cl.length)) }; });
+  }
+  /** Moves the club (squad, level, currencies, trophies kept) to the championship of another country. */
+  changeCountry(code) {
+    if (!this.canChangeCountry() || !COUNTRY_LEAGUES.includes(code) || code === this.data.club.country) return false;
+    const c = this.data.club; c.country = code; c.customClubId ??= 'my-' + Date.now().toString(36);
+    this.data.league = newLeague(this.data.league.season, code, c.baseClubId);
+    this.save(); return true;
+  }
   /** Saved custom club (MON CLUB), as stored in the local save. */
   customClub() {
     const c = this.data.club;
@@ -729,6 +746,8 @@ export class GameState {
         lg.champion = this.standings()[0].id;
         if (lg.champion === 'user') { pr.trophies.push({ name: 'league', season: lg.season, date: Date.now() }); this.grant({ coins: 1000, gems: 25, token: 2 }); out.league.champion = true; }
         this.data.league = newLeague(lg.season + 1, this.data.club.country, this.data.club.baseClubId);
+        this.data.lastSeason = { season: lg.season, country: lg.country, position: out.league.position, champion: !!out.league.champion };
+        out.league.canMove = true;   // end of the championship: the club may move to another country's league
       }
     }
     // Tournament

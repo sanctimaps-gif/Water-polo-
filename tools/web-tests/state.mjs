@@ -1,5 +1,5 @@
 // Run: node tools/web-tests/state.mjs — game state rules: every displayed value must be real.
-import { GameState, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue } from '../../web/state.js';
+import { GameState, CLUBS as CLUBS2, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue } from '../../web/state.js';
 import { Match } from '../../web/sim.js';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const st = new GameState();
@@ -56,6 +56,14 @@ for (let r = 0; r < R; r++) {
 }
 ok(st.data.league.season === 2 && st.data.league.round === 0, 'new season starts');
 ok(st.data.profile.matches === M0 + R && st.data.profile.wins === W0 + R, 'profile counts matches and wins');
+// End of the championship: the club may move to another country's league (squad and trophies kept)
+{ const sq = st.squad.length, tr = st.data.profile.trophies.length; ok(st.canChangeCountry() && !st.changeCountry('XXX'), 'season over: change of championship allowed (valid countries only)');
+  ok(st.changeCountry('ITA') && st.data.club.country === 'ITA' && st.data.league.country === 'ITA' && st.data.league.season === 2 && Object.keys(st.data.league.table).includes('user')
+    && Object.keys(st.data.league.table).filter((id) => id !== 'user').every((id) => CLUBS2.find((c) => c.id === id).country === 'ITA') && st.squad.length === sq && st.data.profile.trophies.length === tr,
+    'club moves to the Italian championship, squad and trophies kept');
+  { const s3 = new GameState(); s3.data.league.season = 2; s3.nextLeagueMatch(); ok(s3.canChangeCountry(), 'a rest round for the other clubs keeps the window open'); }
+  const nm = st.nextLeagueMatch(); st.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 1, as: 0, stats: { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 } });
+  ok(!st.canChangeCountry() && !st.changeCountry('ESP'), 'no change once the season has started'); }
 
 // objectives progress from match stats and pay out once
 const ob = st.data.objectives.list.find((o) => o.progress >= o.n && !o.claimed);

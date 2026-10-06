@@ -2,6 +2,11 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'lm.btn': 'CHANGER DE CHAMPIONNAT', 'lm.title': 'CHAMPIONNAT DE LA SAISON {0}', 'lm.current': 'ACTUEL', 'lm.clubs': '{0} clubs', 'lm.avg': 'note moy. {0}',
+    'lm.how': 'Le championnat est terminé : ton club peut jouer la saison prochaine dans un autre pays. Effectif, niveau, monnaies et trophées sont conservés.',
+    'lm.closed': 'Changement possible uniquement à la fin du championnat, avant le premier match de la saison suivante.',
+    'lm.last_champ': 'Saison {0} : CHAMPION', 'lm.last_pos': 'Saison {0} : {1}e place', 'lm.go': 'JOUER EN {0}', 'lm.stay': 'RESTER',
+    'lm.confirm': 'Ton club jouera la saison prochaine en {0} ({1}). La coupe nationale suivra aussi ce pays. Confirmer ?', 'lm.done': 'Bienvenue en {0} !',
     'tour.t_defi': 'DÉFIS', 'tour.t_defi_d': 'Tutoriel, penalty, coup franc, supériorité', 'hub.challenges': 'OBJECTIFS DU JOUR',
     'drill.tutorial': 'TUTORIEL', 'drill.penalty': 'PENALTY', 'drill.freethrow': 'COUP FRANC', 'drill.powerplay': 'SUPÉRIORITÉ 6 C 5',
     'drill.tutorial_tile': 'Apprends nage, sprint, passe, tir, but et défense en 6 étapes', 'drill.penalty_tile': '5 tirs à 5 m face au gardien · 5 s par tir',
@@ -50,7 +55,7 @@ export const UI = {
     'ed.preview': 'APERÇU 3D', 'ed.validate': 'VALIDER MON CLUB', 'ed.short': 'ABRÉVIATION', 'ed.color3': 'COULEUR 3', 'ed.letters': 'LETTRES / CHIFFRES', 'ed.motif': 'MOTIF', 'ed.border': 'BORDURE',
     'ed.pattern': 'MOTIF DU MAILLOT', 'ed.suit': 'COULEUR PRINCIPALE', 'ed.suit2': 'COULEUR DU MOTIF', 'ed.cap': 'BONNET', 'ed.captrim': 'LISERÉ / PROTÈGE-OREILLES', 'ed.number': 'NUMÉRO',
     'ed.ball': 'BALLON', 'ed.pool': 'PISCINE À DOMICILE', 'ed.tab_id': 'IDENTITÉ', 'ed.tab_logo': 'LOGO', 'ed.tab_kits': 'MAILLOTS', 'ed.tab_cap': 'BONNETS', 'ed.tab_more': 'BALLON & PISCINE',
-    'ed.based_on': 'MON CLUB · basé sur {0}', 'ed.my_club': 'MON CLUB', 'ed.country_locked': 'changement de pays : nouvelle carrière', 'ed.need_name': 'Nom et abréviation requis',
+    'ed.based_on': 'MON CLUB · basé sur {0}', 'ed.my_club': 'MON CLUB', 'ed.country_locked': 'changement de championnat possible à la fin de la saison (Carrière > Mon club)', 'ed.need_name': 'Nom et abréviation requis',
     'ed.logo_note': 'Logo 100 % original créé dans le jeu. N’importe et ne reproduit aucun logo officiel.', 'ed.gk_note': 'Gardien : bonnet rouge (règlement).',
     'opt.plain': 'UNI', 'opt.halves': 'MOITIÉS', 'opt.stripe': 'BANDE', 'opt.sash': 'ÉCHARPE', 'opt.chevron': 'CHEVRON', 'opt.none': 'AUCUN', 'opt.ring': 'ANNEAU', 'opt.single': 'SIMPLE', 'opt.double': 'DOUBLE',
     'ball.classic': 'CLASSIQUE', 'ball.ocean': 'OCÉAN', 'ball.sunset': 'COUCHANT', 'ball.lime': 'LIME', 'ui.away_pool': 'Piscine adverse',
@@ -109,6 +114,11 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'lm.btn': 'CHANGE CHAMPIONSHIP', 'lm.title': 'CHAMPIONSHIP FOR SEASON {0}', 'lm.current': 'CURRENT', 'lm.clubs': '{0} clubs', 'lm.avg': 'avg rating {0}',
+    'lm.how': 'The championship is over: your club may play next season in another country. Squad, level, currencies and trophies are kept.',
+    'lm.closed': 'Only possible at the end of the championship, before the first match of the next season.',
+    'lm.last_champ': 'Season {0}: CHAMPION', 'lm.last_pos': 'Season {0}: position {1}', 'lm.go': 'PLAY IN {0}', 'lm.stay': 'STAY',
+    'lm.confirm': 'Your club will play next season in {0} ({1}). The national cup will follow this country too. Confirm?', 'lm.done': 'Welcome to {0}!',
     'tour.t_defi': 'CHALLENGES', 'tour.t_defi_d': 'Tutorial, penalty, free throw, man-up', 'hub.challenges': 'DAILY OBJECTIVES',
     'drill.tutorial': 'TUTORIAL', 'drill.penalty': 'PENALTY', 'drill.freethrow': 'FREE THROW', 'drill.powerplay': 'MAN-UP 6 V 5',
     'drill.tutorial_tile': 'Learn swimming, sprint, pass, shot, goal and defence in 6 steps', 'drill.penalty_tile': '5 shots from 5 m against the goalkeeper · 5 s each',
@@ -157,7 +167,7 @@ export const UI = {
     'ed.preview': '3D PREVIEW', 'ed.validate': 'CONFIRM MY CLUB', 'ed.short': 'ABBREVIATION', 'ed.color3': 'COLOUR 3', 'ed.letters': 'LETTERS / NUMBERS', 'ed.motif': 'PATTERN', 'ed.border': 'BORDER',
     'ed.pattern': 'KIT PATTERN', 'ed.suit': 'MAIN COLOUR', 'ed.suit2': 'PATTERN COLOUR', 'ed.cap': 'CAP', 'ed.captrim': 'TRIM / EAR GUARDS', 'ed.number': 'NUMBER',
     'ed.ball': 'BALL', 'ed.pool': 'HOME POOL', 'ed.tab_id': 'IDENTITY', 'ed.tab_logo': 'LOGO', 'ed.tab_kits': 'KITS', 'ed.tab_cap': 'CAPS', 'ed.tab_more': 'BALL & POOL',
-    'ed.based_on': 'MY CLUB · based on {0}', 'ed.my_club': 'MY CLUB', 'ed.country_locked': 'changing country: new career', 'ed.need_name': 'Name and abbreviation required',
+    'ed.based_on': 'MY CLUB · based on {0}', 'ed.my_club': 'MY CLUB', 'ed.country_locked': 'change of championship possible at the end of the season (Career > My club)', 'ed.need_name': 'Name and abbreviation required',
     'ed.logo_note': '100% original logo made in the game. Never imports or copies an official logo.', 'ed.gk_note': 'Goalkeeper: red cap (rules).',
     'opt.plain': 'PLAIN', 'opt.halves': 'HALVES', 'opt.stripe': 'STRIPE', 'opt.sash': 'SASH', 'opt.chevron': 'CHEVRON', 'opt.none': 'NONE', 'opt.ring': 'RING', 'opt.single': 'SINGLE', 'opt.double': 'DOUBLE',
     'ball.classic': 'CLASSIC', 'ball.ocean': 'OCEAN', 'ball.sunset': 'SUNSET', 'ball.lime': 'LIME', 'ui.away_pool': 'Away pool',

@@ -299,6 +299,19 @@ export class App {
       <h3>${this.L('ui.objectives')}</h3>${this.scr_objectives().replace(/^[\s\S]*?<div class="list">/, '<div class="list">').replace(/<footer[\s\S]*$/, '')}
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
+  /** End of the championship: the club may play next season in another country's league. */
+  scr_leaguemove() {
+    const st = this.st, cur = st.data.club.country, sel = this.moveTo || cur, last = st.data.lastSeason, can = st.canChangeCountry();
+    const tiles = st.leagueOptions().map((o) => `<button class="lm-tile ${o.country === sel ? 'on' : ''} ${o.country === cur ? 'lm-cur' : ''}" data-act="lm-pick" data-arg="${o.country}">
+      ${flagSvg(o.country, 64)}<b>${this.L('country.' + o.country)}</b><span>${esc(o.name)}</span><small>${this.L('lm.clubs', o.clubs)} · ${this.L('lm.avg', o.avg)}</small>
+      ${o.country === cur ? `<i class="lm-badge">${this.L('lm.current')}</i>` : ''}</button>`).join('');
+    const target = st.leagueOptions().find((o) => o.country === sel);
+    return `<div class="panel-screen lm"><h1>${this.L('lm.title', st.data.league.season)}</h1>
+      <p class="sub">${last ? this.L(last.champion ? 'lm.last_champ' : 'lm.last_pos', last.season, last.position) + ' · ' : ''}${this.L(can ? 'lm.how' : 'lm.closed')}</p>
+      <div class="lm-grid">${tiles}</div>
+      <footer class="bar">${this.backBtn()}<div class="spacer"></div>
+        ${can && sel !== cur ? `<button class="btn play" data-act="lm-go">${icon('play', 18)} ${this.L('lm.go', esc(target.name))}</button>` : `<button class="btn" data-act="home">${this.L('lm.stay')}</button>`}</footer></div>`;
+  }
   /** CARRIÈRE → MON CLUB: identity, level, fictional budget, squad, ranking, honours, current season. */
   scr_myclub() {
     const st = this.st, c = st.data.club, pr = st.data.profile, lg = st.data.league, rows = st.standings(), pos = rows.findIndex((r) => r.id === 'user') + 1;
@@ -312,11 +325,14 @@ export class App {
         <button class="btn cyan small" data-act="edit-club">${icon('cap', 16)} ${this.L('ui.customize')}</button></section>
       <section class="mc-data"><div class="stats-grid">${box('ui.level', pr.level)}${box('mc.budget', st.budget().toLocaleString('fr-FR') + ' €*')}${box('mc.squad', `${st.squad.length} · ${this.L('ui.total')} ${tot}`)}
         ${box('mc.rank', `${pos} / ${rows.length}`)}${box('mc.season', `${lg.season} · ${this.L('ui.match_n', Math.min(lg.round + 1, lg.rounds.length), lg.rounds.length)}`)}</div>
+        <div class="row-btns"><button class="btn" data-act="nav" data-arg="ranking">${this.L('ui.ranking')}</button><button class="btn" data-act="nav" data-arg="tournaments">${this.L('tour.title')}</button>
+        <button class="btn ${st.canChangeCountry() ? 'gold' : 'off'} small" data-act="nav" data-arg="leaguemove" title="${this.L('lm.closed')}">${icon('swap', 16)} ${this.L('lm.btn')}</button>
+        <button class="btn danger small" data-act="change-club">${this.L('mc.change')}</button></div>
+        ${st.canChangeCountry() ? '' : `<small class="sub">${this.L('lm.closed')}</small>`}
         <h3>${esc(lg.name)}</h3><div class="mini-table">${rows.slice(Math.max(0, pos - 3), Math.max(0, pos - 3) + 5).map((r) => `<span class="${r.id === 'user' ? 'me' : ''}"><i>${rows.indexOf(r) + 1}</i>${logoSvg(r.info.logo, r.info.color, r.info.color2, 18)} ${esc(r.info.name)}<b>${r.pts}</b></span>`).join('')}</div>
         <h3>${this.L('mc.honours')}</h3><div class="honours">${honours}</div>
         <p class="sub">* ${this.L('mc.budget_note')}</p>
-        <div class="row-btns"><button class="btn" data-act="nav" data-arg="ranking">${this.L('ui.ranking')}</button><button class="btn" data-act="nav" data-arg="tournaments">${this.L('tour.title')}</button>
-        <button class="btn danger small" data-act="change-club">${this.L('mc.change')}</button></div></section>
+</section>
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
@@ -579,7 +595,8 @@ export class App {
       <div class="res-body"><div class="res-stats">${rows.map(([x, k, y]) => `<div class="sr"><b>${x}</b><span>${this.L(k)}</span><b>${y}</b></div>`).join('')}</div>
       <div class="res-rew"><div class="rw">${icon('coin', 30)}<b>+${s.coins}</b></div><div class="rw">${icon('star', 30)}<b>+${s.xp} ${this.L('ui.xp')}</b></div><div class="rw">${icon('dumbbell', 30)}<b>+${s.tp}</b></div>${s.medkits ? `<div class="rw">${icon('medkit', 30)}<b>+${s.medkits}</b></div>` : ''}
       ${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div></div>
-      <button class="btn play big" data-act="${s.tournament ? 'tour-back' : 'home'}" data-arg="${s.tournament ? s.tournament.def : ''}">${this.L('ui.continue')}</button></div>`;
+      <div class="pm-actions">${s.league && s.league.canMove ? `<button class="btn gold big" data-act="nav" data-arg="leaguemove">${icon('swap', 20)} ${this.L('lm.btn')}</button>` : ''}
+      <button class="btn play big" data-act="${s.tournament ? 'tour-back' : 'home'}" data-arg="${s.tournament ? s.tournament.def : ''}">${this.L('ui.continue')}</button></div></div>`;
   }
 
   // ------------------------------------------------------------------ actions
@@ -640,6 +657,14 @@ export class App {
       case 'team-tab-go': this.teamTab = arg; this.show('team'); break;
       case 'sheet': this.playerSheet(st.player(arg)); break;
       case 'change-club': if (await this.confirm(this.L('mc.change_warn'))) { this.pickId = null; this.show('clubs'); } break;
+      case 'lm-pick': this.moveTo = arg; this.render(); break;
+      case 'lm-go': {
+        const o = st.leagueOptions().find((x) => x.country === this.moveTo);
+        if (o && await this.confirm(this.L('lm.confirm', o.name, this.L('country.' + o.country)))) {
+          if (st.changeCountry(o.country)) { this.moveTo = null; this.api.haptic([20, 40, 20]); this.api.rewardSound(); this.home(); this.toast(this.L('lm.done', o.name)); }
+        }
+        break;
+      }
       case 'tour-tab': this.tourTab = arg; this.render(); break;
       case 'defis': this.tourTab = 'defi'; this.stack = [{ name: 'home', params: {} }]; this.show('tournaments', {}, false); break;
       case 'challenge': {   // opponent goalkeeper / defenders: the club of the user's league closest to the user's level

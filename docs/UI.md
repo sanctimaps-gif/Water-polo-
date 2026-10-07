@@ -29,9 +29,9 @@ l'appareil) : aucune valeur décorative. Règles vérifiées par `node tools/web
 | Avant-match | logos, TOTAL, compétition, piscine, gain, astuce | oui |
 | HUD de match | tableau avec écussons, flèche de possession, score animé, horloge 30 s qui clignote sous 5 s ; bandeaux animés BUT (écusson, buteur, flash), ARRÊT, EXCLUSION, 30 S ÉCOULÉES, FIN DE PÉRIODE ; boutons à icônes (états appuyé / désactivé, vibration) ; caméra TV / MATCH / LARGE | oui |
 | Tactique (en match) | OFFENSIF, ÉQUILIBRÉ, DÉFENSIF, PRESSION, CONTRE-ATTAQUE (+ RAPIDE, CENTRE) et formations ARC 3-3, PARAPLUIE, 4-2 ; le match est en pause pendant le choix | oui — changent le comportement de l'IA et les positions d'attaque |
-| Pause (en match) | REPRENDRE, TACTIQUES, COMMANDES, PARAMÈTRES (caméra, zoom, radar, son, vibrations, changement auto), QUITTER LE MATCH (confirmation ; compétition = défaite 0-5) | oui |
+| Pause (en match) | « JEU EN PAUSE » : écussons et score, statistiques en direct (possession, tirs cadrés, arrêts, passes réussies, ballons récupérés, fautes / exclusions, supériorités / buts) ; boutons STATS, TACTIQUE, ÉQUIPE (remplacements : joueur dans l'eau → remplaçant, gardien pour gardien, la composition suit), RÉGLAGES (tous les paramètres, appliqués immédiatement), QUITTER (confirmation) | oui |
 | Résultats | victoire / défaite / nul, statistiques, pièces, XP, montée de niveau, objectifs atteints, place en ligue, progression d'événement | oui |
-| Paramètres | graphismes, caméra, ambiance, replays, difficulté, assistance, durée, timing, son, langue, réinitialisation (confirmée) | oui |
+| Paramètres (menu et pause) | onglets MATCH, CONTRÔLES, AUDIO, GRAPHISMES, AUTRES ; flèches ‹ › avec points de position, interrupteurs NON / OUI, curseur de zoom. Horloge : chaque période affiche 8:00 (règle réelle) et dure la durée choisie (1, 2, 4 ou 8 min réelles) ; 30 s et exclusions en secondes réelles | graphismes, caméra, ambiance, replays, difficulté, assistance, durée, timing, son, langue, réinitialisation (confirmée) | oui |
 
 Économie : pièces gagnées en jouant (victoire 150, nul 80, défaite 50, +10 par but ; moitié en match
 rapide), objectifs, événements, cadeau du jour, titre de champion. Gemmes : objectifs, événements,

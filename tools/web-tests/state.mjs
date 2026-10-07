@@ -146,4 +146,9 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
   st2.data.profile.level = 20; let okAll = true;
   for (const def of TOURNAMENTS) { st2.startTournament(def); let n = 0; while (st2.nextTournamentMatch(def) && n < 30) { st2.playTournamentRound(def, 9, 2); n++; } const t = st2.tournamentState(def); okAll = okAll && t.stage === 'done' && t.champion === 'user'; }
   ok(okAll, `${TOURNAMENTS.length} tournaments (cups, regional, continental, international) played to the end`); }
+// Rolling substitution during a match: the player in the water takes the substitute's identity and stats, fresh.
+{ const st = new GameState(); const m = new Match({ seed: 4, humanTeam: 0 }, st.userTeamDef(), st.opponentTeamDef('recco')); m.start(); for (let i = 0; i < 300; i++) m.step();
+  const mp = m.teams[0].players.find((p) => p.slot === 2), sub = st.bench().find((p) => p.role !== 'GOALKEEPER'); mp.stamina = 0.3;
+  m.substitute(mp, st.playerDef(sub, 2)); for (let i = 0; i < 50; i++) m.step();
+  ok(mp.pid === sub.id && mp.name.endsWith(sub.lastName) && mp.stamina > 0.9 && mp.stats.shooting === st.playerDef(sub, 2).stats.shooting, 'substitution: new player in the water, fresh, with his own stats'); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

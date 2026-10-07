@@ -2,6 +2,10 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'menu.quarter': '{0} min réelles · affiché 8:00', 'pz.paused': 'JEU EN PAUSE', 'pz.stats': 'STATS', 'pz.tactics': 'TACTIQUE', 'pz.team': 'ÉQUIPE', 'pz.settings': 'RÉGLAGES', 'pz.quit': 'QUITTER',
+    'pz.possession': 'POSSESSION', 'pz.shots': 'TIRS (CADRÉS)', 'pz.saves': 'ARRÊTS', 'pz.passes': 'PASSES (RÉUSSIES)', 'pz.steals': 'BALLONS RÉCUPÉRÉS', 'pz.fouls': 'FAUTES (EXCLUSIONS)', 'pz.manup': 'SUPÉRIORITÉS (BUTS)',
+    'pz.sub_pick': 'Remplacement : touche un joueur dans l’eau (barre = endurance), puis un remplaçant.', 'pz.sub_bench': 'Choisis maintenant le remplaçant qui entre.',
+    'pz.need_gk': 'Le gardien est remplacé par un gardien.', 'pz.no_gk': 'Un gardien remplace seulement le gardien.', 'pz.subbed': 'Remplacement effectué',
     'cont.EUR': 'EUROPE', 'cont.AME': 'AMÉRIQUES', 'cont.ASI': 'ASIE', 'cont.AFR': 'AFRIQUE', 'cont.OCE': 'OCÉANIE', 'lad.you': 'TON CLUB',
     'club.game_created': 'CLUB DU JEU', 'club.real_tag': 'CLUB RÉEL', 'club.gc_note': 'Club créé par le jeu (fictif) pour compléter les 5 divisions : nom original basé sur une ville réelle, ce n’est pas un club officiel.',
     'club.world_note': 'Chaque pays : 5 divisions de 9 clubs + ton club (structure du jeu, pas la structure officielle du pays). Clubs réels vérifiés quand ils sont connus, sinon clubs du jeu clairement marqués.',
@@ -129,6 +133,10 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'menu.quarter': '{0} real min · shown 8:00', 'pz.paused': 'GAME PAUSED', 'pz.stats': 'STATS', 'pz.tactics': 'TACTICS', 'pz.team': 'TEAM', 'pz.settings': 'SETTINGS', 'pz.quit': 'QUIT',
+    'pz.possession': 'POSSESSION', 'pz.shots': 'SHOTS (ON TARGET)', 'pz.saves': 'SAVES', 'pz.passes': 'PASSES (COMPLETED)', 'pz.steals': 'BALLS WON', 'pz.fouls': 'FOULS (EXCLUSIONS)', 'pz.manup': 'MAN-UPS (GOALS)',
+    'pz.sub_pick': 'Substitution: tap a player in the water (bar = stamina), then a substitute.', 'pz.sub_bench': 'Now pick the substitute coming in.',
+    'pz.need_gk': 'The goalkeeper is replaced by a goalkeeper.', 'pz.no_gk': 'A goalkeeper only replaces the goalkeeper.', 'pz.subbed': 'Substitution made',
     'cont.EUR': 'EUROPE', 'cont.AME': 'AMERICAS', 'cont.ASI': 'ASIA', 'cont.AFR': 'AFRICA', 'cont.OCE': 'OCEANIA', 'lad.you': 'YOUR CLUB',
     'club.game_created': 'GAME CLUB', 'club.real_tag': 'REAL CLUB', 'club.gc_note': 'Club created by the game (fictional) to fill the 5 divisions: original name based on a real city, not an official club.',
     'club.world_note': 'Every country: 5 divisions of 9 clubs + your club (game structure, not the country’s official structure). Verified real clubs when known, otherwise clearly marked game clubs.',

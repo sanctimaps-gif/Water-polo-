@@ -365,21 +365,22 @@ function updatePrematchView(dt) {
 
 // ------------------------------------------------------------------ actors
 let athletes = [];
+/** 3D athlete of a match player: appearance tied to the squad player (same face / body in the cards and every match); kit of the club. */
+function makeAthlete(m, p) {
+  const K = m.kits[p.team];
+  const a = new Athlete({ ...kitOptions(K.kit, K.gk, p.isGK, p.team === 0 && m.teams[0].def.id === 'user'), number: p.number,
+    role: p.role, bodyRole: p.look ? p.look.role : p.role, isGK: p.isGK, seed: p.look ? p.look.seed : p.id * 31 + p.team * 977 + 5, preset });
+  a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
+  a.onDrip = (x, y, z) => { vfx.drip(x, y, z); };
+  a.onKick = (x, z, power) => { vfx.stroke(x, z, power); };
+  scene.add(a.root);
+  return a;
+}
 function buildActors(m) {
   for (const a of athletes) scene.remove(a.root);
   const kits = matchKits(m.teams[0].def, m.teams[1].def, matchCtx && matchCtx.kit);
   m.kits = kits;
-  athletes = m.players.map((p) => {
-    // Appearance tied to the squad player (same face / body in the cards and every match); kit of the club.
-    const K = kits[p.team];
-    const a = new Athlete({ ...kitOptions(K.kit, K.gk, p.isGK, p.team === 0 && m.teams[0].def.id === 'user'), number: p.number,
-      role: p.role, bodyRole: p.look ? p.look.role : p.role, isGK: p.isGK, seed: p.look ? p.look.seed : p.id * 31 + p.team * 977 + 5, preset });
-    a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
-    a.onDrip = (x, y, z) => { vfx.drip(x, y, z); };
-    a.onKick = (x, z, power) => { vfx.stroke(x, z, power); };
-    scene.add(a.root);
-    return a;
-  });
+  athletes = m.players.map((p) => makeAthlete(m, p));
   if (hero) hero.root.visible = false;
 }
 
@@ -820,42 +821,88 @@ function openTactics(fromPause = false) {
     const team = match.human.team, s = e.target.closest('[data-style]'), f = e.target.closest('[data-form]');
     if (s) { match.setTactic(team, s.dataset.style); tacticIdx = TACTICS.indexOf(s.dataset.style); refreshTactic(); haptic(12); el.innerHTML = tacticsHtml(); return; }
     if (f) { match.setFormation(team, f.dataset.form); haptic(12); el.innerHTML = tacticsHtml(); return; }
-    if (e.target.closest('.tp-close')) { if (fromPause) el.innerHTML = ''; else { el.classList.add('hidden'); paused = false; } }
+    if (e.target.closest('.tp-close')) { if (fromPause) pausePanel('stats'); else { el.classList.add('hidden'); paused = false; } }
   };
 }
+// Pause ("JEU EN PAUSE"): score + crests, live statistics, tactics, substitutions, every setting, quit.
+const PZ_ICONS = {
+  stats: '<path d="M4 20V10h3v10Zm6 0V4h3v16Zm6 0v-7h3v7Z" fill="currentColor"/>',
+  tactics: '<rect x="3" y="5" width="18" height="14" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 5v14" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h3v6H3m18-6h-3v6h3" fill="none" stroke="currentColor" stroke-width="2"/>',
+  team: '<circle cx="9" cy="8" r="3.2" fill="currentColor"/><circle cx="16.5" cy="9" r="2.6" fill="currentColor"/><path d="M3 19c0-3.5 2.7-5.5 6-5.5s6 2 6 5.5Zm12.5 0c0-2-.6-3.6-1.7-4.6 3.1-.4 5.7 1.2 5.7 4.6Z" fill="currentColor"/>',
+  settings: '<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm8.3 5-1.9-.3a6.7 6.7 0 0 1-.7 1.7l1.1 1.6-1.5 1.5-1.6-1.1c-.5.3-1.1.6-1.7.7l-.3 1.9h-2.2l-.3-1.9a6.7 6.7 0 0 1-1.7-.7l-1.6 1.1-1.5-1.5 1.1-1.6c-.3-.5-.6-1.1-.7-1.7l-1.9-.3v-2.2l1.9-.3c.1-.6.4-1.2.7-1.7L5.3 7.2l1.5-1.5 1.6 1.1c.5-.3 1.1-.6 1.7-.7l.3-1.9h2.2l.3 1.9c.6.1 1.2.4 1.7.7l1.6-1.1 1.5 1.5-1.1 1.6c.3.5.6 1.1.7 1.7l1.9.3Z" fill="currentColor"/>',
+  quit: '<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+let pzSetTab = 'match', pzSel = null;
+function statsHtml() {
+  const T = match.teams, a = match.stats.teams[0], b = match.stats.teams[1], tot = a.possession + b.possession || 1;
+  const row = (label, x, y, xs, ys) => { const s = (x + y) || 1, k = x / s * 100;
+    return `<div class="pz-row"><b>${xs ?? x}</b><span>${label}</span><b>${ys ?? y}</b><i><u style="width:${k}%"></u><u style="width:${100 - k}%"></u></i></div>`; };
+  const pa = Math.round(a.possession / tot * 100);
+  return row(L('pz.possession'), pa, 100 - pa, pa + '%', (100 - pa) + '%')
+    + row(L('pz.shots'), a.shots, b.shots, `${a.shots}(${a.onTarget})`, `${b.shots}(${b.onTarget})`)
+    + row(L('pz.saves'), a.saves, b.saves)
+    + row(L('pz.passes'), a.passes, b.passes, `${a.passes}(${a.passesOk})`, `${b.passes}(${b.passesOk})`)
+    + row(L('pz.steals'), a.steals + a.interceptions, b.steals + b.interceptions)
+    + row(L('pz.fouls'), a.fouls, b.fouls, `${a.fouls}(${a.exclusions})`, `${b.fouls}(${b.exclusions})`)
+    + row(L('pz.manup'), a.ppChances, b.ppChances, `${a.ppChances}(${a.ppGoals})`, `${b.ppChances}(${b.ppGoals})`);
+}
+/** Substitutions (rolling, as in water polo): tap a player in the water, then a substitute. */
+function teamHtml() {
+  const inWater = [...match.teams[0].field, match.teams[0].gk], bench = state.bench().sort((x, y) => (x.role === 'GOALKEEPER') - (y.role === 'GOALKEEPER'));
+  const card = (p, extra, sel) => `<div class="sub-card ${sel ? 'sel' : ''}" ${extra}>${cardHtml(p)}</div>`;
+  const wp = inWater.map((mp) => { const sq = mp.pid ? state.player(mp.pid) : null; if (!sq) return '';
+    return card({ ...sq, form: Math.round(mp.stamina * 100) }, `data-in="${mp.id}"`, pzSel === mp.id); }).join('');
+  return `<p class="pz-hint">${L(pzSel === null ? 'pz.sub_pick' : 'pz.sub_bench')}</p><div class="sub-grid">${wp}</div><h4>${L('ui.bench')}</h4>
+    <div class="sub-grid subs">${bench.map((p) => card(p, `data-bench="${p.id}"`, false)).join('') || `<p class="pz-hint">—</p>`}</div>`;
+}
+function substitute(mpId, benchId) {
+  const mp = match.players[mpId], sq = state.player(benchId); if (!mp || !sq || mp.excluded > 0) return false;
+  if (mp.isGK !== (sq.role === 'GOALKEEPER')) { toast(L(mp.isGK ? 'pz.need_gk' : 'pz.no_gk'), 1.5); return false; }
+  const old = mp.pid; match.substitute(mp, state.playerDef(sq, mp.isGK ? -1 : mp.slot));
+  if (old) state.swap(old, benchId);   // the line-up follows (career stats, next match)
+  scene.remove(athletes[mpId].root); athletes[mpId] = makeAthlete(match, mp); athletes[mpId].root.position.set(mp.pos.x, 0, mp.pos.z);
+  lastWho = null; haptic([20, 30, 20]); return true;
+}
 function pausePanel(kind) {
-  const el = $('pause-panel'); el.onclick = null;
-  document.querySelectorAll('.pm-btn').forEach((b) => b.classList.toggle('sel', b.id === 'pause-' + kind));
+  const el = $('pause-panel'), keep = el.dataset.kind === (kind || 'stats') ? el.scrollTop : 0; el.onclick = null; el.onchange = null; kind = kind || 'stats'; el.dataset.kind = kind;
+  requestAnimationFrame(() => { el.scrollTop = keep; });
+  document.querySelectorAll('.pz-btns button').forEach((b) => b.classList.toggle('sel', b.id === 'pause-' + kind));
   if (kind === 'tactics') return openTactics(true);
-  if (kind === 'controls') {
-    el.innerHTML = `<div class="tp-box"><h2>${L('ui.controls')}</h2><div class="ctl-list">
-      ${[['stick', 'ctl.stick'], ['shoot', 'ctl.shoot'], ['pass', 'ctl.pass'], ['defend', 'ctl.defend'], ['switch', 'ctl.switch'], ['sprint', 'ctl.sprint'], ['dodge', 'ctl.dodge'], ['pass', 'ctl.passes']]
-        .map(([i, k]) => `<div>${i === 'stick' ? '<i class="ctl-stick"></i>' : `<i class="ctl-i m-${i}">${hudIcon(i, 18)}</i>`}<span>${L(k)}</span></div>`).join('')}</div></div>`;
+  if (kind === 'stats') { el.innerHTML = `<div class="pz-stats">${statsHtml()}</div>`; return; }
+  if (kind === 'team') {
+    el.innerHTML = `<div class="pz-team">${teamHtml()}</div>`;
+    el.onclick = (e) => {
+      const a = e.target.closest('[data-in]'), b = e.target.closest('[data-bench]');
+      if (a) { pzSel = +a.dataset.in === pzSel ? null : +a.dataset.in; pausePanel('team'); }
+      else if (b && pzSel !== null) { if (substitute(pzSel, b.dataset.bench)) { pzSel = null; toast(L('pz.subbed'), 1.2); } pausePanel('team'); }
+    };
+    fillPortraits(el, [...match.teams[0].players.map((mp) => mp.pid && state.player(mp.pid)).filter(Boolean), ...state.bench()]);
     return;
   }
   if (kind === 'settings') {
-    const rows = [['menu.camera', L(CAM_LABEL[opts.camera] || 'cam.' + opts.camera.toLowerCase()), 'camera'], ['menu.zoom', `${opts.zoom ?? 5} / 10`, 'zoom'], ['menu.radar', L(opts.radar !== false ? 'value.on' : 'value.off'), 'radar'],
-      ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound'], ['menu.haptics', L(opts.haptics !== false ? 'value.on' : 'value.off'), 'haptics'], ['menu.autoswitch', L(opts.autoSwitch !== false ? 'value.on' : 'value.off'), 'autoSwitch']];
-    el.innerHTML = `<div class="tp-box"><h2>${L('ui.settings')}</h2><div class="set-list">${rows.map(([k, v, key]) => `<div><span>${L(k)}</span><button data-set="${key}">${v}</button></div>`).join('')}</div></div>`;
-    el.onclick = async (e) => { const b = e.target.closest('[data-set]'); if (!b) return; if (b.dataset.set === 'haptics') { opts.haptics = opts.haptics === false; saveOpts(); } else await app.api.changeSetting(b.dataset.set); refreshChips(); pausePanel('settings'); };
+    const help = pzSetTab === 'controls' ? `<div class="ctl-list">${[['stick', 'ctl.stick'], ['shoot', 'ctl.shoot'], ['pass', 'ctl.pass'], ['defend', 'ctl.defend'], ['switch', 'ctl.switch'], ['sprint', 'ctl.sprint'], ['dodge', 'ctl.dodge'], ['pass', 'ctl.passes']]
+      .map(([i, k]) => `<div>${i === 'stick' ? '<i class="ctl-stick"></i>' : `<i class="ctl-i m-${i}">${hudIcon(i, 18)}</i>`}<span>${L(k)}</span></div>`).join('')}</div>` : '';
+    el.innerHTML = app.settingsPanel(pzSetTab) + help;
+    el.onclick = async (e) => { const b = e.target.closest('[data-act]'); if (!b) return; const a = b.dataset.act;
+      if (a === 'set-tab') pzSetTab = b.dataset.arg; else await app.settingsAct(a, b.dataset.arg);
+      refreshChips(); pausePanel('settings'); };
+    el.onchange = async (e) => { if (e.target.dataset.slide) { await changeSetting(e.target.dataset.slide, 0, +e.target.value); pausePanel('settings'); } };
     return;
   }
   if (kind === 'quit') {
-    el.innerHTML = `<div class="tp-box"><h2>${L('ui.quit')}</h2><p>${matchCtx.mode === 'challenge' ? L('drill.quit') : matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn')}</p>
+    el.innerHTML = `<div class="pz-quit"><h2>${L('ui.quit_match')}</h2><p>${matchCtx.mode === 'challenge' ? L('drill.quit') : matchCtx.mode === 'quick' ? L('ui.quit_quick') : L('ui.quit_warn')}</p>
       <button class="pm-btn danger" id="quit-yes">${L('ui.confirm')}</button></div>`;
     el.onclick = (e) => { if (e.target.id === 'quit-yes') { closePause(); finishMatch(matchCtx.mode !== 'quick'); } };
-    return;
   }
-  el.innerHTML = '';
 }
 function openPause() {
   if (!match || match.finished) return;
-  paused = true; $('pause').classList.remove('hidden'); $('tacpanel').classList.add('hidden');
+  paused = true; pzSel = null; $('pause').classList.remove('hidden'); $('tacpanel').classList.add('hidden');
   const T = match.teams;
-  $('pause-score').innerHTML = `${crest(T[0].def, 40)}<b>${T[0].score} - ${T[1].score}</b>${crest(T[1].def, 40)}<small>${$('clock').textContent}</small>`;
-  $('pause-title').textContent = L('ui.pause'); $('pause-resume').textContent = L('ui.resume'); $('pause-tactics').textContent = L('ui.tactics');
-  $('pause-controls').textContent = L('ui.controls'); $('pause-settings').textContent = L('ui.settings'); $('pause-quit').textContent = L('ui.quit_match');
-  pausePanel(null);
+  $('pause-score').innerHTML = `<span>${crest(T[0].def, 52)}<b>${T[0].def.short}</b></span><strong>${T[0].score} - ${T[1].score}</strong><span><b>${T[1].def.short}</b>${crest(T[1].def, 52)}</span><small>${$('clock').textContent}</small>`;
+  $('pause-title').textContent = L('pz.paused');
+  for (const k of ['stats', 'tactics', 'team', 'settings', 'quit']) { const b = $('pause-' + k); b.innerHTML = `<svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true">${PZ_ICONS[k]}</svg><small>${L('pz.' + k)}</small>`; b.onclick = () => pausePanel(k); }
+  pausePanel('stats');
 }
 function closePause() { paused = false; $('pause').classList.add('hidden'); $('pause-panel').innerHTML = ''; }
 
@@ -922,7 +969,7 @@ function frame(now) {
     updateCamera(fdt, v);
     updateHud(fdt);
     arena.drawScreen({ home: match.teams[0].def.short, away: match.teams[1].def.short, hs: match.teams[0].score, as: match.teams[1].score,
-      clock: `P${match.period}  ${String((Math.max(0, match.periodLeft) / 60) | 0).padStart(2, '0')}:${String(Math.max(0, match.periodLeft | 0) % 60).padStart(2, '0')}` });
+      clock: `P${match.period}  ${quarterClock(match)}` });
     audio.setCrowd(Math.max(...arena.excite));
   } else if (showcase) {
     // Debug / presentation: athletes side by side in each animation state, slow orbit.
@@ -1088,14 +1135,20 @@ function updateLabels(m) {
   placeLabel(ol, opp ? athletes[opp.id] : null, 0.35);
 }
 
+// Game clock: a real water polo quarter (8:00) shown over the chosen real duration (1, 2, 4 or 8 min);
+// the 30 s shot clock and the 20 s exclusions stay in real seconds (gameplay).
+const QUARTER = 8 * 60;
+function quarterClock(m) {
+  const t = Math.max(0, m.periodLeft) * QUARTER / m.cfg.periodDuration, s = Math.ceil(t - 1e-6);
+  return `${String((s / 60) | 0).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
 function updateHud(dt) {
   updatePresentation(dt); updateLabels(match);
   const m = match;
   radarT -= dt; if (radarT <= 0) { radarT = 1 / 15; drawRadar(m); }
   $('home-score').textContent = m.teams[0].score; $('away-score').textContent = m.teams[1].score;
-  const t = Math.max(0, m.periodLeft);
   if (m.drill) updateDrill(m);
-  else $('clock').textContent = `${L('hud.period', m.period)}  ${String((t / 60) | 0).padStart(2, '0')}:${String((t | 0) % 60).padStart(2, '0')}`;
+  else $('clock').textContent = `${L('hud.period', m.period)}  ${quarterClock(m)}`;
   $('shotclock').textContent = Math.ceil(Math.max(0, m.shotClockLeft));
   // Power play indicator: "6 v 5 · 14 s" while a player is excluded
   const ex = m.players.find((p) => p.excluded > 0 && !p.benched), mu = $('manup');
@@ -1187,23 +1240,53 @@ function portraitFor(p, kits) {
 // ------------------------------------------------------------------ game state + front-end
 const state = new GameState();
 let heroVisible = true;
+// Settings rows: [label key, value text, key, tab, type ('list' | 'toggle' | 'slider'), index, count]
+const onOff = (v) => L(v ? 'value.on' : 'value.off');
 const settingsDef = () => [
-  ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, 'graphics', 'graphics'],
-  ['menu.camera', `${CAMERAS.indexOf(opts.camera) + 1}. ${L('cam.' + opts.camera.toLowerCase())}`, 'camera', 'match'],
-  ['menu.zoom', `${opts.zoom ?? 5} / 10`, 'zoom', 'match'],
-  ['menu.radar', L(opts.radar !== false ? 'value.on' : 'value.off'), 'radar', 'match'],
-  ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience', 'audio'],
-  ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), 'replays', 'match'],
-  ['menu.intro', L(opts.intro !== false ? 'value.on' : 'value.off'), 'intro', 'match'],
-  ['menu.lineups', L(opts.lineups !== false ? 'value.on' : 'value.off'), 'lineups', 'match'],
-  ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty', 'match'],
-  ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist', 'controls'],
-  ['menu.duration', L('menu.minutes', opts.minutes), 'minutes', 'match'],
-  ['menu.timing', L(opts.timing ? 'value.on' : 'value.off'), 'timing', 'controls'],
-  ['menu.autoswitch', L(opts.autoSwitch !== false ? 'value.on' : 'value.off'), 'autoSwitch', 'controls'],
-  ['menu.sound', L(opts.sound ? 'value.on' : 'value.off'), 'sound', 'audio'],
-  ['menu.language', L('lang.name'), 'lang', 'other'],
+  ['menu.camera', `${CAMERAS.indexOf(opts.camera) + 1}. ${L('cam.' + opts.camera.toLowerCase())}`, 'camera', 'match', 'list', CAMERAS.indexOf(opts.camera), CAMERAS.length],
+  ['menu.zoom', String(opts.zoom ?? 5), 'zoom', 'match', 'slider', (opts.zoom ?? 5) - 1, 10],
+  ['menu.duration', L('menu.quarter', opts.minutes), 'minutes', 'match', 'list', MINUTES.indexOf(opts.minutes), MINUTES.length],
+  ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty', 'match', 'list', opts.difficulty, 3],
+  ['menu.radar', onOff(opts.radar !== false), 'radar', 'match', 'toggle'],
+  ['menu.replays', onOff(opts.replays), 'replays', 'match', 'toggle'],
+  ['menu.intro', onOff(opts.intro !== false), 'intro', 'match', 'toggle'],
+  ['menu.lineups', onOff(opts.lineups !== false), 'lineups', 'match', 'toggle'],
+  ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist', 'controls', 'list', ASSISTS.indexOf(opts.assist), ASSISTS.length],
+  ['menu.timing', onOff(opts.timing), 'timing', 'controls', 'toggle'],
+  ['menu.autoswitch', onOff(opts.autoSwitch !== false), 'autoSwitch', 'controls', 'toggle'],
+  ['menu.haptics', onOff(opts.haptics !== false), 'haptics', 'controls', 'toggle'],
+  ['menu.sound', onOff(opts.sound), 'sound', 'audio', 'toggle'],
+  ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience', 'audio', 'list', AMBIENCES.indexOf(opts.ambience), AMBIENCES.length],
+  ['menu.graphics', opts.graphics === 'AUTO' ? `${L('graphics.auto')} (${autoTier})` : opts.graphics, 'graphics', 'graphics', 'list', GRAPHICS.indexOf(opts.graphics), GRAPHICS.length],
+  ['menu.language', L('lang.name'), 'lang', 'other', 'list', LANGS.indexOf(lang), LANGS.length],
 ];
+const step = (list, v, dir) => list[(list.indexOf(v) + dir + list.length) % list.length];
+/** Changes a setting (dir = +1 next / -1 previous; value for sliders); applied at once, also during a match. */
+async function changeSetting(key, dir = 1, value) {
+  switch (key) {
+    case 'graphics': opts.graphics = step(GRAPHICS, opts.graphics, dir); applyQuality(opts.graphics === 'AUTO' ? autoTier : opts.graphics); break;
+    case 'camera': opts.camera = step(CAMERAS, opts.camera, dir); refreshChips(); break;
+    case 'zoom': opts.zoom = Math.max(1, Math.min(10, value ?? (opts.zoom ?? 5) + dir)); break;
+    case 'radar': opts.radar = opts.radar === false; break;
+    case 'intro': opts.intro = opts.intro === false; break;
+    case 'lineups': opts.lineups = opts.lineups === false; break;
+    case 'haptics': opts.haptics = opts.haptics === false; break;
+    case 'ambience': opts.ambience = step(AMBIENCES, opts.ambience, dir); arena.setAmbience(opts.ambience); break;
+    case 'replays': opts.replays = !opts.replays; break;
+    case 'difficulty': opts.difficulty = (opts.difficulty + dir + 3) % 3; if (match) match.cfg.cpu = DIFF[opts.difficulty]; break;
+    case 'assist': opts.assist = step(ASSISTS, opts.assist, dir); if (match) match.cfg.assist = opts.assist; break;
+    case 'minutes': {
+      opts.minutes = step(MINUTES, opts.minutes, dir);
+      if (match) { const k = match.periodLeft / match.cfg.periodDuration; match.cfg.periodDuration = opts.minutes * 60; match.periodLeft = k * match.cfg.periodDuration; }
+      break;
+    }
+    case 'timing': opts.timing = !opts.timing; if (match) match.cfg.timing = opts.timing; break;
+    case 'autoSwitch': opts.autoSwitch = opts.autoSwitch === false; if (match) match.cfg.autoSwitch = opts.autoSwitch; break;
+    case 'sound': opts.sound = !opts.sound; audio.setEnabled(opts.sound); refreshChips(); break;
+    case 'lang': lang = step(LANGS, lang, dir); await loadLang(lang); lastWho = null; break;
+  }
+  saveOpts();
+}
 const app = new App($('app'), {
   L, state,
   setHero: (v, name) => { heroVisible = v; if (name !== 'prematch') clearPrematch(); },
@@ -1220,27 +1303,8 @@ const app = new App($('app'), {
     if (el.requestFullscreen && matchMedia('(pointer: coarse)').matches && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
     lockLandscape(); audio.start(); startMatch(ctx);
   },
-  settingsRows: () => settingsDef().map(([k, v, key, group]) => [L(k), v, key, group]),
-  changeSetting: async (key) => {
-    switch (key) {
-      case 'graphics': opts.graphics = cycle(GRAPHICS, opts.graphics); applyQuality(opts.graphics === 'AUTO' ? autoTier : opts.graphics); break;
-      case 'camera': opts.camera = cycle(CAMERAS, opts.camera); break;
-      case 'zoom': opts.zoom = ((opts.zoom ?? 5) % 10) + 1; break;
-      case 'radar': opts.radar = opts.radar === false; break;
-      case 'intro': opts.intro = opts.intro === false; break;
-      case 'lineups': opts.lineups = opts.lineups === false; break;
-      case 'ambience': opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); break;
-      case 'replays': opts.replays = !opts.replays; break;
-      case 'difficulty': opts.difficulty = (opts.difficulty + 1) % 3; break;
-      case 'assist': opts.assist = cycle(ASSISTS, opts.assist); break;
-      case 'minutes': opts.minutes = cycle(MINUTES, opts.minutes); break;
-      case 'timing': opts.timing = !opts.timing; break;
-      case 'autoSwitch': opts.autoSwitch = opts.autoSwitch === false; if (match) match.cfg.autoSwitch = opts.autoSwitch; break;
-      case 'sound': opts.sound = !opts.sound; audio.setEnabled(opts.sound); break;
-      case 'lang': lang = cycle(LANGS, lang); await loadLang(lang); lastWho = null; break;
-    }
-    saveOpts();
-  },
+  settingsRows: () => settingsDef().map(([k, ...rest]) => [L(k), ...rest]),
+  changeSetting: (key, dir, value) => changeSetting(key, dir, value),
   haptic: (p) => { if (navigator.vibrate) navigator.vibrate(p); },
   uiSound: () => { audio.start(); audio.tone(880, 0.05, 0.05, 'sine'); },
   rewardSound: () => { audio.tone(660, 0.12, 0.12, 'triangle'); setTimeout(() => audio.tone(990, 0.2, 0.12, 'triangle'), 110); },
@@ -1277,8 +1341,6 @@ function buildShowcase() {
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });
   $('pause-resume').onclick = closePause;
   $('skipBtn').onclick = () => skipPresentation();   // line-ups (match paused) / goal card: tap or click
-  $('pause-tactics').onclick = () => pausePanel('tactics'); $('pause-controls').onclick = () => pausePanel('controls');
-  $('pause-settings').onclick = () => pausePanel('settings'); $('pause-quit').onclick = () => pausePanel('quit');
   if (state.data.clubChosen) app.home(); else app.show('clubs', { first: true }, false);   // first launch: CHOISIS TON CLUB
   $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; openTactics(false); };
   if (new URLSearchParams(location.search).has('showcase')) buildShowcase();

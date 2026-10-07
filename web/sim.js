@@ -260,6 +260,11 @@ export class Match {
     if (best && best !== h && bs < score(h) - 1.5) { this.setHuman(best, true); this.lastSwitch = this.time; }
   }
   setTactic(team, style) { this.teams[team].tactic = style; this.teams[team].tp = tacticParams(style); }
+  /** Rolling substitution (water polo): the player `p` is replaced in the water by the player definition `pd`. */
+  substitute(p, pd) {
+    Object.assign(p, { name: pd.name, number: pd.number, stats: pd.stats, prof: PERSONALITY[pd.personality] || p.prof, pid: pd.playerId || null, look: pd.look || p.look, stamina: 1, sprintLocked: false });
+    this.resetAction(p); this.emit(Ev.SWITCH, p.team, p.id);
+  }
   setFormation(team, f) { if (FORMATIONS[f]) this.teams[team].formation = f; }
 
   // --- formation

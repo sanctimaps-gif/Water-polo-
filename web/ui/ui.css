@@ -482,3 +482,5 @@ body.sheet-open .app { visibility: hidden; }
 .pm2-back, .pm2-play { position: absolute; bottom: 0; width: min(20vw, 11rem); height: 2.9rem; border: 0; display: grid; place-items: center; color: #fff; }
 .pm2-back { left: 0; background: #05080d; } .pm2-play { right: 0; background: linear-gradient(180deg, #ff2a55, #e0144a); }
 .pm2-back:active, .pm2-play:active { transform: scale(.96); filter: brightness(1.2); }
+.settings2 .set2-title { font-size: 3rem; color: #ffffff2a; margin: -.3rem 0 -.6rem; letter-spacing: .08em; }
+.settings2 .set2 { flex: 1; } .settings2 .set2-rows { flex: 1; overflow-y: auto; }

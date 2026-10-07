@@ -71,17 +71,11 @@
 </div>
 
 <div id="pause" class="hidden">
-  <div class="pause-wrap">
-    <div class="pause-side">
-      <div id="pause-score"></div>
-      <h1 id="pause-title">PAUSE</h1>
-      <button id="pause-resume" class="pm-btn primary">REPRENDRE</button>
-      <button id="pause-tactics" class="pm-btn">TACTIQUES</button>
-      <button id="pause-controls" class="pm-btn">COMMANDES</button>
-      <button id="pause-settings" class="pm-btn">PARAMÈTRES</button>
-      <button id="pause-quit" class="pm-btn danger">QUITTER LE MATCH</button>
-    </div>
-    <div id="pause-panel" class="pause-panel"></div>
+  <div class="pz-card"><div class="pz-tag" id="pause-title">JEU EN PAUSE</div><div class="pz-head" id="pause-score"></div><div class="pz-body" id="pause-panel"></div></div>
+  <button id="pause-resume" class="pz-back" aria-label="resume">&#10094;</button>
+  <div class="pz-btns">
+    <button id="pause-stats" aria-label="stats"></button><button id="pause-tactics" aria-label="tactics"></button><button id="pause-team" aria-label="team"></button>
+    <button id="pause-settings" aria-label="settings"></button><button id="pause-quit" aria-label="quit"></button>
   </div>
 </div>
 

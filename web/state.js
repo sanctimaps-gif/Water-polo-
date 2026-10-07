@@ -700,13 +700,15 @@ export class GameState {
     return Math.round(sq.slice(0, 7).reduce((a, p) => a + overall(p) + this.slotBonus(p, p.slot ?? -1), 0) / 7);
   }
   /** Team definition for sim.js Match (stats include the real position bonus). */
+  /** Match definition of one squad player in a slot (stats with form, skills and the position bonus). */
+  playerDef(p, slot) {
+    const b = this.slotBonus(p, slot), ms = matchStats(p), stats = {};
+    for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, ms[k] + b));
+    return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id, look: lookOf(p) };
+  }
   userTeamDef() {
     const L = this.lineup, c = this.data.club;
-    const toDef = (p, slot) => {
-      const b = this.slotBonus(p, slot), ms = matchStats(p), stats = {};
-      for (const k of STAT_KEYS) stats[k] = Math.max(1, Math.min(99, ms[k] + b));
-      return { name: `${p.firstName[0]}. ${p.lastName}`, number: slot === -1 ? 1 : p.number, role: slot === -1 ? 'GOALKEEPER' : SLOT_ROLES[slot], personality: p.personality, stats, slot, playerId: p.id, look: lookOf(p) };
-    };
+    const toDef = (p, slot) => this.playerDef(p, slot);
     return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: c.tactic, formation: c.formation,
       players: [toDef(this.player(L.gk), -1), ...L.slots.map((id, i) => toDef(this.player(id), i))] };
   }

@@ -30,6 +30,7 @@ export class App {
       if (q('.ed-name')) q('.ed-name').textContent = d.name; if (q('.ed-logo')) q('.ed-logo').innerHTML = logoSvg(d.logo, d.color, d.color2, 64, d.color3);
       if (q('.ed-id small')) q('.ed-id small').textContent = `${d.short} · ${d.city} · ${flag(d.country)}`;
     });
+    root.addEventListener('change', async (e) => { if (e.target.dataset && e.target.dataset.slide) { await this.api.changeSetting(e.target.dataset.slide, 0, +e.target.value); this.render(); } });
     root.addEventListener('change', (e) => { if (e.target.tagName === 'SELECT' && e.target.dataset.field && this.draft) { this.edField(e.target.dataset.field, e.target.value); this.render(); } });
     // drag on the 3D preview turns the player
     let drag = null;
@@ -612,12 +613,28 @@ export class App {
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
+  /** Settings panel (menu and in-match pause): tabs, rows with ‹ value › arrows, ON / OFF switches, slider. */
+  settingsPanel(tab) {
+    const tabs = ['match', 'controls', 'audio', 'graphics', 'other'], on = this.L('value.on');
+    const rows = this.api.settingsRows().filter((r) => r[3] === tab).map(([label, value, key, , type, idx, n]) => {
+      let ctl;
+      if (type === 'toggle') { const v = value === on; ctl = `<div class="sw2"><button class="${v ? '' : 'on'}" data-act="set-tog" data-arg="${key}:0">${this.L('value.off')}</button><button class="${v ? 'on' : ''}" data-act="set-tog" data-arg="${key}:1">${on}</button></div>`; }
+      else if (type === 'slider') ctl = `<div class="sl2"><b>${esc(value)}</b><input type="range" min="1" max="${n}" step="1" value="${idx + 1}" data-slide="${key}"></div>`;
+      else ctl = `<div class="ls2"><button data-act="set-dir" data-arg="${key}:-1">‹</button><span>${esc(value)}<i>${Array.from({ length: n }, (_, k) => `<u class="${k === idx ? 'on' : ''}"></u>`).join('')}</i></span><button data-act="set-dir" data-arg="${key}:1">›</button></div>`;
+      return `<div class="row2"><span>${esc(label)}</span>${ctl}</div>`;
+    }).join('');
+    return `<div class="set2"><div class="set2-tabs">${tabs.map((t) => `<button class="${tab === t ? 'on' : ''}" data-act="set-tab" data-arg="${t}">${this.L('set.' + t)}</button>`).join('')}</div>
+      <div class="set2-rows">${rows}</div></div>`;
+  }
+  /** Applies a settings action (arrow / switch); returns true when handled. */
+  async settingsAct(a, arg) {
+    if (a === 'set-dir') { const [k, d] = arg.split(':'); await this.api.changeSetting(k, +d); return true; }
+    if (a === 'set-tog') { const [k, want] = arg.split(':'), row = this.api.settingsRows().find((r) => r[2] === k); if (row && (row[1] === this.L('value.on')) !== (want === '1')) await this.api.changeSetting(k, 1); return true; }
+    return false;
+  }
   scr_settings() {
-    // Tabs like a console sports game: MATCH (camera, zoom, radar...), CONTROLS, AUDIO, GRAPHICS, OTHER.
-    const tab = this.setTab || 'match', all = this.api.settingsRows();
-    const tabs = ['match', 'controls', 'audio', 'graphics', 'other'].map((t) => `<button class="${tab === t ? 'on' : ''}" data-act="set-tab" data-arg="${t}">${this.L('set.' + t)}</button>`).join('');
-    const rows = all.filter((r) => r[3] === tab).map(([label, value, key]) => `<div class="row"><span>${label}</span><button class="btn cyan" data-act="setting" data-arg="${key}">${value}</button></div>`).join('');
-    return `<div class="panel-screen"><h1>${this.L('ui.settings')}</h1><div class="tabs">${tabs}</div><div class="settings">${rows}</div>
+    const tab = this.setTab || 'match';
+    return `<div class="panel-screen settings2"><h1 class="set2-title">${this.L('ui.settings')}</h1>${this.settingsPanel(tab)}
       ${tab === 'other' ? `<p class="sub">${this.L('ui.credits')}</p><p class="sub">${this.L('ui.save_local')}</p><button class="btn danger" data-act="reset">${this.L('ui.reset')}</button>` : ''}
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
@@ -727,6 +744,7 @@ export class App {
       case 'shape': st.data.club.logo.shape = arg; st.save(); this.render(); break;
       case 'symbol': st.data.club.logo.symbol = arg; st.save(); this.render(); break;
       case 'setting': await this.api.changeSetting(arg); this.render(); break;
+      case 'set-dir': case 'set-tog': await this.settingsAct(a, arg); this.render(); break;
       case 'reset': if (await this.confirm(this.L('ui.reset_warn'))) { st.reset(); this.api.refreshHero(); this.home(); } break;
       case 'prematch-league': { const nm = st.nextLeagueMatch(); if (nm) this.show('prematch', { mode: 'league', opponent: nm.opponent, away: !nm.home, title: `${st.data.league.name} · ${this.L('ui.match_n', nm.round, nm.rounds)}` }); break; }
       case 'prematch-event': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }

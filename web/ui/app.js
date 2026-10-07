@@ -622,16 +622,32 @@ export class App {
       <footer class="bar">${this.backBtn()}</footer></div>`;
   }
 
+  /** Pre-match (reference: sports game "Match amical"): both teams' best player in 3D on the deck, central card
+   *  (crests + OVR, VS, pool), 6 real options (kit, ball, tactic, formation, camera, duration), back / play. */
   scr_prematch(p) {
-    const me = this.st.clubInfo('user'), opp = { ...this.st.clubInfo(p.opponent), total: p.rating ? this.st.opponentTotal(p.opponent, p.rating) : this.st.clubInfo(p.opponent).total };
-    const tips = ['ui.tip1', 'ui.tip2', 'ui.tip3'];
-    return `<div class="prematch"><h2>${esc(p.title)}</h2>
-      <div class="pm-vs"><div class="mc-team">${logoSvg(me.logo, me.color, me.color2, 120)}<span class="mc-name">${esc(me.name)}</span><span class="pill">${me.total}</span></div>
-      <div class="vs big">${this.L('ui.vs')}</div>
-      <div class="mc-team">${logoSvg(opp.logo, opp.color, opp.color2, 120)}<span class="mc-name">${esc(opp.name)}</span><span class="pill">${opp.total}</span></div></div>
-      <p class="sub">${p.away ? this.L('ui.away_pool') : (POOLS.find((x) => x.id === this.st.data.club.pool) || POOLS[0]).name} · ${this.L('ui.reward_win', p.mode === 'quick' ? 75 : 150)} ${icon('coin', 16)}</p>
-      <p class="tip">${this.L(tips[Math.floor(Math.random() * tips.length)])}</p>
-      <div class="pm-actions">${this.backBtn()}<button class="btn play big" data-act="go">${icon('play', 22)} ${this.L('ui.play')}</button></div></div>`;
+    const st = this.st, me = st.clubInfo('user'), opp = { ...st.clubInfo(p.opponent), total: p.rating ? st.opponentTotal(p.opponent, p.rating) : st.clubInfo(p.opponent).total };
+    this.api.prematch && this.api.prematch(p.opponent, p.kit || 'home');
+    const c = st.data.club, rows = this.api.settingsRows(), val = (k) => (rows.find((r) => r[2] === k) || [])[1] || '';
+    const pool = p.away ? this.L('ui.away_pool') : (POOLS.find((x) => x.id === c.pool) || POOLS[0]).name;
+    const side = (t, mine) => `<div class="pm2-side"><span class="pm2-crest">${logoSvg(t.logo, t.color, t.color2, 96, t.color3)}<span class="ovr-b">${t.total}<small>OVR</small></span></span>
+      <b class="pm2-name ${mine ? 'me' : ''}">${esc(t.name)}</b></div>`;
+    const kit = c.kits[p.kit === 'away' ? 'away' : 'home'];
+    const [b0, , bg] = BALL_DESIGNS[c.ball] || BALL_DESIGNS.classic;
+    const tiles = [
+      ['pm-kit', `<svg viewBox="0 0 40 30" width="40" height="30"><path d="M8 12a12 12 0 0 1 24 0v3H8z" fill="${hex(kit.cap)}" stroke="${hex(kit.capTrim)}" stroke-width="1.5"/><path d="M10 18h20v4l-5 7H15l-5-7z" fill="${hex(kit.suit)}"/></svg>`, this.L(p.kit === 'away' ? 'kit.away' : 'kit.home')],
+      ['pm-ball', `<svg viewBox="0 0 40 40" width="32" height="32"><circle cx="20" cy="20" r="16" fill="${b0}"/><path d="M5 16q15 9 30 0M5 25q15-9 30 0" stroke="${bg}" stroke-width="3" fill="none"/></svg>`, this.L('ball.' + c.ball)],
+      ['pm-tactic', icon('chart', 30), this.L('tactic.' + (c.tactic === 'COUNTER' ? 'counter' : c.tactic.toLowerCase()))],
+      ['pm-form', icon('team', 30), this.L('form.' + (c.formation || 'arc'))],
+      ['pm-cam', icon('play', 30), val('camera')],
+      ['pm-min', icon('star', 30), val('minutes')],
+    ];
+    return `<div class="pm2"><div class="pm2-card"><h2>${esc(p.title)}</h2>
+        <div class="pm2-vs">${side(me, true)}<div class="pm2-mid"><span class="pm2-wx">🏟️ ${this.L('ui.weather_indoor')}</span><b>VS</b></div>${side(opp, false)}</div>
+        <p class="pm2-venue">${esc(pool)}</p></div>
+      <div class="pm2-opts">${tiles.map(([a, ic, label]) => `<button class="pm2-opt" data-act="${a}">${ic}<small>${esc(label)}</small></button>`).join('')}</div>
+      <p class="pm2-rew">${this.L('ui.reward_win', p.mode === 'quick' ? 75 : 150)} ${icon('coin', 14)}</p>
+      <button class="pm2-back" data-act="back" aria-label="back">${icon('back', 30)}</button>
+      <button class="pm2-play" data-act="go" aria-label="play"><svg viewBox="0 0 40 40" width="40" height="40"><circle cx="20" cy="20" r="17" fill="none" stroke="#fff" stroke-width="3"/><path d="M5 16q15 9 30 0M5 25q15-9 30 0M20 3v34" stroke="#fff" stroke-width="2.5" fill="none"/></svg></button></div>`;
   }
 
   scr_results(p) {
@@ -712,7 +728,7 @@ export class App {
       case 'symbol': st.data.club.logo.symbol = arg; st.save(); this.render(); break;
       case 'setting': await this.api.changeSetting(arg); this.render(); break;
       case 'reset': if (await this.confirm(this.L('ui.reset_warn'))) { st.reset(); this.api.refreshHero(); this.home(); } break;
-      case 'prematch-league': { const nm = st.nextLeagueMatch(); if (nm) this.show('prematch', { mode: 'league', opponent: nm.opponent, away: !nm.home, title: `${this.L('ui.league')} · ${this.L('ui.match_n', nm.round, nm.rounds)}` }); break; }
+      case 'prematch-league': { const nm = st.nextLeagueMatch(); if (nm) this.show('prematch', { mode: 'league', opponent: nm.opponent, away: !nm.home, title: `${st.data.league.name} · ${this.L('ui.match_n', nm.round, nm.rounds)}` }); break; }
       case 'prematch-event': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }
       case 'quick': { const c = CLUBS[Math.floor(Math.random() * CLUBS.length)]; this.show('prematch', { mode: 'quick', opponent: c.id, title: this.L('ui.quick') }); break; }
       case 'go': this.hide(); this.api.startMatch(this.current.params); break;
@@ -729,6 +745,12 @@ export class App {
         break;
       }
       case 'tour-tab': this.tourTab = arg; this.render(); break;
+      case 'pm-kit': { const pr = this.current.params; pr.kit = pr.kit === 'away' ? 'home' : 'away'; this.render(); break; }
+      case 'pm-ball': { const ks = Object.keys(BALL_DESIGNS), c = st.data.club; c.ball = ks[(ks.indexOf(c.ball) + 1) % ks.length]; st.save(); this.api.refreshBall && this.api.refreshBall(); this.render(); break; }
+      case 'pm-tactic': { const c = st.data.club; c.tactic = TACTICS[(TACTICS.indexOf(c.tactic) + 1) % TACTICS.length]; st.save(); this.render(); break; }
+      case 'pm-form': { const F = ['arc', 'umbrella', '4-2'], c = st.data.club; c.formation = F[(F.indexOf(c.formation || 'arc') + 1) % F.length]; st.save(); this.render(); break; }
+      case 'pm-cam': await this.api.changeSetting('camera'); this.render(); break;
+      case 'pm-min': await this.api.changeSetting('minutes'); this.render(); break;
       case 'prematch-playoff': { const pp = st.pendingPlayoff(); if (pp) this.show('prematch', { mode: 'playoff', opponent: pp.opponent, away: !pp.home, title: this.L(pp.kind === 'continental' ? 'se.cont_playoff' : 'se.promo_playoff') }); break; }
       case 'season-next': {   // FIN DE SAISON seen: transition to the new season
         if (st.data.seasonEnd) { st.data.seasonEnd.seen = true; st.save(); }

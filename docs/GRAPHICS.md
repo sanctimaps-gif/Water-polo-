@@ -171,6 +171,20 @@ Paramètres exposés (`WATER_PARAMS`) : WaveIntensity, WaveSpeed, ReflectionStre
 Transparency, CausticsIntensity, SurfaceSmoothness, SplashIntensity…
 NON IMPLÉMENTÉ : réfraction réelle (distorsion de l'image sous l'eau), caméra sous-marine.
 
+## Présentation (inspirée d'écrans de jeux de sport mobiles) — IMPLÉMENTÉ
+
+* **Avant-match** : le meilleur joueur de chaque équipe en 3D, debout sur la plage du bassin (gradins
+  derrière, éclairage de présentation), carte centrale (écussons + OVR, VS, piscine), 6 options réelles
+  (maillot domicile / extérieur, ballon, tactique, formation, caméra, durée), retour noir et JOUER rose.
+* **Compositions** avant l'entrée dans l'eau : bandeau de l'équipe (écusson, nom, OVR, formation) et les 7
+  titulaires en cartes (portrait 3D du vrai modèle, note, poste, drapeau, forme) sur le bassin vu de haut ;
+  les deux équipes l'une après l'autre, bouton ▶❙ pour passer, désactivable (Paramètres > Match).
+* **HUD** : tableau compact en haut à gauche (écussons, scores sur fond clair, horloge rouge, 30 s),
+  mini-carte en bas au centre, nom du joueur contrôlé au-dessus de sa tête (triangle, endurance, charge
+  du tir) et nom de l'adversaire le plus proche, boutons ronds sombres à anneau de couleur.
+* **But** : bandeau équipe + « BUT », bandeau rose du buteur, carte du buteur (portrait 3D), confettis aux
+  couleurs du club, bouton ▶❙ (passe la carte et le replay).
+
 ## Ballon, éclaboussures, filets
 
 * Ballon : texture caoutchouc à rainures (4 modèles au choix du club : classique jaune / bleu,

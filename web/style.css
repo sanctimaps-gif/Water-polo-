@@ -232,3 +232,76 @@ body.replaying #stick-zone, body.replaying .action, body.replaying #bars { opaci
 #drill p { margin: 0; padding: 3px 10px; background: rgba(4,10,22,.72); border-left: 3px solid #b6ff1a; color: #fff; font: 600 14px -apple-system, sans-serif; }
 #banner.b-ok { border-left-color: #2fbf71; --team: #2fbf71; } #banner.b-ok b { color: #8af7b8; }
 body.challenge #banner { top: 58%; }
+
+/* ---------- HUD v3 (reference: mobile sports game screens) ---------- */
+#board { left: calc(10px + var(--safe-l)); top: calc(8px + var(--safe-t)); transform: none; display: flex; align-items: stretch; gap: 0; padding: 0; border-radius: 3px; overflow: hidden;
+  background: rgba(6,12,22,.86); border: 0; box-shadow: 0 2px 8px #0008; }
+#board .teams { gap: 0; font-size: 20px; align-items: stretch; } #board .teams > * { display: flex; align-items: center; }
+#board .crest { width: 30px; height: 30px; padding: 0 4px; } #board .crest svg { width: 24px; height: 24px; }
+#board .chip { background: none !important; font-size: 19px; padding: 0 8px; letter-spacing: .05em; }
+#board .chip .poss { bottom: 1px; }
+#home-score, #away-score { min-width: 28px; justify-content: center; font-size: 22px; color: #0b1424; } #home-score { background: #f4f6f8; } #away-score { background: #c9cfda; }
+.teams i { display: none !important; }
+#board .clocks { margin: 0; gap: 0; font-size: 18px; align-items: stretch; }
+#clock { background: #e5402e; color: #fff; padding: 0 14px 0 10px; font-weight: 800; display: flex; align-items: center; clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 100%, 0 100%); }
+#shotclock { margin: 0 6px 0 2px; align-self: center; border-radius: 50%; width: 26px; height: 26px; padding: 0; display: grid; place-items: center; background: #0b1424; border: 2px solid #e5402e; font-size: 14px; }
+#manup { position: absolute; top: 100%; left: 0; margin-top: 4px; }
+#board { overflow: visible; }
+#info { top: auto; bottom: calc(2px + var(--safe-b)); left: 50%; transform: translateX(-50%); font-size: 9px; opacity: .6; }
+#radar { left: 50%; top: auto; bottom: calc(10px + var(--safe-b)); transform: translateX(-50%); width: 150px; height: 116px; border: 2px solid #ffffff66; border-radius: 2px; }
+#replay { top: calc(50px + var(--safe-t)); }
+/* name label above the controlled player: name, stamina, triangle (+ shot charge / timing above) */
+#bars { left: 0; top: 0; bottom: auto; width: 150px; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; visibility: hidden; }
+#timing { order: 1; height: auto; min-height: 0; } #charge-wrap { order: 2; width: 120px; height: 12px; margin: 0; }
+#who { order: 3; margin: 0; font: 800 15px/1.1 "Barlow Condensed", sans-serif; letter-spacing: .03em; text-shadow: 0 1px 3px #000, 0 0 6px #000; max-width: 150px; }
+#who i { font-size: 11px; color: #9ff0ff; }
+#stamina-wrap { order: 4; width: 56px; height: 5px; border-radius: 3px; }
+#pl-tri { order: 5; width: 0; height: 0; border: 9px solid transparent; border-top: 14px solid #2de0c0; border-bottom: 0; filter: drop-shadow(0 1px 2px #000a); }
+#olabel { position: absolute; transform: translate(-50%, -100%); font: 700 13px "Barlow Condensed", sans-serif; color: #fff; text-shadow: 0 1px 3px #000, 0 0 5px #000; pointer-events: none; visibility: hidden; white-space: nowrap; }
+/* action buttons: dark translucent discs with a coloured ring */
+.action { background: rgba(16,24,34,.5) !important; border: 2px solid rgba(255,255,255,.18); color: #fff;
+  box-shadow: inset 0 0 0 5px rgba(8,12,20,.35), inset 0 0 0 8px var(--ring, #fff8), 0 3px 12px #0006 !important; backdrop-filter: blur(2px); }
+.action span { font-size: .95em; letter-spacing: .04em; } .action svg { opacity: .9; }
+.action[data-mode="shoot"] { --ring: #e8673a; } .action[data-mode="defend"] { --ring: #9a5ce0; } .action[data-mode="pass"] { --ring: #3a9af2; }
+.action[data-mode="switch"] { --ring: #3fbf74; } .action[data-mode="sprint"] { --ring: #3ac8d8; } .action[data-mode="dodge"] { --ring: #2de0c0; }
+.action.down { background: rgba(255,255,255,.22) !important; transform: scale(.93); }
+#pauseBtn { background: rgba(6,12,22,.86); border-radius: 3px; }
+/* goal: team bar + scorer bar + card, confetti */
+#goalcard { position: absolute; left: calc(40px + var(--safe-l)); top: 22%; display: flex; align-items: center; gap: 0; pointer-events: none; opacity: 0; transform: translateX(-30px); transition: opacity .25s, transform .35s cubic-bezier(.2,1.2,.4,1); }
+#goalcard.show { opacity: 1; transform: none; }
+.gc-bars { display: flex; flex-direction: column; min-width: 300px; font-family: "Barlow Condensed", sans-serif; }
+.gc-top { display: flex; align-items: center; gap: 8px; padding: 4px 16px 4px 10px; background: #05080d; color: #fff; font-size: 22px; } .gc-top svg { width: 30px; height: 30px; }
+.gc-top b { flex: 1; } .gc-top i { font-style: normal; font-weight: 800; margin-left: 24px; }
+.gc-scorer { padding: 2px 30px 4px 14px; background: linear-gradient(90deg, #ff2a55, #e0144a); color: #fff; font-size: 34px; font-weight: 800; clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 100%, 0 100%); }
+#goalcard .pc3 { position: relative; margin-left: -6px; transform: scale(1.15); transform-origin: left center; }
+#confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#confetti i { position: absolute; top: -12px; width: 8px; height: 14px; animation: confetti linear forwards; opacity: .95; }
+@keyframes confetti { to { transform: translate(var(--dx), 105vh) rotate(var(--rx)); } }
+#skipBtn { position: absolute; right: calc(16px + var(--safe-r)); bottom: calc(14px + var(--safe-b)); width: 120px; height: 46px; background: #05080d; color: #fff; border: 0; font-size: 22px; letter-spacing: -4px; z-index: 25; }
+#skipBtn.hidden { display: none; }
+body.lineup-on #hud > *:not(#lineup):not(#skipBtn):not(#confetti) { visibility: hidden; }
+/* player card (gold / silver / bronze) */
+.pc3 { position: absolute; width: 84px; height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 6px; color: #2a1d05; font-family: "Barlow Condensed", sans-serif;
+  background: linear-gradient(160deg, #fff3c4, #e6c062 45%, #b8892c); clip-path: polygon(0 6%, 50% 0, 100% 6%, 100% 86%, 50% 100%, 0 86%); filter: drop-shadow(0 4px 6px #0008); animation: pop .35s backwards; }
+.pc3.silver { background: linear-gradient(160deg, #ffffff, #c8d0dc 45%, #8d97a8); } .pc3.bronze { background: linear-gradient(160deg, #ffe0c8, #cf9466 45%, #8d5a33); }
+.pc3-img { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 62px; height: 72px; overflow: hidden; } .pc3-img img, .pc3-img svg { width: 100%; height: 100%; object-fit: cover; }
+.pc3-ovr { position: absolute; top: 6px; right: 5px; font-size: 20px; line-height: 1; background: #fff; color: #111; padding: 1px 3px; }
+.pc3-pos { position: absolute; top: 28px; right: 5px; font-style: normal; font-size: 11px; font-weight: 800; background: #1fa6c9; color: #fff; padding: 0 3px; }
+.pc3-flag { position: absolute; top: 42px; right: 6px; font-size: 13px; }
+.pc3-name { position: relative; font-weight: 800; font-size: 13px; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; }
+.pc3-bar { position: relative; display: block; height: 3px; max-width: 60px; background: #2fbf71; margin-top: 2px; align-self: center; }
+/* line-ups */
+#lineup { position: absolute; inset: 0; z-index: 22; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 50%, rgba(4,10,20,.55), rgba(4,10,20,.9)); pointer-events: none; }
+#lineup.hidden { display: none; }
+.lu-banner { position: absolute; left: 0; top: 7%; display: flex; align-items: center; gap: 10px; padding: 8px 60px 8px 18px; color: #fff; font-family: "Barlow Condensed", sans-serif;
+  background: linear-gradient(90deg, #ff2a55, #e0144a); clip-path: polygon(0 0, 100% 0, calc(100% - 40px) 100%, 0 100%); animation: slidein .4s; }
+.lu-banner svg { width: 64px; height: 64px; } .lu-banner b { display: block; font-size: 26px; } .lu-ovr { display: inline-flex; flex-direction: column; align-items: center; line-height: .9; background: #fff; color: #111; font-weight: 900; font-size: 24px; padding: 2px 6px; clip-path: polygon(0 0, 100% 0, 100% 80%, 50% 100%, 0 80%); }
+.lu-ovr small { font-size: 10px; } .lu-banner i { font-style: normal; font-size: 24px; font-weight: 800; background: #111a; padding: 2px 12px; margin-left: 10px; }
+.lu-pool { position: relative; width: min(46vw, 470px); height: 88vh; background: linear-gradient(180deg, #0f6aa0, #0b4f7c); border: 2px solid #ffffff55; box-shadow: 0 0 40px #000a; }
+.lu-goal { position: absolute; top: 0; left: 40%; width: 20%; height: 8px; background: #fff; } .lu-l2 { position: absolute; left: 0; right: 0; top: 14%; border-top: 2px dashed #e5402e; } .lu-l5 { position: absolute; left: 0; right: 0; top: 30%; border-top: 2px dashed #f2c81a; }
+.lu-pool .pc3 { width: 78px; height: 104px; }
+@media (max-height: 420px) { .pc3 { width: 70px; height: 94px; } .pc3-img { width: 52px; height: 60px; } .lu-pool .pc3 { width: 66px; height: 88px; } .gc-scorer { font-size: 28px; } }
+#radar { width: 116px; height: 90px; opacity: .88; }
+#lineup { justify-content: flex-end; padding-right: max(6vw, calc(14px + var(--safe-r))); }
+.lu-banner { z-index: 2; max-width: 44vw; } .lu-banner b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 26vw; }
+.lu-pool { width: min(48vw, 470px); }

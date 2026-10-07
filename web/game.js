@@ -3,7 +3,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { Match, Ev, TACTICS, FORMATIONS, DRILLS } from './sim.js';
 import { logoSvg } from './ui/art.js';
-import { GameState, lookOf, POOLS, BALL_DESIGNS } from './state.js';
+import { GameState, lookOf, POOLS, BALL_DESIGNS, overall, ROLE_ABBR, countryOf } from './state.js';
 import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
@@ -139,7 +139,7 @@ ballShadow.renderOrder = 4; scene.add(ballShadow); scene.add(trail.line);
 
 // Markers: controlled player (ring + arrow), pass target.
 const ringGeo = new THREE.RingGeometry(0.45, 0.58, 32).rotateX(-Math.PI / 2);
-const selRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffd91a, transparent: true, opacity: 0.9, depthWrite: false }));
+const selRing = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }));
 selRing.scale.setScalar(1.35); selRing.renderOrder = 5; scene.add(selRing);
 const selArrow = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.42, 4).rotateX(Math.PI), new THREE.MeshBasicMaterial({ color: 0xffd91a, depthTest: false }));
 selArrow.renderOrder = 10; scene.add(selArrow);
@@ -159,10 +159,10 @@ function kitOptions(kit, gk, isGK, user) {
   return { teamColor: kit.suit, suit2: kit.suit2, suitPattern: kit.pattern, trimColor: trim, capColor: cap,
     capTrim: isGK ? gk.capTrim : kit.capTrim, numberColor: isGK ? gk.number : kit.number };
 }
-function matchKits(defA, defB) {
+function matchKits(defA, defB, prefA = 'home') {
   const fall = (d) => d.kits || { home: { suit: d.color, suit2: 0xffffff, pattern: 'plain', cap: d.color, capTrim: 0xffffff, number: 0xffffff }, away: { suit: 0xffffff, suit2: d.color, pattern: 'plain', cap: 0xf4f6f8, capTrim: d.color, number: d.color }, goalkeeper: { cap: 0xd81a1f, capTrim: 0xffffff, number: 0xffffff } };
   const A = fall(defA), B = fall(defB);
-  const ka = A.home, kb = lum(ka.cap) > 0.55 ? (lum(B.home.cap) <= 0.55 ? B.home : { ...B.home, cap: 0x1b2f5a, number: 0xffffff }) : B.away;
+  const ka = prefA === 'away' ? A.away : A.home, kb = lum(ka.cap) > 0.55 ? (lum(B.home.cap) <= 0.55 ? B.home : { ...B.home, cap: 0x1b2f5a, number: 0xffffff }) : B.away;
   return [{ kit: ka, gk: A.goalkeeper }, { kit: kb, gk: B.goalkeeper }];
 }
 
@@ -197,7 +197,8 @@ function regionAt(x, y) {
     const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (Math.hypot(x - cx, y - cy) <= (r.width / 2) * 1.25) return id;
   }
-  for (const id of ['tactic', 'camBtn', 'soundBtn', 'pauseBtn']) {
+  for (const id of ['tactic', 'camBtn', 'soundBtn', 'pauseBtn', 'skipBtn']) {
+    if ($(id).classList.contains('hidden')) continue;
     const t = $(id).getBoundingClientRect();
     if (x >= t.left - 6 && x <= t.right + 6 && y >= t.top - 6 && y <= t.bottom + 6) return id;
   }
@@ -243,6 +244,8 @@ function contactEnd(id) {
     openTactics(false);
   } else if (c.region === 'camBtn') {
     opts.camera = cycle(HUD_CAMS, HUD_CAMS.includes(opts.camera) ? opts.camera : HUD_CAMS[HUD_CAMS.length - 1]); saveOpts(); refreshChips(); haptic(8);
+  } else if (c.region === 'skipBtn') {
+    skipPresentation();
   } else if (c.region === 'pauseBtn') {
     openPause();
   } else if (c.region === 'soundBtn') {
@@ -330,11 +333,41 @@ function screenToWorld(x, y, normalize) {
 }
 let currentMove = { x: 0, y: 0, z: 0 };
 
+// Pre-match screen: the best player of each team standing on the deck, full body, either side of the card.
+let pmView = null;
+function clearPrematch() { if (pmView) { for (const a of pmView.ath) scene.remove(a.root); for (const l of pmView.lights) scene.remove(l, l.target); pmView = null; } }
+function buildPrematch(oppId, pref = 'home') {
+  clearPrematch();
+  const me = { ...state.clubInfo('user'), kits: state.data.club.kits }, opp = state.clubInfo(oppId), kits = matchKits(me, opp, pref);
+  const best = (sq) => sq.filter((p) => p.role !== 'GOALKEEPER').sort((a, b) => overall(b) - overall(a))[0];
+  const ath = [best(state.squad), best(state.opponentSquad(oppId))].map((p, i) => {
+    const look = lookOf(p), K = kits[i];
+    const a = new Athlete({ ...kitOptions(K.kit, K.gk, false, i === 0), number: p.number, role: p.role, bodyRole: look.role, isGK: false, seed: look.seed, preset });
+    scene.add(a.root); return a;
+  });
+  // presentation lights (front key, cool rim from the stands)
+  const key = new THREE.DirectionalLight(0xfff3e4, 2.4), rim = new THREE.DirectionalLight(0x9fd4ff, 1.6);
+  key.position.set(1.5, 3.6, -5); key.target.position.set(0, 1.2, -11.6); rim.position.set(-1, 3, -15); rim.target.position.set(0, 1, -11.6);
+  const lights = [key, rim]; for (const l of lights) scene.add(l, l.target);
+  pmView = { ath, lights, key: oppId + '|' + pref };
+  setBall(state.data.club.ball || 'classic');
+}
+function updatePrematchView(dt) {
+  const Z = -11.6, X = [-2.9, 2.9];   // long side deck, stands behind; user on the left of the screen
+  pmView.ath.forEach((a, i) => {
+    a.update(dt, { x: X[i], z: Z, fx: i ? -0.15 : 0.15, fz: 1, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: ballMesh.position, receive: false });
+    a.overridePose('stand'); a.root.position.set(X[i], 0.3 + a.standHeight() + Math.sin(time * 1.6 + i) * 0.004, Z);
+  });
+  ballMesh.position.set(X[0] + 0.4, 0.3 + 0.11, Z + 0.45);
+  const sw = Math.sin(time * 0.2) * 0.2;
+  camera.position.set(sw, 1.32, -5.5); camera.lookAt(0, 1.2, Z); setFov(34, dt, 10);
+}
+
 // ------------------------------------------------------------------ actors
 let athletes = [];
 function buildActors(m) {
   for (const a of athletes) scene.remove(a.root);
-  const kits = matchKits(m.teams[0].def, m.teams[1].def);
+  const kits = matchKits(m.teams[0].def, m.teams[1].def, matchCtx && matchCtx.kit);
   m.kits = kits;
   athletes = m.players.map((p) => {
     // Appearance tied to the squad player (same face / body in the cards and every match); kit of the club.
@@ -412,7 +445,9 @@ function startMatch(ctx) {
   lockLandscape();
   audio.start();
   $('shotclock').style.visibility = ''; $('drill').classList.toggle('hidden', ctx.mode !== 'challenge'); document.body.classList.toggle('challenge', ctx.mode === 'challenge');
-  if (opts.intro !== false && ctx.mode !== 'challenge') startIntro(); else audio.whistle(true);
+  const kickOff = () => { if (opts.intro !== false && ctx.mode !== 'challenge') startIntro(); else audio.whistle(true); };
+  goalCardT = 0; $('goalcard').className = ''; $('olabel').style.visibility = 'hidden';
+  if (ctx.mode !== 'challenge' && opts.lineups !== false) showLineups(kickOff); else kickOff();   // line-ups, then the pool entry
 }
 
 // ------------------------------------------------------------------ pool entry cinematic
@@ -537,7 +572,7 @@ function onEvent(e) {
   if (e.type === Ev.REENTRY && match && match.players[e.player] && match.players[e.player].team === 0) toast(L('hud.reentry'), 1);
   if (e.type === Ev.PERIOD_START) audio.whistle(true);
   if (e.type === Ev.GOAL) {
-    { const sc = e.player >= 0 ? m.players[e.player] : null; banner('goal', L('hud.goal'), sc ? `#${sc.number} ${sc.name || ''}` : '', e.team, 2.8); flash(); }
+    goalCard(e); flash();
     camState.goalT = 1.5; camState.goalPoint.set(e.pos.x, 0, e.pos.z); camState.goalSide = Math.sign(e.pos.x) || 1;
     if (opts.replays && matchCtx.mode !== 'challenge') pendingReplay = { at: 1.5 };
     // Team-mates close to the scorer join the celebration.
@@ -676,7 +711,7 @@ function updateWorld(dt, v) {
   water.setWakes(wakeList);
   // Markers
   const hi = v.players.findIndex((s) => s.human);
-  selRing.visible = selArrow.visible = hi >= 0 && !replay;
+  selRing.visible = hi >= 0 && !replay; selArrow.visible = false;   // the name label + triangle (HUD) marks the controlled player
   if (hi >= 0) {
     const r = athletes[hi].root.position; selRing.position.set(r.x, 0.04, r.z);
     selArrow.position.set(r.x, 1.75 + Math.sin(performance.now() / 180) * 0.1, r.z); selArrow.rotation.y += dt * 3;
@@ -755,7 +790,7 @@ function banner(kind, title, sub = '', team = -1, dur = 2) {
   el.classList.add('show'); bannerT = dur;
   if (def) el.style.setProperty('--team', hexCss(def.color));
 }
-if (new URLSearchParams(location.search).has('debug')) window.__hud = { banner: (...a) => banner(...a) };   // HUD checks
+if (new URLSearchParams(location.search).has('debug')) window.__hud = { banner: (...a) => banner(...a), goal: (team, player) => goalCard({ team, player }) };   // HUD checks
 function flash() { const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); }
 
 // Tactics panel: 5 game styles (+ 2 specialists) and the attacking formation; pauses the match while open.
@@ -901,9 +936,10 @@ function frame(now) {
     ballMesh.position.set(0, -5, 0);
     selRing.visible = selArrow.visible = passRing.visible = false;
   } else {
-    // Menu: the hero treads water in front of a slow orbit of the arena.
+    // Menu: the hero treads water in front of a slow orbit of the arena (pre-match: two players on the deck).
     if (!hero) buildHero();
-    hero.root.visible = heroVisible;
+    hero.root.visible = heroVisible && !pmView;
+    if (pmView) { updatePrematchView(fdt); selRing.visible = selArrow.visible = passRing.visible = false; ballShadow.material.opacity = 0; trail.line.visible = false; renderer.render(scene, camera); return; }
     const yaw = heroYaw + Math.sin(time * 0.3) * 0.3;
     hero.update(fdt, { x: 0, z: -6, fx: Math.sin(yaw), fz: -Math.cos(yaw), vx: 0, vz: 0, hasBall: true, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 1, -12), receive: false });
     if (heroPreview) hero.root.position.y = 0.62;   // editor: lifted (eggbeater) so the suit is visible
@@ -949,7 +985,106 @@ function updateDrill(m) {
   $('drill').innerHTML = `<div class="dr-dots">${dots}</div><p>${L(d.step ? 'drill.t_' + d.step : 'drill.' + d.kind + '_how')}</p>`;
 }
 const hexCss = (c) => '#' + c.toString(16).padStart(6, '0');
+// ------------------------------------------------------------------ presentation: player cards, goal card, line-ups
+const flagOf = (code) => (countryOf(code) || {}).flag || '';
+const FORM_NAME = { arc: 'form.arc', umbrella: 'form.umbrella', '4-2': 'form.4-2' };
+/** Gold player card: 3D portrait (filled in progressively), rating, poste, flag, name, form bar. */
+function cardHtml(p, opts = {}) {
+  const ovr = p.ovr ?? overall(p), tier = ovr >= 85 ? 'gold' : ovr >= 75 ? 'silver' : 'bronze';
+  return `<div class="pc3 ${tier}" ${opts.style ? `style="${opts.style}"` : ''} data-pid="${p.id}">
+    <span class="pc3-img"><svg viewBox="0 0 64 64"><path d="M14 64 Q16 44 32 42 Q48 44 50 64Z" fill="#0004"/><ellipse cx="32" cy="28" rx="12" ry="14" fill="#0003"/></svg></span>
+    <b class="pc3-ovr">${ovr}</b><i class="pc3-pos">${ROLE_ABBR[p.role] || ''}</i><span class="pc3-flag">${flagOf(p.nationality)}</span>
+    <span class="pc3-name">${(p.lastName || p.name || '').replace(/^.\. /, '')}</span><u class="pc3-bar" style="width:${Math.round(p.form ?? 100)}%"></u></div>`;
+}
+/** Fills the portraits of the cards in `root` one by one (each one is a small off-screen render). */
+function fillPortraits(root, players, kits) {
+  players.forEach((p, i) => setTimeout(() => {
+    const el = root.querySelector(`[data-pid="${p.id}"] .pc3-img`); if (!el || !el.isConnected) return;
+    const url = (() => { try { return portraitFor(p, kits); } catch { return null; } })(); if (url) el.innerHTML = `<img src="${url}" alt="">`;
+  }, 60 + i * 70));
+}
+// Goal: team bar + scorer bar, the scorer's card, confetti; skip button.
+let goalCardT = 0;
+function goalCard(e) {
+  const m = match, team = m.teams[e.team], sc = e.player >= 0 ? m.players[e.player] : null;
+  let p = null, kits = null;
+  if (sc && sc.pid) p = state.player(sc.pid);
+  else if (sc) { const sq = state.opponentSquad(team.def.id).find((q) => q.number === sc.number) || null; if (sq) { p = sq; kits = team.def.kits; } }
+  const card = p ? cardHtml(p) : '';
+  const el = $('goalcard');
+  el.innerHTML = `<div class="gc-bars"><div class="gc-top">${crest(team.def, 30)}<b>${team.def.name}</b><i>${L('hud.goal_short')}</i></div>
+    <div class="gc-scorer">${sc ? (p ? `${p.firstName} ${p.lastName}` : sc.name) : ''}</div></div>${card}`;
+  el.className = 'show'; goalCardT = 3.2;
+  if (p) fillPortraits(el, [p], kits);
+  confetti([team.def.color, team.def.color2 ?? 0xffffff, 0xffd21a, 0xffffff]);
+  $('skipBtn').classList.remove('hidden');
+}
+function confetti(colors) {
+  const box = $('confetti'); box.innerHTML = '';
+  for (let i = 0; i < 70; i++) {
+    const c = document.createElement('i'), col = hexCss(colors[i % colors.length]);
+    c.style.cssText = `left:${Math.random() * 100}%;background:${col};animation-delay:${Math.random() * 0.6}s;animation-duration:${2 + Math.random() * 1.6}s;--rx:${Math.random() * 720 - 360}deg;--dx:${Math.random() * 120 - 60}px`;
+    box.appendChild(c);
+  }
+  setTimeout(() => { box.innerHTML = ''; }, 4200);
+}
+// Line-ups before the swim-off: each team's 7 starters as cards on the pool, team banner (crest, name, TOTAL, formation).
+let lineup = null;
+const LINE_POS = { 4: [8, 6], 5: [41, 2], 0: [74, 6], 3: [16, 36], 2: [41, 36], 1: [66, 36], '-1': [41, 68] };
+function lineupHtml(t) {
+  const m = match, def = m.teams[t].def;
+  const players = t === 0 ? [state.player(state.lineup.gk), ...state.lineup.slots.map((id) => state.player(id))].map((p, i) => ({ ...p, slot: i ? i - 1 : -1 }))
+    : state.opponentSquad(def.id).slice(0, 7).map((p) => ({ ...p, slot: p.slot ?? -1 }));
+  const total = t === 0 ? state.teamTotal().total : state.opponentTotal(def.id);
+  const html = `<div class="lu-banner" style="--tc:${hexCss(def.color)}">${crest(def, 64)}<div><b>${def.name}</b><span class="lu-ovr">${total}<small>OVR</small></span></div><i>${L(FORM_NAME[m.teams[t].formation] || 'form.arc')}</i></div>
+    <div class="lu-pool"><div class="lu-goal"></div><div class="lu-l2"></div><div class="lu-l5"></div>
+    ${players.map((p) => { const [x, y] = LINE_POS[p.slot] || [41, 36]; return cardHtml(p, { style: `left:${x}%;top:${y}%` }); }).join('')}</div>`;
+  return { html, players, kits: t === 0 ? null : def.kits };
+}
+function showLineups(done) {
+  lineup = { t: 0, team: 0, done }; paused = true;
+  document.body.classList.add('lineup-on'); $('lineup').classList.remove('hidden'); $('skipBtn').classList.remove('hidden');
+  renderLineup();
+}
+function renderLineup() {
+  const L0 = lineupHtml(lineup.team), el = $('lineup');
+  el.innerHTML = L0.html; el.className = 'show t' + lineup.team; lineup.t = 3.4;
+  fillPortraits(el, L0.players, L0.kits);
+}
+function endLineups() {
+  if (!lineup) return; const done = lineup.done; lineup = null; paused = false;
+  document.body.classList.remove('lineup-on'); $('lineup').className = 'hidden'; $('skipBtn').classList.add('hidden');
+  done();
+}
+function updatePresentation(dt) {
+  if (lineup) { lineup.t -= dt; if (lineup.t <= 0) { if (lineup.team === 0) { lineup.team = 1; renderLineup(); } else endLineups(); } }
+  if (goalCardT > 0) { goalCardT -= dt; if (goalCardT <= 0) { $('goalcard').className = ''; if (!lineup && !replay) $('skipBtn').classList.add('hidden'); } }
+  if (!lineup && !replay && goalCardT <= 0) $('skipBtn').classList.add('hidden'); else if (replay) $('skipBtn').classList.remove('hidden');
+}
+/** Skip button (>|): next line-up / end of line-ups, goal card + replay. */
+function skipPresentation() {
+  if (lineup) { if (lineup.team === 0) { lineup.team = 1; renderLineup(); } else endLineups(); return; }
+  goalCardT = 0; $('goalcard').className = ''; pendingReplay = null; if (replay) endReplay(); $('skipBtn').classList.add('hidden');
+}
+// Name labels above the controlled player (+ triangle, stamina, shot charge) and the nearest opponent.
+const labelV = new THREE.Vector3();
+function placeLabel(el, ath, dy) {
+  if (!ath) { el.style.visibility = 'hidden'; return; }
+  ath.head.getWorldPosition(labelV); labelV.y += dy; labelV.project(camera);
+  if (labelV.z > 1 || Math.abs(labelV.x) > 1.05 || Math.abs(labelV.y) > 1.05) { el.style.visibility = 'hidden'; return; }
+  el.style.visibility = 'visible'; el.style.left = ((labelV.x * 0.5 + 0.5) * innerWidth).toFixed(1) + 'px'; el.style.top = ((-labelV.y * 0.5 + 0.5) * innerHeight).toFixed(1) + 'px';
+}
+function updateLabels(m) {
+  const me = m.human, show = me && !replay && !intro && !lineup;
+  placeLabel($('bars'), show ? athletes[me.id] : null, 0.45);
+  let opp = null, d = 5;
+  if (show) for (const o of m.teams[1 - me.team].field) { if (o.excluded > 0) continue; const x = Math.hypot(o.pos.x - me.pos.x, o.pos.z - me.pos.z); if (x < d) { d = x; opp = o; } }
+  const ol = $('olabel'); if (opp && ol.dataset.id !== String(opp.id)) { ol.dataset.id = opp.id; ol.textContent = opp.name || ''; }
+  placeLabel(ol, opp ? athletes[opp.id] : null, 0.35);
+}
+
 function updateHud(dt) {
+  updatePresentation(dt); updateLabels(match);
   const m = match;
   radarT -= dt; if (radarT <= 0) { radarT = 1 / 15; drawRadar(m); }
   $('home-score').textContent = m.teams[0].score; $('away-score').textContent = m.teams[1].score;
@@ -965,7 +1100,7 @@ function updateHud(dt) {
   if (me) {
     if (me !== lastWho) {   // controlled player + his poste
       lastWho = me; const w = $('who'), i = document.createElement('i'); i.textContent = L('pos.' + me.slot);
-      w.textContent = `#${me.number} ${me.name || ''} · `; w.appendChild(i);
+      w.textContent = `${me.name || '#' + me.number} `; w.appendChild(i);
       w.classList.remove('flash'); void w.offsetWidth; w.classList.add('flash');   // player switch
     }
     const st = $('stamina'); st.style.width = me.stamina * 100 + '%'; st.style.background = me.sprintLocked ? '#e5533d' : '#4de683';
@@ -1008,8 +1143,9 @@ function resize() {
 // once off screen as a head-and-shoulders bust, cached as an image.
 const portraitCache = new Map();
 let portraitRig = null;
-function portraitFor(p, capColor) {
-  const K0 = state.data.club.kits.home, key = `${p.id}|${JSON.stringify(K0)}|${state.equippedColor('cap')}|${p.number}|4`;
+function portraitFor(p, kits) {
+  const own = !kits || typeof kits !== 'object', K = own ? state.data.club.kits : kits;
+  const key = `${p.id}|${JSON.stringify(K.home)}|${own ? state.equippedColor('cap') : ''}|${p.number}|5`;
   if (portraitCache.has(key)) return portraitCache.get(key);
   if (!portraitRig) {
     const sc = new THREE.Scene();
@@ -1022,8 +1158,7 @@ function portraitFor(p, capColor) {
     portraitRig = { sc, rt, cam: new THREE.PerspectiveCamera(24, 160 / 200, 0.05, 10), cv, buf: new Uint8Array(160 * 200 * 4) };
   }
   const R = portraitRig, look = lookOf(p), gk = p.role === 'GOALKEEPER';
-  const K = state.data.club.kits;
-  const a = new Athlete({ ...kitOptions(K.home, K.goalkeeper, gk, true), number: p.number,
+  const a = new Athlete({ ...kitOptions(K.home, K.goalkeeper, gk, own), number: p.number,
     role: p.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset: { ...PRESETS.ULTRA } });
   a.root.position.y = 0.25; R.sc.add(a.root);
   const st = { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 0.6, 3), receive: false };
@@ -1055,6 +1190,7 @@ const settingsDef = () => [
   ['menu.ambience', L('amb.' + opts.ambience.toLowerCase()), 'ambience', 'audio'],
   ['menu.replays', L(opts.replays ? 'value.on' : 'value.off'), 'replays', 'match'],
   ['menu.intro', L(opts.intro !== false ? 'value.on' : 'value.off'), 'intro', 'match'],
+  ['menu.lineups', L(opts.lineups !== false ? 'value.on' : 'value.off'), 'lineups', 'match'],
   ['menu.difficulty', L(DIFF_KEYS[opts.difficulty]), 'difficulty', 'match'],
   ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist', 'controls'],
   ['menu.duration', L('menu.minutes', opts.minutes), 'minutes', 'match'],
@@ -1065,7 +1201,9 @@ const settingsDef = () => [
 ];
 const app = new App($('app'), {
   L, state,
-  setHero: (v) => { heroVisible = v; },
+  setHero: (v, name) => { heroVisible = v; if (name !== 'prematch') clearPrematch(); },
+  refreshBall: () => setBall(state.data.club.ball || 'classic'),
+  prematch: (opp, pref) => { if (!pmView || pmView.key !== opp + '|' + pref) buildPrematch(opp, pref); },
   portrait: (p, capColor) => { try { return portraitFor(p, capColor); } catch (e) { console.warn('portrait', e); return null; } },
   refreshHero: () => buildHero(),
   // club editor: live 3D preview of a draft identity (null = back to the saved club)
@@ -1085,6 +1223,7 @@ const app = new App($('app'), {
       case 'zoom': opts.zoom = ((opts.zoom ?? 5) % 10) + 1; break;
       case 'radar': opts.radar = opts.radar === false; break;
       case 'intro': opts.intro = opts.intro === false; break;
+      case 'lineups': opts.lineups = opts.lineups === false; break;
       case 'ambience': opts.ambience = cycle(AMBIENCES, opts.ambience); arena.setAmbience(opts.ambience); break;
       case 'replays': opts.replays = !opts.replays; break;
       case 'difficulty': opts.difficulty = (opts.difficulty + 1) % 3; break;
@@ -1132,6 +1271,7 @@ function buildShowcase() {
   setupInput();
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });
   $('pause-resume').onclick = closePause;
+  $('skipBtn').onclick = () => skipPresentation();   // line-ups (match paused) / goal card: tap or click
   $('pause-tactics').onclick = () => pausePanel('tactics'); $('pause-controls').onclick = () => pausePanel('controls');
   $('pause-settings').onclick = () => pausePanel('settings'); $('pause-quit').onclick = () => pausePanel('quit');
   if (state.data.clubChosen) app.home(); else app.show('clubs', { first: true }, false);   // first launch: CHOISIS TON CLUB

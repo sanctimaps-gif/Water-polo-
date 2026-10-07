@@ -47,7 +47,7 @@ function athleteMaterial(waterTint, rich) {
   const key = rich ? 'rich' : 'std';
   if (SHARED.has(key)) return SHARED.get(key);
   // HIGH / ULTRA: physical material with a thin clear coat = film of water on the skin and the wet suit.
-  const m = rich ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.2, clearcoat: 0.45, clearcoatRoughness: 0.22, sheen: 0 })
+  const m = rich ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.2, clearcoat: 0.8, clearcoatRoughness: 0.12, sheen: 0 })
     : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.15 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uUwTint = { value: waterTint };
@@ -142,7 +142,7 @@ function headMaterial(waterTint, rich) {
   const key = rich ? 'rich' : 'std';
   if (HEAD.mats.has(key)) return HEAD.mats.get(key);
   const P = { vertexColors: true, map: HEAD.map, normalMap: HEAD.normalMap, roughnessMap: HEAD.roughnessMap, roughness: 1, metalness: 0, envMapIntensity: 1.0 };
-  const m = rich ? new THREE.MeshPhysicalMaterial({ ...P, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.25, sheenColor: new THREE.Color(0xff9a80), sheenRoughness: 0.6 }) : new THREE.MeshStandardMaterial(P);
+  const m = rich ? new THREE.MeshPhysicalMaterial({ ...P, clearcoat: 0.6, clearcoatRoughness: 0.16, sheen: 0.25, sheenColor: new THREE.Color(0xff9a80), sheenRoughness: 0.6 }) : new THREE.MeshStandardMaterial(P);
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uUwTint = { value: waterTint }; sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.28) };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vUwY;')
@@ -200,7 +200,7 @@ function scanHeadGeometry(P, skin, hair) {
 }
 
 // ---------------------------------------------------------------- appearance
-const SKIN = [0xf1c7a6, 0xe0ac87, 0xc68b62, 0xa86d47, 0x7c4e31, 0x5a3622];
+const SKIN = [0xdcaa84, 0xcf9a72, 0xbd845d, 0xa86d47, 0x7c4e31, 0x5a3622];   // tanned (outdoor training) to dark
 const HAIR = [0x1d140f, 0x3a2818, 0x5b3b1f, 0x8a6236, 0xc9a26b, 0x2a2a2a];
 const C = (hex) => new THREE.Color(hex);
 
@@ -476,7 +476,7 @@ export class Athlete {
       if (pattern === 'chevron') return z > 0 ? gs(Math.abs(x) * 1.3 - (y - hipY - 0.02), 0.012) * 0.95 : 0;
       return 0;
     };
-    const W = 0.3, S = 0.34, CAP = 0.62, SUIT = 0.38;   // roughness: wet skin, face, wet fabric cap, wet suit
+    const W = 0.24, S = 0.3, CAP = 0.55, SUIT = 0.36;   // roughness: wet skin, face, wet fabric cap, wet suit
     const rich = o.preset.limbSeg >= 10;
     const mat = athleteMaterial(o.waterTint || C(0x0b5d84), rich);
     const bulk = morph.bulk, sw = morph.shoulders, waist = morph.waist;
@@ -596,7 +596,7 @@ export class Athlete {
     // Cap: fitted fabric cap on the actual head shape (see buildCap).
     const capRes = face ? Math.max(16, seg * 2 + 4) : 12;
     const CAPB = buildCap(scanGeo || sculpt.geo, { res: capRes, thick: 0.0045, ell: scan ? [0.112, 0.128, 0.126] : [0.104, 0.122, 0.118], cap, trim: capTrim,
-      guard: o.guardColor !== undefined ? C(o.guardColor) : o.isGK ? cap.clone().multiplyScalar(0.8) : cap.clone().lerp(C(0xffffff), cap.getHSL({}).l < 0.5 ? 0.12 : 0).multiplyScalar(0.9), rough: CAP, strings: face });
+      guard: o.guardColor !== undefined ? C(o.guardColor) : cap.getHSL({}).l < 0.55 ? C(0xeef1f4) : cap.clone().multiplyScalar(0.82),   /* white ear guards on dark / red caps */ rough: CAP, strings: face });
     headParts.push(...CAPB.parts);
     // Hair (wet: darker, glossy). Shaved: nothing shows under the cap.
     const HR = 0.42;

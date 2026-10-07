@@ -4,7 +4,7 @@ import * as THREE from '../vendor/three.module.min.js';
 
 export const WATER_PARAMS = {
   WaveIntensity: 1, WaveSpeed: 1, ReflectionStrength: 1, RefractionStrength: 1, FoamAmount: 1,
-  Transparency: 0.55, DepthFade: 1, CausticsIntensity: 1, SurfaceSmoothness: 0.85, SplashIntensity: 1,
+  Transparency: 0.4, DepthFade: 1, CausticsIntensity: 1, SurfaceSmoothness: 0.85, SplashIntensity: 1,
 };
 
 const MAX_RIPPLES = 24, MAX_WAKES = 14;
@@ -181,8 +181,8 @@ void main() {
   float lane = (1.0 - step(0.12, abs(fract((vXZ.y + 1.25) / 2.5) - 0.5) * 2.5)) * step(abs(vXZ.x), 11.0);
   col = mix(col, uLine, lane * 0.85);
   float c = caustic(vXZ * 1.6, uTime * 1.2) * uCaustics;
-  col += vec3(0.75, 0.95, 1.0) * c * 0.55;
-  col = mix(col, uWaterTint, clamp(vDepth * 0.3, 0.0, 0.7));
+  col += vec3(0.8, 0.97, 1.0) * c * 0.75;
+  col = mix(col, uWaterTint, clamp(vDepth * 0.3, 0.0, 0.62));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -200,7 +200,7 @@ export class Water {
       uWakes: { value: Array.from({ length: MAX_WAKES }, () => new THREE.Vector4(999, 999, 0, 0)) },
       uDetail: { value: 1 }, uReflect: { value: 1 }, uFoamAmt: { value: 1 }, uAlpha: { value: WATER_PARAMS.Transparency },
       uSmooth: { value: WATER_PARAMS.SurfaceSmoothness },
-      uDeep: { value: new THREE.Color(0x02243f) }, uShallow: { value: new THREE.Color(0x0f6f9c) },
+      uDeep: { value: new THREE.Color(0x0a6f9e) }, uShallow: { value: new THREE.Color(0x16b6d8) },
       uSkyTop: { value: new THREE.Color(0x0a1424) }, uSkyLow: { value: new THREE.Color(0x24486a) },
       uLightCol: { value: new THREE.Color(0xfff6e6) }, uSunDir: { value: new THREE.Vector3(-0.3, 0.9, -0.4).normalize() },
       uNormalMap: { value: makeNormalMap() }, uHalf: { value: this.half },
@@ -215,7 +215,7 @@ export class Water {
     // Floor + walls of the basin.
     this.floorUniforms = {
       uTime: this.uniforms.uTime, uCaustics: { value: 1 },
-      uTile: { value: new THREE.Color(0x4a9fc0) }, uLine: { value: new THREE.Color(0x0c2236) }, uWaterTint: { value: new THREE.Color(0x06466b) },
+      uTile: { value: new THREE.Color(0x5cc9e2) }, uLine: { value: new THREE.Color(0x173f63) }, uWaterTint: { value: new THREE.Color(0x0e95c4) },
     };
     const floorMat = new THREE.ShaderMaterial({
       uniforms: this.floorUniforms,
@@ -270,7 +270,7 @@ export class Water {
  * Applies a cheap "under water" look to a standard material: below the surface the colour
  * fades toward the water tint and darkens with depth (visible through the transparent surface).
  */
-export function underwater(material, tint = new THREE.Color(0x0b5d84)) {
+export function underwater(material, tint = new THREE.Color(0x1f9fc4)) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uUwTint = { value: tint };
     shader.vertexShader = shader.vertexShader
@@ -278,7 +278,7 @@ export function underwater(material, tint = new THREE.Color(0x0b5d84)) {
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvUwY = (modelMatrix * vec4(transformed, 1.0)).y;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying float vUwY;\nuniform vec3 uUwTint;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (vUwY < 0.0) { float k = clamp(0.35 - vUwY * 0.45, 0.0, 0.85); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }');
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (vUwY < 0.0) { float k = clamp(0.22 - vUwY * 0.32, 0.0, 0.7); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }');
   };
   material.customProgramCacheKey = () => 'uw';
   return material;

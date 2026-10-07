@@ -217,9 +217,15 @@ export class Arena {
     const panels = [];
     for (let x = -27; x <= 27; x += 6) for (let z = -22.5; z <= 22.5; z += 5) panels.push([x, z]);
     this.panelMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(1.9, 0.12, 1.6), this.panelMat, panels.length);
+    // round stadium lamps (as on broadcast images) + a soft additive halo under each one
+    const pm = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.75, 0.75, 0.14, 20), this.panelMat, panels.length);
     panels.forEach(([x, z], i) => { m4.makeTranslation(x, 13.9, z); pm.setMatrixAt(i, m4); });
     g.add(pm);
+    const hc = document.createElement('canvas'); hc.width = hc.height = 64; const hg = hc.getContext('2d'), grd = hg.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,0.9)'); grd.addColorStop(0.25, 'rgba(255,248,230,0.35)'); grd.addColorStop(1, 'rgba(255,248,230,0)'); hg.fillStyle = grd; hg.fillRect(0, 0, 64, 64);
+    const halo = new THREE.InstancedMesh(new THREE.PlaneGeometry(4.2, 4.2).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(hc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), panels.length);
+    panels.forEach(([x, z], i) => { m4.makeTranslation(x, 13.8, z); halo.setMatrixAt(i, m4); });
+    halo.renderOrder = 3; g.add(halo);
     // Far-side stands (main), ends and a balcony with original banners.
     const seat = std(0x1d3a66, 0.7), seat2 = std(0x14294a, 0.7);
     for (let r = 0; r < 9; r++) add(new THREE.BoxGeometry(46, 0.55, 1.15), r % 2 ? seat : seat2, 0, 0.6 + r * 0.62, 13.6 + r * 1.05);

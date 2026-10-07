@@ -68,7 +68,7 @@ let tier = opts.graphics === 'AUTO' ? autoTier : opts.graphics;
 let preset = PRESETS[tier];
 const renderer = new THREE.WebGLRenderer({ antialias: tier === 'HIGH' || tier === 'ULTRA', powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.98;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 $('view').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -593,7 +593,8 @@ function toast(t, s) { $('toast').textContent = t; toastT = s; }
 function startReplay() {
   if (tape.length < 60) return;
   const start = Math.max(0, tape.length - 50 * 5);
-  replay = { frames: tape.slice(start), t: 0, speed: 0.55, angle: 0 };
+  replay = { frames: tape.slice(start), t: 0, speed: 0.55, angle: 0, shooter: -1, shotU: 0 };
+  replay.frames.forEach((f, i) => { for (const e of f.events) if (e.type === Ev.SHOT) { replay.shooter = e.player; replay.shotU = i / (replay.frames.length - 1); } });
   document.body.classList.add('replaying');
   $('replay').classList.remove('hidden'); $('replay-title').textContent = L('hud.replay'); $('replay-skip').textContent = L('hud.skip');
 }
@@ -612,8 +613,12 @@ function updateCamera(dt, v) {
   let pos, look, fov;
   if (replay) {
     // Two angles: behind the goal (low), then side-on at water level.
-    const u = replay.t / (replay.frames.length - 1), side = c.goalSide;
-    if (u < 0.55) { pos = tmp.set(side * 18.5, 2.4, ball.z * 0.4 + 1.5); look = ball.clone(); fov = 34; }
+    const u = replay.t / (replay.frames.length - 1), side = c.goalSide, sh = replay.shooter >= 0 ? athletes[replay.shooter] : null;
+    if (sh && u < replay.shotU + 0.04) {   // over the shooter's shoulder, low over the water, looking at the goal
+      const s = sh.root.position, dx = side * 12.5 - s.x, dz = -s.z, l = Math.hypot(dx, dz) || 1;
+      pos = tmp.set(s.x - (dx / l) * 1.7 + (dz / l) * 0.55, 1.05, s.z - (dz / l) * 1.7 - (dx / l) * 0.55); look = tmp2.set(side * 12.5, 0.7, 0); fov = 46;
+      if (!replay.cut) { camera.position.copy(pos); replay.cut = true; }
+    } else if (u < 0.62) { pos = tmp.set(side * 18.5, 2.4, ball.z * 0.4 + 1.5); look = ball.clone(); fov = 34; }
     else { pos = tmp.set(ball.x - side * 4, 0.9, -7.5); look = ball.clone(); fov = 40; }
     camera.position.lerp(pos, 1 - Math.exp(-dt * 6)); camera.lookAt(look); setFov(fov, dt, 6);
     return;

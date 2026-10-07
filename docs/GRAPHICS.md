@@ -218,7 +218,7 @@ derrière leur ligne de but plongent l'une après l'autre (plongeon tête la pre
 glissent jusqu'à leur position de départ ; la caméra filme chaque bout puis s'élève vers le jeu,
 coup de sifflet. ~7 s, la simulation est arrêtée pendant ce temps.
 
-**Bouton CAM du HUD** : TV (standard) / MATCH (attaque) / LARGE. Petit zoom (−8° de champ) pendant
+**Bouton CAM du HUD** : TV (standard) / MATCH (attaque) / LARGE / YEUX. **YEUX** : vue à la première personne depuis les yeux du joueur qui a la balle (les deux équipes), au ras de l'eau ; il regarde le but quand il arme un tir ; sans porteur, yeux du joueur contrôlé tournés vers le ballon. Petit zoom (−8° de champ) pendant
 les tirs, flash et bandeau animé au but avant le plan de but et le replay.
 
 **Autres caméras** (Paramètres > Match, ou PAUSE > PARAMÈTRES) : 1 Standard (TV), 2 Large,

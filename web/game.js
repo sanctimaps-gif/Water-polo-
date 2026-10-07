@@ -52,9 +52,9 @@ const GRAPHICS = ['AUTO', ...TIERS];
 // Match cameras (Settings > Match, and the CAM chip in the match): attack (high, end-on, looking at the
 // goal we attack, like console rugby / football games), broadcast, wide, close, dynamic side,
 // top view, behind the controlled player, pool deck (low side).
-const HUD_CAMS = ['STANDARD', 'ATTACK', 'WIDE'];   // HUD CAM chip: TV / MATCH / LARGE (all cameras in the settings)
-const CAM_LABEL = { STANDARD: 'cam.tv', ATTACK: 'cam.match', WIDE: 'cam.large' };
-const CAMERAS = ['ATTACK', 'STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK'];
+const HUD_CAMS = ['STANDARD', 'ATTACK', 'WIDE', 'EYES'];   // HUD CAM chip: TV / MATCH / LARGE (all cameras in the settings)
+const CAM_LABEL = { STANDARD: 'cam.tv', ATTACK: 'cam.match', WIDE: 'cam.large', EYES: 'cam.eyes' };
+const CAMERAS = ['ATTACK', 'STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK', 'EYES'];
 const AMBIENCES = ['EVENT', 'DAY', 'EVENING', 'NIGHT'];
 const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIVE: 'tactic.offensive', DEFENSIVE: 'tactic.defensive', PRESSURE: 'tactic.pressure', CENTER: 'tactic.center', COUNTER: 'tactic.counter' };
 const cycle = (list, v) => list[(list.indexOf(v) + 1) % list.length];
@@ -191,18 +191,29 @@ function btnState() { return { held: false, press: false, release: false, down: 
 // on iOS Safari, Android Chrome and desktop, and is immune to overlays stealing the event.
 const contacts = new Map(); // id -> { region, ox, oy, lx, ly }
 const STICK_R = 70;
-function hudActive() { return match && !intro && !paused && !match.finished && !$('hud').classList.contains('hidden') && !isPortrait(); }
+function hudActive() { return match && !intro && !paused && !match.finished && !$('hud').classList.contains('hidden'); }
+// Automatic landscape: phone held upright -> the page is turned 90° clockwise (html.fake-land, see style.css).
+// Touches and element rectangles are converted from the screen to the game's landscape coordinates.
+let fakeLand = false;
+const LW = () => (fakeLand ? innerHeight : innerWidth), LH = () => (fakeLand ? innerWidth : innerHeight);
+const toL = (x, y) => (fakeLand ? [y, innerWidth - x] : [x, y]);
+function lrect(el) {
+  const r = el.getBoundingClientRect(); if (!fakeLand) return r;
+  const left = r.top, right = r.bottom, top = innerWidth - r.right, bottom = innerWidth - r.left;
+  return { left, right, top, bottom, width: right - left, height: bottom - top };
+}
+window.wpToL = toL;
 function regionAt(x, y) {
   for (const id of ['btnA', 'btnB', 'btnS', 'btnD']) {
-    const r = $(id).getBoundingClientRect(); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const r = lrect($(id)); const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
     if (Math.hypot(x - cx, y - cy) <= (r.width / 2) * 1.25) return id;
   }
   for (const id of ['tactic', 'camBtn', 'soundBtn', 'pauseBtn', 'skipBtn']) {
     if ($(id).classList.contains('hidden')) continue;
-    const t = $(id).getBoundingClientRect();
+    const t = lrect($(id));
     if (x >= t.left - 6 && x <= t.right + 6 && y >= t.top - 6 && y <= t.bottom + 6) return id;
   }
-  return x < innerWidth * 0.45 ? 'stick' : 'right';
+  return x < LW() * 0.45 ? 'stick' : 'right';
 }
 const BTN = { btnA: () => input.A, btnB: () => input.B, btnS: () => input.S, btnD: () => input.D };
 function contactStart(id, x, y) {
@@ -210,7 +221,7 @@ function contactStart(id, x, y) {
   const region = regionAt(x, y);
   contacts.set(id, { region, ox: x, oy: y, lx: x, ly: y, moved: 0 });
   if (region === 'stick') {
-    const zone = $('stick-zone').getBoundingClientRect(), base = $('stick');
+    const zone = lrect($('stick-zone')), base = $('stick');
     base.style.left = x - zone.left + 'px'; base.style.top = y - zone.top + 'px'; base.classList.add('on');
     input.stick.active = true;
   } else if (BTN[region]) {
@@ -260,15 +271,15 @@ function setupInput() {
   const onTouch = (fn) => (e) => {
     if (!hudActive()) return;            // menus keep normal browser behaviour
     e.preventDefault();                  // no scroll, zoom, magnifier, callout or emulated mouse events
-    for (const t of e.changedTouches) fn(t.identifier, t.clientX, t.clientY);
+    for (const t of e.changedTouches) fn(t.identifier, ...toL(t.clientX, t.clientY));
   };
   document.addEventListener('touchstart', onTouch(contactStart), opts);
   document.addEventListener('touchmove', onTouch(contactMove), opts);
   document.addEventListener('touchend', onTouch((id) => contactEnd(id)), opts);
   document.addEventListener('touchcancel', onTouch((id) => contactEnd(id)), opts);
   // Mouse (desktop): pointer events, mouse only so touches are never handled twice.
-  document.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && hudActive()) contactStart('m', e.clientX, e.clientY); });
-  document.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') contactMove('m', e.clientX, e.clientY); });
+  document.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && hudActive()) contactStart('m', ...toL(e.clientX, e.clientY)); });
+  document.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') contactMove('m', ...toL(e.clientX, e.clientY)); });
   document.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse') contactEnd('m'); });
   // Safety: losing focus (notification, app switch) releases every control.
   const releaseAll = () => { for (const id of [...contacts.keys()]) contactEnd(id); };
@@ -304,7 +315,7 @@ function pollInput(m) {
       const sw = A.swipe, sl = Math.hypot(sw.x, sw.y);
       if (sl > 40) {
         // Swipe -> aim, in world space (works with every camera angle): lateral = across the goal, toward the goal = higher.
-        const s = me.team === 0 ? 1 : -1, n = innerHeight * 0.25, w = screenToWorld(sw.x / n, -sw.y / n);
+        const s = me.team === 0 ? 1 : -1, n = LH() * 0.25, w = screenToWorld(sw.x / n, -sw.y / n);
         cmd.hasAim = true; cmd.aimX = Math.max(-1.2, Math.min(1.2, -s * w.z)); cmd.aimY = Math.max(0, Math.min(1, 0.4 + w.x * s * 0.6));
         if (A.dur < 0.2) cmd.quickShot = true;
       }
@@ -624,6 +635,7 @@ function updateCamera(dt, v) {
     camera.position.lerp(pos, 1 - Math.exp(-dt * 6)); camera.lookAt(look); setFov(fov, dt, 6);
     return;
   }
+  if (opts.camera === 'EYES' && c.goalT <= 0 && eyesCamera(dt, v)) return;
   const target = ball.clone();
   if (m.human) target.lerp(athletes[m.human.id].root.position, opts.camera === 'CLOSE' || opts.camera === 'BEHIND' ? 0.55 : 0.25);
   const team = m.possessionTeam, cam = opts.camera;
@@ -676,9 +688,32 @@ function updateCamera(dt, v) {
   setFov(fov, dt, 3);
   userPan += (0 - userPan) * Math.min(1, dt * 0.8);
 }
+/**
+ * First-person camera: in the eyes of the player who has the ball (either team), looking where he looks
+ * (the goal while he winds up a shot); no carrier: the controlled player, looking at the ball.
+ */
+const eyeV = new THREE.Vector3(), eyeL = new THREE.Vector3(), eyeF = new THREE.Vector3();
+let eyeSubject = -1;
+function eyesCamera(dt, v) {
+  const m = match, id = v.owner >= 0 ? v.owner : m.human ? m.human.id : -1; if (id < 0) return false;
+  const a = athletes[id], p = m.players[id]; if (!a || p.benched) return false;
+  a.root.updateMatrixWorld(true); a.head.getWorldPosition(eyeV);
+  const f = eyeF.set(p.facing.x, 0, p.facing.z); if (f.lengthSq() < 1e-4) f.set(m.sign(p.team), 0, 0); f.normalize();
+  eyeV.y += 0.1; eyeV.addScaledVector(f, 0.17);   // eye level, just in front of the face (the head stays behind the lens)
+  if (v.owner === id && p.charging) { const g = m.targetGoal(p.team); eyeL.set(g.x, 0.75, g.z); }
+  else if (v.owner === id) eyeL.copy(eyeV).addScaledVector(f, 10).setY(0.35);
+  else eyeL.copy(ballMesh.position);
+  const snap = id !== eyeSubject; eyeSubject = id;
+  if (snap) { camera.position.copy(eyeV); c_eyeLook.copy(eyeL); }
+  else { camera.position.lerp(eyeV, 1 - Math.exp(-dt * 18)); c_eyeLook.lerp(eyeL, 1 - Math.exp(-dt * 6)); }
+  camera.near = 0.03; camera.lookAt(c_eyeLook); setFov(72, dt, 6);
+  return true;
+}
+const c_eyeLook = new THREE.Vector3();
 function setFov(fov, dt, rate) {
+  if (opts.camera !== 'EYES' && camera.near !== 0.1) { camera.near = 0.1; eyeSubject = -1; }
   // Landscape screens narrower than 16:9 (4:3 tablets): keep the same horizontal view of the pool.
-  const aspect = innerWidth / innerHeight, ref = 16 / 9;
+  const aspect = LW() / LH(), ref = 16 / 9;
   if (aspect < ref) fov = 2 * Math.atan(Math.tan((fov * Math.PI) / 360) * ref / aspect) * 180 / Math.PI;
   camera.fov += (fov - camera.fov) * (1 - Math.exp(-dt * rate)); camera.updateProjectionMatrix();
 }
@@ -717,7 +752,7 @@ function updateWorld(dt, v) {
   water.setWakes(wakeList);
   // Markers
   const hi = v.players.findIndex((s) => s.human);
-  selRing.visible = hi >= 0 && !replay; selArrow.visible = false;   // the name label + triangle (HUD) marks the controlled player
+  selRing.visible = hi >= 0 && !replay && opts.camera !== 'EYES'; selArrow.visible = false;   // the name label + triangle (HUD) marks the controlled player
   if (hi >= 0) {
     const r = athletes[hi].root.position; selRing.position.set(r.x, 0.04, r.z);
     selArrow.position.set(r.x, 1.75 + Math.sin(performance.now() / 180) * 0.1, r.z); selArrow.rotation.y += dt * 3;
@@ -911,16 +946,20 @@ function refreshTactic() { if (match) $('tactic').textContent = `${L('btn.tactic
 function refreshChips() { $('camBtn').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24"><path d="M3 7h13v10H3zM16 10l5-3v10l-5-3" fill="currentColor"/></svg> ${L(CAM_LABEL[opts.camera] || 'cam.' + opts.camera.toLowerCase())}`; $('soundBtn').textContent = opts.sound ? '🔊' : '🔇'; }
 
 // ------------------------------------------------------------------ LANDSCAPE ONLY
-const isPortrait = () => innerHeight > innerWidth;
+const isPortrait = () => false;   // never blocks: the game turns itself to landscape
 function lockLandscape() {
   try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch {}
 }
+let layoutKey = '';
 function updateOrientationGate() {
-  const portrait = isPortrait();
-  $('rotate').classList.toggle('hidden', !portrait);
-  $('rotate-title').textContent = L('hud.rotate');
-  $('rotate-hint').textContent = L('hud.rotate_hint');
-  return portrait;
+  const key = innerWidth + 'x' + innerHeight; if (key === layoutKey) return false; layoutKey = key;
+  fakeLand = innerHeight > innerWidth;
+  const d = document.documentElement, W = LW(), H = LH();
+  d.classList.toggle('fake-land', fakeLand);
+  d.style.setProperty('--lw', W + 'px'); d.style.setProperty('--lh', H + 'px'); d.style.setProperty('--vw', W / 100 + 'px'); d.style.setProperty('--vh', H / 100 + 'px');
+  // size rules of the stylesheets (media queries see the upright screen in this mode)
+  for (const [c, on] of [['mq-h420', H <= 420], ['mq-h500', H <= 500], ['mq-h380', H <= 380], ['mq-arw', W / H >= 21 / 9], ['mq-arn', W / H <= 1.6]]) d.classList.toggle(c, on);
+  return false;
 }
 
 // ------------------------------------------------------------------ frame loop
@@ -1124,7 +1163,7 @@ function placeLabel(el, ath, dy) {
   if (!ath) { el.style.visibility = 'hidden'; return; }
   ath.head.getWorldPosition(labelV); labelV.y += dy; labelV.project(camera);
   if (labelV.z > 1 || Math.abs(labelV.x) > 1.05 || Math.abs(labelV.y) > 1.05) { el.style.visibility = 'hidden'; return; }
-  el.style.visibility = 'visible'; el.style.left = ((labelV.x * 0.5 + 0.5) * innerWidth).toFixed(1) + 'px'; el.style.top = ((-labelV.y * 0.5 + 0.5) * innerHeight).toFixed(1) + 'px';
+  el.style.visibility = 'visible'; el.style.left = ((labelV.x * 0.5 + 0.5) * LW()).toFixed(1) + 'px'; el.style.top = ((-labelV.y * 0.5 + 0.5) * LH()).toFixed(1) + 'px';
 }
 function updateLabels(m) {
   const me = m.human, show = me && !replay && !intro && !lineup;
@@ -1191,7 +1230,7 @@ function updateHud(dt) {
 
 let lastW = 0, lastH = 0;
 function resize() {
-  const w = innerWidth, h = innerHeight; if (w === lastW && h === lastH) return;
+  const w = LW(), h = LH(); if (w === lastW && h === lastH) return;
   lastW = w; lastH = h; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
   vfx.setScale(h * Math.min(devicePixelRatio, preset.pixelRatio));
 }
@@ -1334,6 +1373,7 @@ function buildShowcase() {
 }
 
 // ------------------------------------------------------------------ boot
+updateOrientationGate();   // landscape layout before the first frame
 (async () => {
   await Promise.all([loadLang('en'), loadLang(lang), loadScanHead().catch((e) => console.warn('scan head', e)), loadScanBody().catch((e) => console.warn('scan body', e))]);
   applyQuality(tier);

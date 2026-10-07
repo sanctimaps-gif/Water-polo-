@@ -103,3 +103,4 @@ pos.2 = Rückraum Mitte
 pos.3 = Linker Halbspieler
 pos.4 = Linker Flügel
 pos.5 = Center
+cam.eyes = SPIELERAUGEN

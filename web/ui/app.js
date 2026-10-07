@@ -34,10 +34,11 @@ export class App {
     root.addEventListener('change', (e) => { if (e.target.tagName === 'SELECT' && e.target.dataset.field && this.draft) { this.edField(e.target.dataset.field, e.target.value); this.render(); } });
     // drag on the 3D preview turns the player
     let drag = null;
-    root.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero"]') && !e.target.closest('button')) drag = e.clientX; });
-    addEventListener('pointermove', (e) => { if (drag !== null) { this.api.rotateHero((e.clientX - drag) * 0.012); drag = e.clientX; } });
+    const lx = (e) => (window.wpToL ? window.wpToL(e.clientX, e.clientY)[0] : e.clientX);   // landscape x (turned screen)
+    root.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero"]') && !e.target.closest('button')) drag = lx(e); });
+    addEventListener('pointermove', (e) => { if (drag !== null) { this.api.rotateHero((lx(e) - drag) * 0.012); drag = lx(e); } });
     addEventListener('pointerup', () => { drag = null; });
-    document.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero3d"]')) drag = e.clientX; });
+    document.addEventListener('pointerdown', (e) => { if (e.target.closest('[data-drag="hero3d"]')) drag = lx(e); });
     setInterval(() => this.tick(), 1000);
     this.st.onChange(() => this.refreshHeader());
   }

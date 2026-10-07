@@ -12,8 +12,8 @@ Jeu mobile de water-polo en 3D (Android, iPhone, iPad, tablettes) — **Unity 6 
 **https://sanctimaps-gif.github.io/Water-polo-/**
 
 Version web du prototype : même simulation de match (portée en JavaScript depuis le C#), rendu 3D
-Three.js, contrôles tactiles. **Jeu exclusivement en paysage** : tenu verticalement, le jeu affiche
-« Tournez votre appareil » et se met en pause. Au clavier : WASD, Maj, J, K, L, Q.
+Three.js, contrôles tactiles. **Jeu exclusivement en paysage** : téléphone tenu verticalement, tout l'affichage
+est tourné de 90° automatiquement (pas de message « tournez votre appareil »). Au clavier : WASD, Maj, J, K, L, Q.
 C'est une démo jouable du gameplay ; le jeu final reste l'application Unity (Android / iOS).
 
 ## Documentation

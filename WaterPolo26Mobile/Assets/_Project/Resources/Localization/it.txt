@@ -103,3 +103,4 @@ pos.2 = Punta
 pos.3 = Mezzala sinistra
 pos.4 = Ala sinistra
 pos.5 = Centroboa
+cam.eyes = OCCHI DEL GIOCATORE

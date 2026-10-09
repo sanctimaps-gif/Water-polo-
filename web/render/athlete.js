@@ -48,17 +48,37 @@ function athleteMaterial(waterTint, rich) {
   const key = rich ? 'rich' : 'std';
   if (SHARED.has(key)) return SHARED.get(key);
   // HIGH / ULTRA: physical material with a thin clear coat = film of water on the skin and the wet suit.
-  const m = rich ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.2, clearcoat: 0.8, clearcoatRoughness: 0.12, sheen: 0 })
+  const m = rich ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.2, clearcoat: 1.0, clearcoatRoughness: 0.07, sheen: 0 })
     : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.15 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uUwTint = { value: waterTint }; sh.uniforms.uUwK = UW_STRENGTH;
     sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.32) };
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aRough;\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;\nvarying vec3 vBind;')
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvBind = position;\nvec4 wpA = modelMatrix * vec4(transformed, 1.0);\nvUwY = wpA.y;\nvWp = wpA.xyz;');
+      .replace('#include <common>', '#include <common>\nattribute float aRough;\nattribute float aMus;\nvarying float vRough;\nvarying float vMus;\nvarying vec3 vBindN;\nvarying float vUwY;\nvarying vec3 vWp;\nvarying vec3 vBind;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvMus = aMus;\nvBindN = normal;\nvBind = position;\nvec4 wpA = modelMatrix * vec4(transformed, 1.0);\nvUwY = wpA.y;\nvWp = wpA.xyz;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying float vRough; varying float vUwY; varying vec3 vWp; varying vec3 vBind; uniform vec3 uUwTint; uniform vec3 uRim; uniform float uUwK;
+        varying float vMus; varying vec3 vBindN;
+        float g1(float d, float s) { return exp(-d * d / (s * s)); }
+        // Muscle definition (metres, bind pose): pectoral plateau with a sharp lower edge, sternum groove,
+        // six-pack (linea alba + 3 tendinous lines), oblique V, deltoid separation, serratus, spine and
+        // shoulder blades. Bump-mapped per pixel: crisp shadows without extra triangles.
+        float muscleH(vec3 p, vec3 n) {
+          float ax = abs(p.x), fr = smoothstep(0.1, 0.5, n.z), bk = smoothstep(0.1, 0.5, -n.z), h = 0.0;
+          float pec = smoothstep(0.01, 0.035, ax) * (1.0 - smoothstep(0.15, 0.2, ax)) * smoothstep(-0.105, -0.075, p.y) * (1.0 - smoothstep(0.0, 0.07, p.y));
+          h += fr * pec * 0.006 - fr * g1(p.x, 0.008) * smoothstep(-0.12, -0.08, p.y) * (1.0 - smoothstep(0.03, 0.07, p.y)) * 0.002;
+          float absM = fr * (1.0 - smoothstep(0.07, 0.09, ax)) * smoothstep(-0.4, -0.36, p.y) * (1.0 - smoothstep(-0.13, -0.1, p.y));
+          float rows = g1(p.y + 0.17, 0.007) + g1(p.y + 0.23, 0.007) + g1(p.y + 0.295, 0.008);
+          h += absM * (0.004 - 0.0045 * g1(p.x, 0.007) - 0.003 * rows);
+          h -= fr * g1(ax - 0.1 - (p.y + 0.25) * 0.15, 0.012) * smoothstep(-0.44, -0.36, p.y) * (1.0 - smoothstep(-0.15, -0.1, p.y)) * 0.003;
+          float dd = length(vec3(ax, p.y, p.z) - vec3(0.231, 0.07, 0.075));
+          h += 0.004 * (1.0 - smoothstep(0.04, 0.085, dd)) - 0.002 * g1(dd - 0.088, 0.009);
+          h += smoothstep(0.4, 0.8, abs(n.x)) * smoothstep(-0.15, -0.11, p.y) * (1.0 - smoothstep(-0.03, 0.01, p.y)) * 0.0013 * sin(p.y * 130.0 - ax * 30.0);
+          h -= bk * g1(p.x, 0.011) * smoothstep(-0.46, -0.36, p.y) * (1.0 - smoothstep(0.08, 0.14, p.y)) * 0.003;
+          h += bk * exp(-(pow((ax - 0.09) / 0.05, 2.0) + pow((p.y + 0.01) / 0.07, 2.0))) * 0.0035;
+          return h;
+        }
         float hash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         float vnoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x), mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
@@ -76,9 +96,10 @@ function athleteMaterial(waterTint, rich) {
         float hPore = (vnoise(vBind * 300.0) - 0.5) * aP;
         float dn = vnoise(vBind * 45.0 + 7.3), drop = smoothstep(0.9, 0.97, dn) * step(0.0, vUwY) * aD;
         float hSkin = (hPore * 0.5 + drop * 0.9) * skinK;
+        float hMus = vMus > 0.5 ? muscleH(vBind, normalize(vBindN)) * skinK : 0.0;
         float roughnessFactor = clamp(vRough + hPore * 0.08 * skinK - drop * 0.22 * skinK, 0.04, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
-        normal = bumpN(-vViewPosition, normal, vec2(dFdx(hSkin), dFdy(hSkin)) * 0.0011, faceDirection);`)
+        normal = bumpN(-vViewPosition, normal, vec2(dFdx(hSkin), dFdy(hSkin)) * 0.0011 + vec2(dFdx(hMus), dFdy(hMus)) * 1.6, faceDirection);`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
         gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);   // rim light: detaches the athlete from the background
@@ -109,6 +130,48 @@ export async function loadScanHead(base = 'web/assets/head/') {
 }
 export const scanHeadReady = () => !!HEAD;
 
+/**
+ * Muscle volume (bind pose, metres, y up, z forward): each vertex is pushed along its normal by smooth
+ * muscle bellies placed from the build's joints (pectorals, deltoids, trapezius, latissimus, shoulder
+ * blades, biceps / triceps, forearms, quadriceps, calves). Water polo players' upper body is massive.
+ */
+function muscleVolume(P, N, J) {
+  const g = (d, s) => Math.exp(-(d * d) / (s * s));
+  const seg = (x, y, z, a, b) => {   // distance to segment a-b and position along it
+    const abx = b[0] - a[0], aby = b[1] - a[1], abz = b[2] - a[2], l2 = abx * abx + aby * aby + abz * abz;
+    const t = Math.max(0, Math.min(1, ((x - a[0]) * abx + (y - a[1]) * aby + (z - a[2]) * abz) / l2));
+    return [Math.hypot(x - a[0] - abx * t, y - a[1] - aby * t, z - a[2] - abz * t), t];
+  };
+  const sh = J['l-shoulder'], el = J['l-elbow'], ha = J['l-hand'], hip = J['l-upper-leg'], kn = J['l-knee'], an = J['l-ankle'];
+  for (let i = 0; i < P.length; i += 3) {
+    const x0 = P[i], y = P[i + 1], z = P[i + 2], x = Math.abs(x0), nx = N[i], ny = N[i + 1], nz = N[i + 2];
+    const front = Math.max(0, nz), back = Math.max(0, -nz);
+    let d = 0;
+    // torso (above the hips, inside the shoulders)
+    if (x < sh[0] + 0.04 && y > hip[1]) {
+      d += 0.011 * front * g(x - 0.095, 0.07) * g(y - (sh[1] - 0.08), 0.06);                 // pectorals
+      d += 0.012 * g(Math.hypot(x - 0.12, y - (sh[1] + 0.07)), 0.06) * (0.4 + 0.6 * back) * Math.max(0, ny + 0.3);   // trapezius
+      d += 0.010 * back * g(x - 0.13, 0.06) * g(y - (sh[1] - 0.17), 0.1);                    // latissimus (V back)
+      d += 0.006 * back * g(x - 0.085, 0.05) * g(y - (sh[1] - 0.06), 0.06);                  // shoulder blades
+      d += 0.007 * Math.abs(nx) * g(y - (sh[1] - 0.15), 0.08) * g(x - 0.14, 0.05);           // lats seen from the front
+    }
+    // deltoid cap
+    const dd = Math.hypot(x - sh[0], y - sh[1], z - sh[2]);
+    d += 0.013 * g(dd - 0.045, 0.04) * Math.max(0.2, 1 - Math.max(0, -ny));
+    // upper arm: biceps (front), triceps (back); forearm
+    if (x > sh[0] - 0.03) {
+      const [ru, tu] = seg(x, y, z, sh, el); if (ru < 0.07) d += (0.008 * g(tu - 0.55, 0.25) * (0.5 + 0.5 * front) + 0.006 * g(tu - 0.4, 0.25) * back) * (1 - ru / 0.07);
+      const [rf, tf] = seg(x, y, z, el, ha); if (rf < 0.06) d += 0.006 * g(tf - 0.25, 0.2) * (1 - rf / 0.06);
+    }
+    // legs: quadriceps, hamstrings, calves
+    if (y < hip[1] + 0.02) {
+      const [rq, tq] = seg(x, y, z, hip, kn); if (rq < 0.1) d += (0.009 * g(tq - 0.45, 0.28) * (0.4 + 0.6 * front) + 0.005 * g(tq - 0.85, 0.08) * front * g(x0 * Math.sign(x0) - kn[0] + 0.03, 0.04)) * (1 - rq / 0.1);
+      const [rc, tc] = seg(x, y, z, kn, an); if (rc < 0.08) d += 0.008 * g(tc - 0.28, 0.16) * (0.3 + 0.7 * back) * (1 - rc / 0.08);
+    }
+    P[i] += nx * d; P[i + 1] += ny * d; P[i + 2] += nz * d;
+  }
+}
+
 // ---------------------------------------------------------------- scanned-quality body (HIGH / ULTRA, portraits)
 // MakeHuman base mesh hm08 (CC0 1.0) morphed with its male / muscle / weight targets into 3 builds
 // (lean, athletic, massive), head removed (the scanned head replaces it), skinned offline to this
@@ -123,6 +186,8 @@ export async function loadScanBody(base = 'web/assets/body/') {
   for (let v = 0; v < hdr.variants.length; v++) {
     const a = new Float32Array(buf.slice(o, o + nv * 12)); o += nv * 12;
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a, 3)); g.setIndex(index); g.computeVertexNormals();
+    muscleVolume(a, g.attributes.normal.array, hdr.joints[hdr.variants[v]] || hdr.joints.athletic);   // water polo athlete: pecs, delts, lats, traps, arms, thighs
+    g.computeVertexNormals();
     pos.push(g.attributes.position); nor.push(g.attributes.normal);
   }
   const b4 = new Uint8Array(buf, o, nv * 4); o += nv * 4;
@@ -477,7 +542,7 @@ export class Athlete {
       if (pattern === 'chevron') return z > 0 ? gs(Math.abs(x) * 1.3 - (y - hipY - 0.02), 0.012) * 0.95 : 0;
       return 0;
     };
-    const W = 0.24, S = 0.3, CAP = 0.55, SUIT = 0.36;   // roughness: wet skin, face, wet fabric cap, wet suit
+    const W = 0.19, S = 0.27, CAP = 0.55, SUIT = 0.36;   // roughness: wet skin, face, wet fabric cap, wet suit
     const rich = o.preset.limbSeg >= 10;
     const mat = athleteMaterial(o.waterTint || C(0x0b5d84), rich);
     const bulk = morph.bulk, sw = morph.shoulders, waist = morph.waist;
@@ -794,6 +859,7 @@ export class Athlete {
       const bg = new THREE.BufferGeometry();
       bg.setAttribute('position', Bd.pos[vi]); bg.setAttribute('normal', Bd.nor[vi]); bg.setIndex(Bd.index);
       bg.setAttribute('color', new THREE.BufferAttribute(col, 3)); bg.setAttribute('aRough', new THREE.BufferAttribute(rg, 1));
+      bg.setAttribute('aMus', new THREE.BufferAttribute(new Float32Array(nv).fill(1), 1));   // muscle definition (bind-pose field) applies to this mesh
       bg.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4)); bg.setAttribute('skinWeight', new THREE.BufferAttribute(sw4, 4));
       const bm = new THREE.SkinnedMesh(bg, mat); bm.castShadow = true; bm.frustumCulled = false; bm.bind(skinned.skeleton, skinned.bindMatrix);
       this.root.add(bm);
@@ -880,8 +946,8 @@ export class Athlete {
     // Stroke splash when a hand enters the water (two per cycle).
     if (w.swim > 0.5 && this.onStroke) {
       const twoPi = Math.PI * 2;
-      // hand entry in front of the head: arm phase p = π (right), p = 0 (left, half a cycle later)
-      for (const off of [Math.PI, 2 * Math.PI]) {
+      // hand entry in front of the head: stroke angle π, reached at phase 0.8π (right) and 1.8π (left)
+      for (const off of [0.8 * Math.PI, 1.8 * Math.PI]) {
         if (Math.floor((prev - off) / twoPi) !== Math.floor((this.phase - off) / twoPi)) {
           const h = off < 4 ? this.armR.hand : this.armL.hand;
           h.getWorldPosition(tmpV); this.onStroke(tmpV.x, tmpV.z, 0.4 + speed * 0.35);
@@ -907,16 +973,21 @@ export class Athlete {
     // Head-up front crawl (water polo): head out of the water looking ahead, shoulders roll with each
     // stroke (thorax more than pelvis), arms wide and short at the entry, high-elbow recovery, bent-elbow
     // pull under the body, small fast flutter kick. The head stays level while the shoulders roll.
-    const roll = Math.sin(p) * 0.26 * ROLL_SIGN;   // footage: moderate roll, the head never turns
-    const qR = wrapPos(p), qL = wrapPos(p + Math.PI);
+    // Stroke timing (crawl animation reference): the underwater pull lasts ~60 % of the cycle, the recovery
+    // over the water ~40 % (the arms overlap in front: catch-up). qR / qL = arm angle (0..π recovery, π = entry,
+    // π..2π catch, pull under the body, push to the hip). The trunk rolls up to ~40° toward the recovering
+    // arm, the pelvis follows at 60 %; the head stays level, eyes forward (water polo).
+    const qR = strokeAngle(p), qL = strokeAngle(p + Math.PI);
+    const roll = (Math.sin(qR) - Math.sin(qL)) * 0.5 * 0.42 * ROLL_SIGN;
     const swim = {
-      chestX: -0.18, chestY: roll, chestZ: 0, pelvisY: roll * 0.4, pelvisZ: 0,
-      pitch: 1.0, roll: 0, twist: 0, neck: -0.6, headX: -0.6, headY: -roll * 0.9,
-      // recovery close to the head with the elbow high, short entry in front of the shoulder
-      shRx: qR - 2 * Math.PI, shRz: 0.14 + 0.16 * Math.max(0, Math.sin(qR)), elR: crawlElbow(p),
-      shLx: qL - 2 * Math.PI, shLz: -0.14 - 0.16 * Math.max(0, Math.sin(qL)), elL: crawlElbow(p + Math.PI),
-      hipRx: 0.05 + Math.sin(p * 3) * 0.22, hipRz: 0.06, knR: 0.2 + Math.max(0, Math.sin(p * 3)) * 0.35, knRy: 0,
-      hipLx: 0.05 - Math.sin(p * 3) * 0.22, hipLz: -0.06, knL: 0.2 + Math.max(0, -Math.sin(p * 3)) * 0.35, knLy: 0,
+      chestX: -0.18, chestY: roll, chestZ: 0, pelvisY: roll * 0.6, pelvisZ: 0,
+      pitch: 1.0, roll: 0, twist: 0, neck: -0.6, headX: -0.6, headY: -roll * 0.95,
+      // recovery elbow-led and close to the water, long reach at the entry, S-shaped pull under the body
+      shRx: qR - 2 * Math.PI, shRz: 0.14 + 0.2 * Math.max(0, Math.sin(qR)) - 0.12 * Math.max(0, -Math.sin(qR - 0.35)), elR: crawlElbow(qR),
+      shLx: qL - 2 * Math.PI, shLz: -0.14 - 0.2 * Math.max(0, Math.sin(qL)) + 0.12 * Math.max(0, -Math.sin(qL - 0.35)), elL: crawlElbow(qL),
+      // six-beat flutter kick from the hips, the knee bends a little later (whip), small and fast
+      hipRx: 0.05 + Math.sin(p * 3) * 0.24, hipRz: 0.05, knR: 0.12 + Math.max(0, Math.sin(p * 3 - 0.7)) * 0.42, knRy: 0,
+      hipLx: 0.05 - Math.sin(p * 3) * 0.24, hipLz: -0.05, knL: 0.12 + Math.max(0, -Math.sin(p * 3 - 0.7)) * 0.42, knLy: 0,
       rise: 0.08,   // shoulders high: head-up crawl
     };
     for (const j of JOINTS) P[j] = tread[j] + (swim[j] - tread[j]) * w.swim;
@@ -1164,12 +1235,19 @@ function concatGeometries(list) {
   return out;
 }
 
-/** Elbow in the crawl: bent high during the recovery, slightly bent in the middle of the pull, straight at entry. */
-function crawlElbow(p) {
-  const q = wrapPos(p);
-  // recovery: high elbow, forearm hanging (~70°); pull: early catch, elbow ~45° bent mid-pull, extended at the push
-  // recovery: elbow ~90° (hand passes by the head); entry already slightly bent (short reach); bent pull
-  return -1.55 * Math.max(0, Math.sin(q)) - 0.35 - 0.6 * Math.max(0, -Math.sin(q - 0.3)) + 0.35 * Math.max(0, Math.sin(q));
+/** Arm angle of the crawl from the stroke phase: recovery (0..π) in 40 % of the cycle, pull (π..2π) in 60 %. */
+function strokeAngle(p) {
+  const u = wrapPos(p), R = 0.8 * Math.PI;
+  return u < R ? u / 0.8 : Math.PI + (u - R) / 1.2;
+}
+/**
+ * Elbow in the crawl (stroke angle q): straight at the entry and the reach, high-elbow catch with the forearm
+ * vertical (~100°) early in the pull, extending through the push to the hip, bent ~90° during the recovery.
+ */
+function crawlElbow(q) {
+  q = wrapPos(q);
+  if (q >= Math.PI) { const u = (q - Math.PI) / Math.PI; return -1.75 * Math.sin(Math.min(1, u * 1.6) * Math.PI) * (u < 0.62 ? 1 : 0.7) - 0.1; }   // catch -> pull -> push
+  return -1.55 * Math.sin(q) - 0.1;   // recovery: elbow high, hand close to the water (continuous with the push)
 }
 const ROLL_SIGN = 1;
 /**

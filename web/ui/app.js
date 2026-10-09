@@ -1,7 +1,7 @@
 // WATER POLO 26 MOBILE — front-end screens (landscape only). Every value comes from GameState.
-import { EVENTS, SHOP_ITEMS, TOURNAMENTS, WORLD_COUNTRIES, CONTINENT_INFO, clubById, countryOf, countryClubs, divisionName, DIVS, CLUBS, POOLS, LEAGUES, COUNTRY_LEAGUES, BALL_DESIGNS, defaultKits, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS } from '../state.js';
+import { EVENTS, SHOP_ITEMS, TOURNAMENTS, WORLD_COUNTRIES, CONTINENT_INFO, clubById, countryOf, countryClubs, divisionName, DIVS, CLUBS, POOLS, LEAGUES, COUNTRY_LEAGUES, BALL_DESIGNS, defaultKits, SLOT_ROLES, ROLE_ABBR, COUNTRIES, STAT_KEYS, overall, rarity, formatDuration, dayKey, QUALITIES, SKILLS, maxLevel, tradeValue, DAILY_GIFTS, PACK_SLOTS } from '../state.js';
 import { TACTICS, DRILLS } from '../sim.js';
-import { logoSvg, icon, trophySvg, trophyArt, flagSvg, drillArt, LOGO_SHAPES, LOGO_SYMBOLS, LOGO_PATTERNS } from './art.js';
+import { logoSvg, icon, trophySvg, trophyArt, flagSvg, drillArt, packArt, LOGO_SHAPES, LOGO_SYMBOLS, LOGO_PATTERNS } from './art.js';
 
 const KIT_PATTERNS = ['plain', 'halves', 'stripe', 'sash', 'chevron'];
 
@@ -67,9 +67,10 @@ export class App {
     this.root.className = `app scr-${name}`;
     const same = this.lastScreen === name; this.lastScreen = name;   // re-render of the same screen: no slide-in (editor, filters)
     const sc = this.root.querySelector('.custom-panel, .club-grid'), scroll = same && sc ? sc.scrollTop : 0;
-    this.root.innerHTML = (name === 'results' || name === 'challenge' || name === 'prematch' || name === 'editor' || params.first ? '' : this.header()) + `<main class="screen ${same ? '' : 'anim-in'}">${body}</main>`;
+    this.root.innerHTML = (name === 'results' || name === 'pack' || name === 'challenge' || name === 'prematch' || name === 'editor' || params.first ? '' : this.header()) + `<main class="screen ${same ? '' : 'anim-in'}">${body}</main>`;
     if (scroll) { const n = this.root.querySelector('.custom-panel, .club-grid'); if (n) n.scrollTop = scroll; }
-    this.api.setHero(name === 'home' || name === 'customize' || name === 'editor', name);
+    this.api.setHero(name === 'home' || name === 'clubhub' || name === 'customize' || name === 'editor', name);
+    if (name === 'pack') this.bindPackSwipe();
   }
   tick() {
     if (this.root.classList.contains('hidden')) return;
@@ -142,42 +143,108 @@ export class App {
       </div></button>`;
   }
 
+  /** Home in the order of the reference video: small tiles on the left, the 3D player, JOUER UN CLUB (big),
+   *  JOUER UN TOURNOI + BOUTIQUE, and the 4 reward pack slots on the right. */
   scr_home() {
-    const st = this.st, nm = st.nextLeagueMatch(), me = st.clubInfo('user');
-    const opp = nm ? st.clubInfo(nm.opponent) : null, pool = POOLS.find((x) => x.id === st.data.club.pool) || POOLS[0];
-    const evs = EVENTS.map((e) => [e, st.eventState(e)]);
+    const st = this.st, me = st.clubInfo('user');
+    const evs = EVENTS.map((e) => st.eventState(e));
     const objDone = st.data.objectives.list.filter((o) => !o.claimed && o.progress >= o.n).length;
-    const chev = '<i class="nchev">›</i>';
-    // neon tiles: left = horizontal (icon, label, chevron), right = vertical (icon on top)
-    const L = (cls, act, arg, ic, label, badge = '') => `<button class="ntile ${cls}" data-act="${act}" data-arg="${arg}">${icon(ic, 30)}<span>${label}</span>${chev}${badge}</button>`;
-    const R = (cls, act, arg, ic, label, sub = '', badge = '') => `<button class="ntile v ${cls}" data-act="${act}" data-arg="${arg}">${icon(ic, 32)}<span>${label}</span>${sub ? `<small>${sub}</small>` : ''}${chev}${badge}</button>`;
-    const contentBadge = objDone + (st.giftAvailable() ? 1 : 0) + evs.filter(([, s]) => s.status === 'CLAIMABLE').length;
-    const card = nm ? `<button class="nmatch" data-act="prematch-league">
-        <div class="nm-head">${icon('star', 26)}<span><b>${esc(st.data.league.name || this.L('ui.league'))}</b><small>${this.L('ui.season', nm.season)} - ${this.L('ui.match_n', nm.round, nm.rounds)}</small></span></div>
-        <div class="nm-vs"><div class="nm-team">${logoSvg(me.logo, me.color, me.color2, 96, me.color3)}<b>${esc(me.name)}</b></div>
-          <i class="nm-x">VS</i><div class="nm-team">${logoSvg(opp.logo, opp.color, opp.color2, 96, opp.color3)}<b>${esc(opp.name)}</b></div></div>
-        <div class="nm-foot"><span class="nm-tot">${me.total}</span><span class="nm-pool">${icon('star', 16)}<b>${esc(pool.name)}</b><small>${this.L('ui.weather_indoor')}</small></span>
-          <span class="nm-play">${icon('play', 22)} ${this.L('ui.play')}</span></div></button>` : '';
-    return `<div class="home2">
-      <nav class="h2-left">
-        ${L('n-violet', 'nav', 'shop', 'bag', this.L('ui.shop'))}
-        ${L('n-pink', 'nav', 'team', 'trophy', this.L('ui.team'))}
-        ${L('n-green', 'hub', 'career', 'star', this.L('hub.career'))}
-        ${L('n-blue', 'hub', 'club', 'team', this.L('hub.club'))}
-        ${L('n-orange', 'hub', 'play', 'play', this.L('hub.play'))}
+    const freeBadge = (st.giftAvailable() ? 1 : 0) + evs.filter((s) => s.status === 'CLAIMABLE').length;
+    const S = (cls, act, arg, ic, label, badge = '') => `<button class="sq ${cls}" data-act="${act}" data-arg="${arg}">${icon(ic, 30)}<span>${label}</span>${badge}</button>`;
+    const tours = st.tournamentList().filter((d) => st.tournamentStatus(d) === 'ACTIVE').length;
+    return `<div class="home3">
+      <nav class="h3-left">
+        ${S('s-violet', 'nav', 'events', 'trophy', this.L('ui.events'))}
+        ${S('s-gold', 'hub', 'career', 'star', this.L('hub.career'))}
+        ${S('s-teal', 'nav', 'objectives', 'list', this.L('home.goals'), this.badge(objDone))}
+        ${S('s-orange', 'nav', 'rewards', 'gift', this.L('home.free'), this.badge(freeBadge))}
       </nav>
       <div class="hero-space" data-act="edit-club"></div>
-      <section class="h2-center">${st.pendingPlayoff() ? this.playoffCard() : ''}${card}</section>
-      <nav class="h2-right">
-        ${R('n-blue', 'nav', 'team', 'team', this.L('ui.team'), `${this.L('ui.total')} ${me.total}`)}
-        ${R('n-pink', 'nav', 'tournaments', 'trophy', this.L('tour.title'), '', this.badge(st.tournamentList().filter((d) => st.tournamentStatus(d) === 'ACTIVE').length))}
-        ${R('n-green', 'nav', 'myclub', 'star', this.L('hub.mycareer'))}
-        ${R('n-navy', 'quick', '', 'chart', this.L('ui.quick'))}
-      </nav>
-      <footer class="h2-bottom"><button class="h2-club" data-act="nav" data-arg="myclub">${logoSvg(me.logo, me.color, me.color2, 46, me.color3)}<span><b>${esc(me.name)}</b><small>${this.L('ui.total')} ${me.total}</small></span></button>
-        <div class="h2-arena"><span>${esc(pool.name)}</span></div>
-        <button class="h2-content" data-act="hub" data-arg="content">${icon('gift', 22)}<span>${this.L('hub.content')}</span>${this.badge(contentBadge)}</button></footer>
+      <section class="h3-tiles">
+        <button class="gt gt-club" data-act="nav" data-arg="clubhub"><b>${this.L('home.play_club')}</b>
+          <span class="gt-logo">${logoSvg(me.logo, me.color, me.color2, 110, me.color3)}</span><i class="gt-tot">${this.L('ui.total')} ${me.total}</i>${st.pendingPlayoff() ? `<i class="gt-flag">${this.L('se.po_tag')}</i>` : ''}</button>
+        <button class="gt gt-tour" data-act="nav" data-arg="tournaments"><b>${this.L('home.play_tour')}</b><span class="gt-art">${trophyArt('bigear', 92)}</span>${this.badge(tours)}</button>
+        <button class="gt gt-shop" data-act="nav" data-arg="shop"><b>${this.L('ui.shop')}</b><span class="gt-shopart">${icon('bag', 44)}${icon('cap', 34)}</span></button>
+      </section>
+      <aside class="h3-packs">${this.packSlots()}</aside>
     </div>`;
+  }
+  /** The 4 pack slots (home + club hub): a won pack opens with a tap, an empty slot says what fills it. */
+  packSlots() {
+    const P = this.st.data.packs, out = [];
+    for (let i = 0; i < PACK_SLOTS; i++) {
+      const pk = P.slots[i];
+      out.push(pk ? `<button class="pslot full t${pk.tier}" data-act="open-pack" data-arg="${pk.id}">${packArt(pk.tier, this.L('pack.t' + pk.tier), '', 46)}<span>${this.L('pack.t' + pk.tier)}<small>${this.L(pk.source === 'season' ? 'pack.season' : 'pack.match')}</small></span></button>`
+        : `<div class="pslot"><span>${this.L(i === PACK_SLOTS - 1 ? 'pack.season' : 'pack.match')}</span></div>`);
+    }
+    return out.join('');
+  }
+  /** JOUER UN CLUB: ranking / customise / squad / friendly on the left, the next championship match (→ line-up → play),
+   *  the pool (STADE) and the shop; the pack slots stay on the right. */
+  scr_clubhub() {
+    const st = this.st, nm = st.nextLeagueMatch(), me = st.clubInfo('user'), opp = nm ? st.clubInfo(nm.opponent) : null;
+    const pool = POOLS.find((x) => x.id === st.data.club.pool) || POOLS[0], lg = st.data.league;
+    const S = (cls, act, arg, ic, label) => `<button class="sq ${cls}" data-act="${act}" data-arg="${arg}">${icon(ic, 30)}<span>${label}</span></button>`;
+    const match = st.pendingPlayoff() ? `<div class="gt gt-match po">${this.playoffCard()}</div>` : nm ? `<button class="gt gt-match" data-act="team-tab-go" data-arg="starters">
+        <b>${esc(lg.name)}<small>${this.L('ui.season', nm.season)} · ${this.L('ui.match_n', nm.round, nm.rounds)} · ${nm.home ? this.L('ui.home_pool') : this.L('ui.away_pool')}</small></b>
+        <span class="gm-vs"><span>${logoSvg(me.logo, me.color, me.color2, 92, me.color3)}<i>${me.total}</i></span><em>VS</em><span>${logoSvg(opp.logo, opp.color, opp.color2, 92, opp.color3)}<i>${opp.total}</i></span></span>
+        <small class="gm-opp">${esc(opp.name)}</small></button>`
+      : `<button class="gt gt-match" data-act="nav" data-arg="seasonend"><b>${this.L('se.title')}</b></button>`;
+    return `<div class="home3 hub3">
+      <nav class="h3-left">
+        ${S('s-green', 'nav', 'ranking', 'chart', this.L('home.ranking'))}
+        ${S('s-green', 'edit-club', '', 'cap', this.L('ui.customize'))}
+        ${S('s-teal', 'hub', 'club', 'team', this.L('hub.club'))}
+        ${S('s-orange', 'quick', '', 'play', this.L('ui.quick'))}
+      </nav>
+      <div class="hero-space" data-act="edit-club"></div>
+      <section class="h3-tiles">${match}
+        <button class="gt gt-pool" data-act="pool-pick"><b>${this.L('home.stadium')}</b><span class="gt-art">${icon('pool', 54) || ''}</span><small>${esc(pool.name)}</small></button>
+        <button class="gt gt-shop" data-act="nav" data-arg="shop"><b>${this.L('ui.shop')}</b><span class="gt-shopart">${icon('bag', 44)}${icon('cap', 34)}</span></button>
+      </section>
+      <aside class="h3-packs">${this.packSlots()}</aside>
+      <footer class="h3-back">${this.backBtn()}</footer>
+    </div>`;
+  }
+  /** Pack opening (after every match, or from a slot): swipe / tap to tear, the cards fan out face down, tap to reveal. */
+  scr_pack({ id }) {
+    const pk = this.st.findPack(id);
+    if (!pk) return `<div class="pack-scr"><footer class="bar"><button class="btn play" data-act="pack-done">${this.L('ui.continue')}</button></footer></div>`;
+    return `<div class="pack-scr t${pk.tier}" data-pack="${pk.id}">
+      <div class="pk-stage"><div class="pk-wrap" data-act="pack-tear" data-arg="${pk.id}">${packArt(pk.tier, this.L('pack.t' + pk.tier), this.L(pk.source === 'season' ? 'pack.season' : 'pack.match'), 190)}</div>
+        <p class="pk-hint"><i class="pk-hand">👆</i>${this.L('pack.swipe')}</p></div>
+      <div class="pk-cards"></div>
+      <footer class="pk-bar"><button class="btn pk-all hidden" data-act="pack-all">${this.L('pack.reveal_all')}</button><button class="btn play big pk-done hidden" data-act="pack-done">${this.L('ui.continue')}</button></footer></div>`;
+  }
+  packCard(c, i) {
+    const k = c.kind, art = k === 'token' ? icon('token' + c.q, 64) : icon({ coins: 'coin', gems: 'gem', tp: 'dumbbell', medkits: 'medkit', energy: 'bolt' }[k], 64);
+    const front = k === 'player' ? `<div class="pkc-player">${this.card(this.st.player(c.id), undefined, { act: 'noop' })}<b>${this.L('pack.new_player')}</b></div>`
+      : `<div class="pkc-face"><b>${c.n.toLocaleString('fr-FR')}</b><span>${this.L(k === 'token' ? 'pack.token' + c.q : 'pack.k_' + k)}</span>${art}</div>`;
+    return `<div role="button" tabindex="0" class="pkc ${k === 'player' ? 'is-player' : ''}" data-act="pack-flip" style="--i:${i}"><div class="pkc-in"><div class="pkc-back"><i>WATER POLO</i><b>26</b></div><div class="pkc-front">${front}</div></div></div>`;
+  }
+  /** Tears the pack (the reward is granted here, so leaving the screen never loses it). */
+  tearPack(id) {
+    const scr = this.root.querySelector('.pack-scr'); if (!scr || scr.classList.contains('torn')) return;
+    const r = this.st.openPack(+id); if (!r) return;
+    scr.classList.add('torn'); this.api.haptic && this.api.haptic([15, 40, 25]); this.api.rewardSound && this.api.rewardSound();
+    this.refreshHeader && this.refreshHeader();
+    setTimeout(() => {
+      const box = scr.querySelector('.pk-cards'); box.innerHTML = r.cards.map((c, i) => this.packCard(c, i)).join('');
+      scr.classList.add('dealt'); scr.querySelector('.pk-all').classList.remove('hidden');
+    }, 650);
+  }
+  flipPack(btn) {
+    btn.classList.add('flip'); this.api.haptic && this.api.haptic(10);
+    const scr = this.root.querySelector('.pack-scr');
+    if (![...scr.querySelectorAll('.pkc')].some((b) => !b.classList.contains('flip'))) { scr.querySelector('.pk-all').classList.add('hidden'); scr.querySelector('.pk-done').classList.remove('hidden'); scr.classList.add('revealed'); }
+  }
+  /** Swipe on the pack = tear it open (as in the reference video). */
+  bindPackSwipe() {
+    const w = this.root.querySelector('.pk-wrap'); if (!w) return;
+    let x0 = null, y0 = null;
+    w.addEventListener('pointerdown', (e) => { x0 = e.clientX; y0 = e.clientY; try { w.setPointerCapture(e.pointerId); } catch { /* old browsers */ } });
+    w.addEventListener('pointermove', (e) => { if (x0 === null) return; const d = Math.hypot(e.clientX - x0, e.clientY - y0); w.style.transform = `rotate(${Math.max(-8, Math.min(8, (e.clientX - x0) / 12))}deg)`; if (d > 40) { x0 = null; w.style.transform = ''; this.tearPack(w.dataset.arg); } });
+    w.addEventListener('pointerup', () => { x0 = null; w.style.transform = ''; });
   }
 
   scr_team() {
@@ -693,13 +760,22 @@ export class App {
       <div class="res-body"><div class="res-stats">${rows.map(([x, k, y]) => `<div class="sr"><b>${x}</b><span>${this.L(k)}</span><b>${y}</b></div>`).join('')}</div>
       <div class="res-rew"><div class="rw">${icon('coin', 30)}<b>+${s.coins}</b></div><div class="rw">${icon('star', 30)}<b>+${s.xp} ${this.L('ui.xp')}</b></div><div class="rw">${icon('dumbbell', 30)}<b>+${s.tp}</b></div>${s.medkits ? `<div class="rw">${icon('medkit', 30)}<b>+${s.medkits}</b></div>` : ''}
       ${notes.map((n) => `<p>${esc(n)}</p>`).join('')}</div></div>
-      <div class="pm-actions">
-      ${s.season ? `<button class="btn gold big" data-act="nav" data-arg="seasonend">${icon('trophy', 20)} ${this.L('se.title')}</button>`
-        : `<button class="btn play big" data-act="${s.tournament ? 'tour-back' : 'home'}" data-arg="${s.tournament ? s.tournament.def : ''}">${this.L('ui.continue')}</button>`}</div></div>`;
+      <div class="pm-actions">${this.resultPack(s)}</div></div>`;
+  }
+  /** End of match: the won pack (4 levels) → OUVRIR (pack screen), or keep it in its slot and continue. */
+  resultPack(s) {
+    const next = s.season ? { act: 'nav', arg: 'seasonend' } : s.tournament ? { act: 'tour-back', arg: s.tournament.def } : { act: 'home', arg: '' };
+    this.afterPack = next;
+    const pk = s.pack && this.st.findPack(s.pack.id), cont = s.season ? `${icon('trophy', 20)} ${this.L('se.title')}` : this.L('ui.continue');
+    if (!pk) return `<button class="btn ${s.season ? 'gold' : 'play'} big" data-act="${next.act}" data-arg="${next.arg}">${cont}</button>`;
+    const inSlot = this.st.data.packs.slots.includes(pk);
+    return `<div class="res-pack t${pk.tier}">${packArt(pk.tier, this.L('pack.t' + pk.tier), this.L('pack.match'), 54)}<span><small>${this.L('pack.won')}</small><b>${this.L('pack.full', this.L('pack.t' + pk.tier))}</b></span></div>
+      ${inSlot ? `<button class="btn big" data-act="${next.act}" data-arg="${next.arg}">${this.L('pack.later')}</button>` : ''}
+      <button class="btn gold big" data-act="pack-open-now" data-arg="${pk.id}">${icon('gift', 20)} ${this.L('pack.open')}</button>`;
   }
 
   // ------------------------------------------------------------------ actions
-  async act(a, arg) {
+  async act(a, arg, el) {
     const st = this.st;
     switch (a) {
       case 'nav': this.show(arg); break;
@@ -754,6 +830,17 @@ export class App {
       case 'quick': { const c = CLUBS[Math.floor(Math.random() * CLUBS.length)]; this.show('prematch', { mode: 'quick', opponent: c.id, title: this.L('ui.quick') }); break; }
       case 'go': this.hide(); this.api.startMatch(this.current.params); break;
       case 'hub': this.show('hub', { id: arg }); break;
+      case 'pack-open-now': this.show('pack', { id: +arg }, false); break;
+      case 'open-pack': this.afterPack = null; this.show('pack', { id: +arg }); break;
+      case 'pack-tear': this.tearPack(arg); break;
+      case 'pack-flip': if (el && !el.classList.contains('flip')) this.flipPack(el); else if (el && el.classList.contains('is-player')) { const c = el.querySelector('.pcard'); if (c) this.playerSheet(st.player(c.dataset.arg)); } break;
+      case 'pack-all': this.root.querySelectorAll('.pkc:not(.flip)').forEach((b, i) => setTimeout(() => this.flipPack(b), i * 120)); break;
+      case 'pack-done': { const n = this.afterPack; this.afterPack = null; if (n && n.act === 'tour-back') { this.act('tour-back', n.arg); break; } if (n && n.act === 'nav') { this.show(n.arg, {}, false); break; } if (n) this.home(); else this.back(); break; }
+      case 'pool-pick': {   // STADE: the home pool (its ambience is used in home matches)
+        const cur = st.data.club.pool;
+        await this.modal(this.L('home.stadium'), `<p>${this.L('home.stadium_d')}</p>`, POOLS.map((pl) => [`${pl.id === cur ? '✔ ' : ''}${esc(pl.name)} · ${this.L('amb.' + pl.ambience.toLowerCase())}`, () => { st.data.club.pool = pl.id; st.save(); }]));
+        this.api.refreshHero(); this.render(); break;
+      }
       case 'team-tab-go': this.teamTab = arg; this.show('team'); break;
       case 'sheet': this.playerSheet(st.player(arg)); break;
       case 'change-club': if (await this.confirm(this.L('mc.change_warn'))) { this.pickId = null; this.show('clubs'); } break;

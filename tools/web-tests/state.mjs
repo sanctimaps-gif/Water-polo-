@@ -1,5 +1,5 @@
 // Run: node tools/web-tests/state.mjs — game state rules: every displayed value must be real.
-import { GameState, clubById, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue } from '../../web/state.js';
+import { GameState, clubById, EVENTS, SHOP_ITEMS, overall, matchStats, maxLevel, tradeValue, packTier, PACK_TIERS, PACK_SLOTS } from '../../web/state.js';
 import { Match } from '../../web/sim.js';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const st = new GameState();
@@ -151,4 +151,19 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
   const mp = m.teams[0].players.find((p) => p.slot === 2), sub = st.bench().find((p) => p.role !== 'GOALKEEPER'); mp.stamina = 0.3;
   m.substitute(mp, st.playerDef(sub, 2)); for (let i = 0; i < 50; i++) m.step();
   ok(mp.pid === sub.id && mp.name.endsWith(sub.lastName) && mp.stamina > 0.9 && mp.stats.shooting === st.playerDef(sub, 2).stats.shooting, 'substitution: new player in the water, fresh, with his own stats'); }
+// Reward packs: 4 levels from the result, every card is a real resource granted on opening.
+{ ok(packTier('league', 1, 3) === 0 && packTier('league', 4, 4) === 1 && packTier('league', 5, 4) === 2 && packTier('league', 8, 5) === 3 && packTier('tournament', 6, 5) === 3 && packTier('quick', 9, 1) === 1,
+    'pack level: loss bronze, draw silver, win gold, +3 goals elite, tournament win +1, quick max silver');
+  const s = new GameState(), Z = { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 };
+  const nm = s.nextLeagueMatch(), out = s.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 3, as: 2, stats: Z });
+  ok(out.pack && out.pack.tier === 2 && s.data.packs.slots.length === 1, 'every match gives a pack (win = gold), stored in a slot');
+  const c0 = { ...s.data.currencies, tokens: [...s.data.currencies.tokens] }, r = s.openPack(out.pack.id), g = (k) => r.cards.filter((c) => c.kind === k).reduce((a, c) => a + c.n, 0);
+  ok(s.data.currencies.coins === c0.coins + g('coins') && s.data.currencies.tp === c0.tp + g('tp') && s.data.currencies.gems === c0.gems + g('gems') && s.data.currencies.medkits === c0.medkits + g('medkits')
+    && s.data.currencies.energy === c0.energy + g('energy') && s.data.currencies.tokens[0] === c0.tokens[0] + 1 && s.data.packs.slots.length === 0 && g('coins') >= PACK_TIERS[2].coins[0],
+    `gold pack opened: ${r.cards.map((c) => c.kind + ' ' + c.n).join(', ')} — all granted, slot freed`);
+  ok(s.openPack(out.pack.id) === null, 'a pack opens only once');
+  const n0 = s.squad.length, e = s.addPack(3), re = s.openPack(e.id), pc = re.cards.find((c) => c.kind === 'player');
+  ok(pc && s.squad.length === n0 + 1 && s.player(pc.id) && re.cards.length >= 6, 'ELITE pack: a new player joins the squad');
+  for (let i = 0; i < PACK_SLOTS + 1; i++) s.addPack(i % 4);
+  ok(s.data.packs.slots.length === PACK_SLOTS && s.data.packs.fresh && s.findPack(s.data.packs.fresh.id), '4 slots: a 5th pack must be opened now'); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

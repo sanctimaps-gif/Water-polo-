@@ -94,6 +94,29 @@ const OBJECTIVE_POOL = [
   { id: 'saves', n: 5, reward: { coins: 150 } },
   { id: 'shots', n: 12, reward: { coins: 120 } },
 ];
+// ---------------------------------------------------------------- reward packs
+/**
+ * 4 pack levels, earned at the end of EVERY match (never sold): the result decides the level.
+ * Each card of a pack is a real resource of the game (coins, gems, training points, medical kits,
+ * energy drinks, quality tokens, a new player). Ranges are [min, max].
+ */
+export const PACK_TIERS = [
+  { id: 'bronze', coins: [120, 200], tp: [40, 80], extra: 1 },
+  { id: 'silver', coins: [220, 320], tp: [80, 140], gems: [1, 2], medkits: 1, extra: 1 },
+  { id: 'gold', coins: [380, 520], tp: [140, 220], gems: [3, 5], medkits: 1, extra: 1, token: 0 },
+  { id: 'elite', coins: [650, 900], tp: [250, 350], gems: [6, 10], medkits: 2, energy: 1, token: 1, player: true },
+];
+export const PACK_SLOTS = 4;
+/** Pack level of a match: defeat → bronze, draw → silver, win → gold, win by 3+ goals → elite;
+ *  a won tournament / playoff match goes up one level; a quick match gives at most silver. */
+export function packTier(mode, hs, as) {
+  let t = hs > as ? 2 : hs === as ? 1 : 0;
+  if (hs - as >= 3) t = 3;
+  if (hs > as && (mode === 'tournament' || mode === 'playoff')) t = Math.min(3, t + 1);
+  if (mode === 'quick') t = Math.min(1, t);
+  return t;
+}
+
 export const DAILY_GIFTS = [{ coins: 100, medkits: 1 }, { coins: 150, tp: 100 }, { coins: 200, energy: 1 }, { coins: 250, gems: 1, medkits: 1 }, { coins: 300, tp: 150 }, { coins: 350, energy: 1 }, { coins: 400, gems: 5, token: 0 }];
 
 // ---------------------------------------------------------------- progression
@@ -236,6 +259,7 @@ function defaultState() {
     events: {},
     objectives: { day: '', list: [] },
     gift: { lastDay: '', streak: 0 },
+    packs: { slots: [], fresh: null, seq: 0, opened: 0 },
   };
 }
 
@@ -262,6 +286,7 @@ export class GameState {
         raw.tournaments ??= {}; raw.clubChosen ??= true; raw.challenges ??= {};
         // Saves made before the 5-division world: career in division 1 of the club's country.
         raw.career ??= { country: countryOf(cl.country) ? cl.country : 'FRA', division: 1 }; raw.world ??= {}; raw.careerHistory ??= []; raw.seasonEnd ??= null; raw.continental ??= null;
+        raw.packs ??= { slots: [], fresh: null, seq: 0, opened: 0 };
         if (!raw.league.division || Object.keys(raw.league.table).some((id) => id !== 'user' && !clubById(id))) raw.league = null;   // rebuilt by the constructor
         return raw;
       }
@@ -406,6 +431,7 @@ export class GameState {
     if (promoted) { pr.trophies.push({ name: 'promotion' + d0, season: se.season, date: Date.now() }); add({ coins: 500, gems: 10, token: 1 }); }
     if (mine) add({ coins: 300, gems: 5 });
     this.grant(reward);
+    this.addPack(champion || promoted ? 3 : pos <= 3 ? 2 : 1, 'season');   // PACK DE SAISON
     const summary = { season: se.season, country: code, division: d0, divisionName: divisionName(code, d0), newDivision: moves.userTo, newDivisionName: divisionName(code, moves.userTo),
       table: se.table, ranking: se.ranking, position: pos, playoff: se.playoff, promoted: d0 > 1 ? moves.promoted[d0] : null, relegated: moves.relegated[d0] || [],
       champion: rankings[0][0], continental: d0 === 1 ? places : null, myPlace: mine || null, userPromoted: promoted, userChampion: champion, reward,
@@ -676,6 +702,44 @@ export class GameState {
     if (r.token !== undefined) c.tokens[r.token]++;
   }
 
+  // ------------------------------------------------ reward packs
+  /** New pack: into a free slot (4), otherwise it must be opened now (`fresh`). */
+  addPack(tier, source = 'match') {
+    const P = this.data.packs, pack = { id: ++P.seq, tier, source, seed: (Date.now() ^ Math.imul(P.seq, 2654435761)) >>> 0 };
+    if (P.slots.length < PACK_SLOTS) P.slots.push(pack);
+    else { if (P.fresh) this.openPack(P.fresh.id); P.fresh = pack; }
+    return pack;
+  }
+  findPack(id) { const P = this.data.packs; return P.slots.find((p) => p.id === id) || (P.fresh && P.fresh.id === id ? P.fresh : null); }
+  /** Opens a pack: draws its cards (deterministic from its seed), grants them, frees the slot. */
+  openPack(id) {
+    const P = this.data.packs, pack = this.findPack(id); if (!pack) return null;
+    const T = PACK_TIERS[pack.tier], rng = new Rng(pack.seed), roll = ([a, b]) => Math.round(a + (b - a) * rng.f());
+    const cards = [{ kind: 'coins', n: roll(T.coins) }, { kind: 'tp', n: roll(T.tp) }];
+    if (T.gems) cards.push({ kind: 'gems', n: roll(T.gems) });
+    if (T.medkits) cards.push({ kind: 'medkits', n: T.medkits });
+    if (T.energy) cards.push({ kind: 'energy', n: T.energy });
+    if (T.extra) cards.push(rng.f() < 0.5 ? { kind: 'medkits', n: 1 } : { kind: 'energy', n: 1 });
+    if (T.token !== undefined) cards.push({ kind: 'token', q: T.token, n: 1 });
+    if (T.player) {
+      const p = this.squad.length < 18 ? this.packPlayer(rng, pack.id) : null;
+      cards.push(p ? { kind: 'player', id: p.id } : { kind: 'token', q: 2, n: 1 });   // full squad (18): a gold token instead
+    }
+    const merged = [];   // same resource twice -> one card
+    for (const c of cards) { const m = c.kind !== 'player' && merged.find((x) => x.kind === c.kind && x.q === c.q); if (m) m.n += c.n; else merged.push(c); }
+    for (const c of merged) if (c.kind === 'token') this.data.currencies.tokens[c.q] += c.n; else if (c.kind !== 'player') this.grant({ [c.kind]: c.n });
+    P.slots = P.slots.filter((p) => p !== pack); if (P.fresh === pack) P.fresh = null;
+    P.opened++; this.save();
+    return { tier: pack.tier, source: pack.source, cards: merged };
+  }
+  /** ÉLITE pack player: around the club level, a little above the recruitment range. */
+  packPlayer(rng, n) {
+    const roles = ['GOALKEEPER', 'CENTER', 'DEFENDER', 'WINGER', 'PLAYMAKER', 'FINISHER', 'ALL_ROUNDER'];
+    const used = new Set(this.squad.map((p) => p.number)); let num = 2; while (used.has(num)) num++;
+    const p = makePlayer(rng, `pk${n}${Date.now().toString(36)}`, roles[Math.floor(rng.f() * roles.length)], this.teamTotal().total - 4 + Math.floor(rng.f() * 9), null, num);
+    this.squad.push(p); return p;
+  }
+
   // ------------------------------------------------ XP / level
   xpForLevel(l) { return 400 + l * 100; }
   addXp(x) {
@@ -890,6 +954,8 @@ export class GameState {
       this.data.events[ev.id] = { cycle: st.cycle, progress, claimed: false };
       out.event = { id: ev.id, progress, total: ev.matches, won: win };
     }
+    // Reward pack of the match (4 levels)
+    out.pack = this.addPack(packTier(ctx.mode, res.hs, res.as), 'match');
     pr.history.unshift({ date: Date.now(), mode: ctx.mode, opponent: ctx.opponent, hs: res.hs, as: res.as });
     pr.history.length = Math.min(pr.history.length, 20);
     this.save();

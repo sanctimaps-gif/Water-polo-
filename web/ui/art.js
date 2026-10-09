@@ -55,6 +55,7 @@ const I = {
   gift: '<path d="M3 9h18v4H3Zm2 5h6v7H5Zm8 0h6v7h-6ZM11 9h2v12h-2Zm1-1C9 8 7 7 7 5.5S9 3 12 8c3-5 5-4 5-2.5S15 8 12 8Z" fill="currentColor"/>',
   team: '<circle cx="8" cy="8" r="3" fill="currentColor"/><circle cx="16" cy="8" r="3" fill="currentColor"/><path d="M2 19a6 6 0 0 1 12 0Zm8 0a6 6 0 0 1 12 0Z" fill="currentColor"/>',
   calendar: '<path d="M4 6h16v14H4Zm2 4v8h12v-8ZM7 3h2v4H7Zm8 0h2v4h-2Z" fill="currentColor"/>',
+  pool: '<path d="M2 13q5-6 10-6t10 6v5H2Z" fill="currentColor" opacity=".35"/><path d="M2 13q5-6 10-6t10 6M5 15h14M7 18h10" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M4 11V8m4 1V6m8 3V6m4 5V8" stroke="currentColor" stroke-width="1.4"/>',
   bag: '<path d="M5 8h14l-1 13H6Zm3 0a4 4 0 0 1 8 0h-2a2 2 0 0 0-4 0Z" fill="currentColor"/>',
   coin: '<circle cx="12" cy="12" r="9" fill="#f5c21b" stroke="#a87700" stroke-width="2"/><path d="M12 7v10M9.5 9.5h4a1.7 1.7 0 0 1 0 3.4h-3a1.7 1.7 0 0 0 0 3.4h4" fill="none" stroke="#7a5300" stroke-width="1.8"/>',
   gem: '<path d="M6 4h12l4 5-10 12L2 9Z" fill="#33d6ff" stroke="#0a8fb8" stroke-width="1.5"/><path d="M2 9h20M8 4l4 17 4-17" fill="none" stroke="#0a8fb8" stroke-width="1"/>',
@@ -131,4 +132,29 @@ export function drillArt(kind, w = 150) {
   };
   return `<svg class="drill-art" width="${w}" height="${Math.round(w * 0.66)}" viewBox="0 0 150 100" aria-hidden="true"><defs><marker id="ah" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0 0L6 3L0 6Z" fill="#ffd21a"/></marker></defs>
     <rect x="2" y="4" width="146" height="92" rx="6" fill="#0003" stroke="#fff5"/>${S[kind] || ''}</svg>`;
+}
+
+/** Reward pack (original drawing): crimped foil of the tier colour, pool-water body, items, diagonal banner. */
+const PACK_FOIL = [['#5a2c10', '#d58a4c', '#8a4b23'], ['#4d5664', '#eef2f7', '#8d99a8'], ['#6b4a00', '#ffe07a', '#b8860b'], ['#2a0a5a', '#d79bff', '#6d28c9']];
+export function packArt(tier, label, sub, w = 150) {
+  const [d, l, m] = PACK_FOIL[tier] || PACK_FOIL[0], id = 'pk' + tier;
+  const crimp = (y, dir) => Array.from({ length: 21 }, (_, i) => `${i * 5},${y + (i % 2 ? dir * 3 : 0)}`).join(' ');
+  return `<svg class="pack-art" width="${w}" height="${Math.round(w * 1.5)}" viewBox="0 0 100 150" aria-hidden="true">
+    <defs><linearGradient id="${id}f" x1="0" x2="1"><stop offset="0" stop-color="${d}"/><stop offset=".45" stop-color="${l}"/><stop offset=".55" stop-color="${m}"/><stop offset="1" stop-color="${d}"/></linearGradient>
+      <linearGradient id="${id}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0fb3d6"/><stop offset=".55" stop-color="#0a5f9e"/><stop offset="1" stop-color="#062a55"/></linearGradient>
+      <linearGradient id="${id}s" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>
+    <g class="pk-top"><polygon points="0,0 100,0 ${crimp(12, 1).split(' ').reverse().join(' ')}" fill="url(#${id}f)"/>${[3, 6, 9].map((y) => `<path d="M0 ${y}H100" stroke="${d}" stroke-width=".6" opacity=".6"/>`).join('')}</g>
+    <polygon points="${crimp(12, 1)} 100,138 ${crimp(138, -1).split(' ').reverse().join(' ')}" fill="url(#${id}b)"/>
+    ${[0, 1, 2, 3, 4, 5].map((i) => `<path d="M${-30 + i * 24} 150L${30 + i * 24} 12" stroke="#ffffff" stroke-width="5" opacity=".07"/>`).join('')}
+    <path d="M6 44q11-6 22 0t22 0t22 0t22 0" stroke="#7fe8ff" stroke-width="1.6" fill="none" opacity=".5"/>
+    <text x="8" y="27" fill="#fff" font-size="9.5" font-weight="900" font-style="italic" font-family="system-ui,sans-serif">WATER POLO</text><text x="70" y="28" fill="#ffd21a" font-size="13" font-weight="900" font-style="italic" font-family="system-ui,sans-serif">26</text>
+    <circle cx="36" cy="66" r="15" fill="#ffd21a" stroke="#0005"/><path d="M22 61q14 8 28 0M25 76q11-14 22 0M36 51q-6 15 0 30" stroke="#1a3a8a" stroke-width="2.4" fill="none"/>
+    <g transform="translate(58 52)"><rect width="26" height="20" rx="3" fill="#fff"/><path d="M10 5h6v4h4v6h-4v4h-6v-4H6V9h4Z" fill="#e5402e" transform="translate(0 -2)"/></g>
+    ${[0, 1, 2].map((i) => `<ellipse cx="${28 + i * 9}" cy="${92 - i * 3}" rx="8" ry="3.4" fill="#f2c81a" stroke="#8a6a00" stroke-width=".8"/>`).join('')}
+    <rect x="62" y="80" width="18" height="12" rx="2" fill="#2fbf71" stroke="#0a5a30"/><text x="71" y="89" text-anchor="middle" fill="#fff" font-size="7" font-weight="900">+</text>
+    <g transform="rotate(-24 50 112)"><rect x="-10" y="100" width="120" height="25" fill="url(#${id}f)" stroke="${d}" stroke-width="1"/>
+      <text x="50" y="114" text-anchor="middle" fill="${tier === 1 ? '#1b2330' : '#fff'}" font-size="13" font-weight="900" font-style="italic" font-family="system-ui,sans-serif" stroke="#0004" stroke-width=".4">${label}</text>
+      <text x="50" y="122" text-anchor="middle" fill="${tier === 1 ? '#1b2330' : '#fff'}" font-size="5.5" font-weight="800" font-family="system-ui,sans-serif" letter-spacing=".8">${sub}</text></g>
+    <polygon points="${crimp(138, -1)} 100,150 0,150" fill="url(#${id}f)"/>
+    <rect class="pk-shine" x="-60" y="0" width="40" height="150" fill="url(#${id}s)" transform="skewX(-14)"/></svg>`;
 }

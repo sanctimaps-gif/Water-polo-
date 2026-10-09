@@ -144,37 +144,39 @@ export class App {
 
   scr_home() {
     const st = this.st, nm = st.nextLeagueMatch(), me = st.clubInfo('user');
-    const opp = nm ? st.clubInfo(nm.opponent) : null, pool = POOLS[(nm ? nm.round : 0) % POOLS.length];
+    const opp = nm ? st.clubInfo(nm.opponent) : null, pool = POOLS.find((x) => x.id === st.data.club.pool) || POOLS[0];
     const evs = EVENTS.map((e) => [e, st.eventState(e)]);
-    const nextEv = evs.find(([, s]) => s.status !== 'LOCKED' && s.status !== 'COMPLETED');
     const objDone = st.data.objectives.list.filter((o) => !o.claimed && o.progress >= o.n).length;
-    return `<div class="home">
-      <nav class="tiles-left hubs">
-        <button class="tile t-orange" data-act="hub" data-arg="play">${icon('play', 26)}<span>${this.L('hub.play')}</span></button>
-        <button class="tile t-blue" data-act="hub" data-arg="club">${icon('team', 26)}<span>${this.L('hub.club')}</span></button>
-        <button class="tile t-green" data-act="hub" data-arg="career">${icon('star', 26)}<span>${this.L('hub.career')}</span></button>
-        <button class="tile t-magenta" data-act="hub" data-arg="content">${icon('gift', 26)}<span>${this.L('hub.content')}</span>${this.badge(objDone + (st.giftAvailable() ? 1 : 0) + evs.filter(([, s]) => s.status === 'CLAIMABLE').length)}</button>
-        <button class="tile t-violet" data-act="nav" data-arg="shop">${icon('bag', 26)}<span>${this.L('ui.shop')}</span></button>
+    const chev = '<i class="nchev">›</i>';
+    // neon tiles: left = horizontal (icon, label, chevron), right = vertical (icon on top)
+    const L = (cls, act, arg, ic, label, badge = '') => `<button class="ntile ${cls}" data-act="${act}" data-arg="${arg}">${icon(ic, 30)}<span>${label}</span>${chev}${badge}</button>`;
+    const R = (cls, act, arg, ic, label, sub = '', badge = '') => `<button class="ntile v ${cls}" data-act="${act}" data-arg="${arg}">${icon(ic, 32)}<span>${label}</span>${sub ? `<small>${sub}</small>` : ''}${chev}${badge}</button>`;
+    const contentBadge = objDone + (st.giftAvailable() ? 1 : 0) + evs.filter(([, s]) => s.status === 'CLAIMABLE').length;
+    const card = nm ? `<button class="nmatch" data-act="prematch-league">
+        <div class="nm-head">${icon('star', 26)}<span><b>${esc(st.data.league.name || this.L('ui.league'))}</b><small>${this.L('ui.season', nm.season)} - ${this.L('ui.match_n', nm.round, nm.rounds)}</small></span></div>
+        <div class="nm-vs"><div class="nm-team">${logoSvg(me.logo, me.color, me.color2, 96, me.color3)}<b>${esc(me.name)}</b></div>
+          <i class="nm-x">VS</i><div class="nm-team">${logoSvg(opp.logo, opp.color, opp.color2, 96, opp.color3)}<b>${esc(opp.name)}</b></div></div>
+        <div class="nm-foot"><span class="nm-tot">${me.total}</span><span class="nm-pool">${icon('star', 16)}<b>${esc(pool.name)}</b><small>${this.L('ui.weather_indoor')}</small></span>
+          <span class="nm-play">${icon('play', 22)} ${this.L('ui.play')}</span></div></button>` : '';
+    return `<div class="home2">
+      <nav class="h2-left">
+        ${L('n-violet', 'nav', 'shop', 'bag', this.L('ui.shop'))}
+        ${L('n-pink', 'nav', 'team', 'trophy', this.L('ui.team'))}
+        ${L('n-green', 'hub', 'career', 'star', this.L('hub.career'))}
+        ${L('n-blue', 'hub', 'club', 'team', this.L('hub.club'))}
+        ${L('n-orange', 'hub', 'play', 'play', this.L('hub.play'))}
       </nav>
       <div class="hero-space" data-act="edit-club"></div>
-      <section class="home-right">
-        ${st.pendingPlayoff() ? this.playoffCard() : ''}${nm ? `<button class="match-card" data-act="prematch-league">
-          <div class="mc-head"><b>${esc(st.data.league.name || this.L('ui.league'))}</b><small>${this.L('ui.season', nm.season)} · ${this.L('ui.match_n', nm.round, nm.rounds)}</small></div>
-          <div class="mc-vs">
-            <div class="mc-team">${logoSvg(me.logo, me.color, me.color2, 86)}<span class="mc-name">${esc(me.name)}</span><span class="pill">${me.total}</span></div>
-            <div class="vs">${this.L('ui.vs')}</div>
-            <div class="mc-team">${logoSvg(opp.logo, opp.color, opp.color2, 86)}<span class="mc-name">${esc(opp.name)}</span><span class="pill">${opp.total}</span></div>
-            <div class="mc-info"><span>${icon('star', 16)} ${pool.name}</span><span>${this.L('ui.weather_indoor')}</span></div>
-          </div>
-          <div class="mc-play">${icon('play', 20)} ${this.L('ui.play')}</div>
-        </button>` : ''}
-        <div class="tiles-row">
-          <button class="tile wide t-blue" data-act="nav" data-arg="team">${icon('team', 28)}<span>${this.L('ui.team')}</span><small>${this.L('ui.total')} ${me.total}</small></button>
-          <button class="tile wide t-magenta" data-act="nav" data-arg="tournaments">${icon('trophy', 28)}<span>${this.L('tour.title')}</span>${this.badge(st.tournamentList().filter((d) => st.tournamentStatus(d) === 'ACTIVE').length)}</button>
-          <button class="tile wide t-green" data-act="nav" data-arg="myclub">${icon('star', 28)}<span>${this.L('hub.mycareer')}</span></button>
-          <button class="tile wide t-dark" data-act="quick">${icon('play', 28)}<span>${this.L('ui.quick')}</span></button>
-        </div>
-      </section>
+      <section class="h2-center">${st.pendingPlayoff() ? this.playoffCard() : ''}${card}</section>
+      <nav class="h2-right">
+        ${R('n-blue', 'nav', 'team', 'team', this.L('ui.team'), `${this.L('ui.total')} ${me.total}`)}
+        ${R('n-pink', 'nav', 'tournaments', 'trophy', this.L('tour.title'), '', this.badge(st.tournamentList().filter((d) => st.tournamentStatus(d) === 'ACTIVE').length))}
+        ${R('n-green', 'nav', 'myclub', 'star', this.L('hub.mycareer'))}
+        ${R('n-navy', 'quick', '', 'chart', this.L('ui.quick'))}
+      </nav>
+      <footer class="h2-bottom"><button class="h2-club" data-act="nav" data-arg="myclub">${logoSvg(me.logo, me.color, me.color2, 46, me.color3)}<span><b>${esc(me.name)}</b><small>${this.L('ui.total')} ${me.total}</small></span></button>
+        <div class="h2-arena"><span>${esc(pool.name)}</span></div>
+        <button class="h2-content" data-act="hub" data-arg="content">${icon('gift', 22)}<span>${this.L('hub.content')}</span>${this.badge(contentBadge)}</button></footer>
     </div>`;
   }
 

@@ -218,7 +218,7 @@ export class App {
   }
   packCard(c, i) {
     const k = c.kind, art = k === 'token' ? icon('token' + c.q, 64) : icon({ coins: 'coin', gems: 'gem', tp: 'dumbbell', medkits: 'medkit', energy: 'bolt' }[k], 64);
-    const front = k === 'player' ? `<div class="pkc-player">${this.card(this.st.player(c.id), undefined, { act: 'noop' })}<b>${this.L('pack.new_player')}</b></div>`
+    const front = k === 'converted' ? `<div class="pkc-face"><b>${c.n}</b><span>${this.L('pack.converted', c.ovr)}</span>${icon('dumbbell', 64)}</div>` : k === 'player' ? `<div class="pkc-player">${this.card(this.st.player(c.id), undefined, { act: 'noop' })}<b>${this.L('pack.new_player')}</b></div>`
       : `<div class="pkc-face"><b>${c.n.toLocaleString('fr-FR')}</b><span>${this.L(k === 'token' ? 'pack.token' + c.q : 'pack.k_' + k)}</span>${art}</div>`;
     return `<div role="button" tabindex="0" class="pkc ${k === 'player' ? 'is-player' : ''}" data-act="pack-flip" style="--i:${i}"><div class="pkc-in"><div class="pkc-back"><i>WATER POLO</i><b>26</b></div><div class="pkc-front">${front}</div></div></div>`;
   }

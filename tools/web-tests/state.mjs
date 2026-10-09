@@ -164,6 +164,13 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
   ok(s.openPack(out.pack.id) === null, 'a pack opens only once');
   const n0 = s.squad.length, e = s.addPack(3), re = s.openPack(e.id), pc = re.cards.find((c) => c.kind === 'player');
   ok(pc && s.squad.length === n0 + 1 && s.player(pc.id) && re.cards.length >= 6, 'ELITE pack: a new player joins the squad');
+  // every pack has a player, stronger with the pack level; a full squad trades him for training points
+  const avg = [0, 1, 2, 3].map((t) => { const x = new GameState(); let sum = 0; for (let i = 0; i < 12; i++) { const pk = x.addPack(t), o = x.openPack(pk.id), c = o.cards.find((k) => k.kind === 'player');
+    sum += overall(x.player(c.id)); x.data.squad = x.squad.filter((q) => q.id !== c.id); } return sum / 12; });
+  ok(avg[0] < avg[1] && avg[1] < avg[2] && avg[2] < avg[3], `pack players: average rating ${avg.map((v) => v.toFixed(1)).join(' < ')} (bronze → elite)`);
+  { const x = new GameState(); while (x.squad.length < 18) x.squad.push({ ...x.squad[1], id: 'f' + x.squad.length });
+    const tp0 = x.data.currencies.tp, o = x.openPack(x.addPack(1).id), cv = o.cards.find((k) => k.kind === 'converted');
+    ok(cv && x.squad.length === 18 && x.data.currencies.tp === tp0 + o.cards.filter((k) => k.kind === 'tp').reduce((a, k) => a + k.n, 0) + cv.n, `full squad: pack player traded for ${cv && cv.n} training points`); }
   for (let i = 0; i < PACK_SLOTS + 1; i++) s.addPack(i % 4);
   ok(s.data.packs.slots.length === PACK_SLOTS && s.data.packs.fresh && s.findPack(s.data.packs.fresh.id), '4 slots: a 5th pack must be opened now'); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

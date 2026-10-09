@@ -101,10 +101,11 @@ const OBJECTIVE_POOL = [
  * energy drinks, quality tokens, a new player). Ranges are [min, max].
  */
 export const PACK_TIERS = [
-  { id: 'bronze', coins: [120, 200], tp: [40, 80], extra: 1 },
-  { id: 'silver', coins: [220, 320], tp: [80, 140], gems: [1, 2], medkits: 1, extra: 1 },
-  { id: 'gold', coins: [380, 520], tp: [140, 220], gems: [3, 5], medkits: 1, extra: 1, token: 0 },
-  { id: 'elite', coins: [650, 900], tp: [250, 350], gems: [6, 10], medkits: 2, energy: 1, token: 1, player: true },
+  // player: [min, max] rating of the pack player relative to the club TOTAL (+ its card quality)
+  { id: 'bronze', coins: [120, 200], tp: [40, 80], extra: 1, player: [-14, -6] },
+  { id: 'silver', coins: [220, 320], tp: [80, 140], gems: [1, 2], medkits: 1, extra: 1, player: [-10, -2] },
+  { id: 'gold', coins: [380, 520], tp: [140, 220], gems: [3, 5], medkits: 1, extra: 1, token: 0, player: [-6, 2] },
+  { id: 'elite', coins: [650, 900], tp: [250, 350], gems: [6, 10], medkits: 2, energy: 1, token: 1, player: [-2, 6] },
 ];
 export const PACK_SLOTS = 4;
 /** Pack level of a match: defeat → bronze, draw → silver, win → gold, win by 3+ goals → elite;
@@ -721,23 +722,25 @@ export class GameState {
     if (T.energy) cards.push({ kind: 'energy', n: T.energy });
     if (T.extra) cards.push(rng.f() < 0.5 ? { kind: 'medkits', n: 1 } : { kind: 'energy', n: 1 });
     if (T.token !== undefined) cards.push({ kind: 'token', q: T.token, n: 1 });
-    if (T.player) {
-      const p = this.squad.length < 18 ? this.packPlayer(rng, pack.id) : null;
-      cards.push(p ? { kind: 'player', id: p.id } : { kind: 'token', q: 2, n: 1 });   // full squad (18): a gold token instead
+    if (T.player) {   // every pack has a player, more or less strong depending on the pack level
+      const p = this.packPlayer(rng, pack.id, T.player, pack.tier);
+      if (this.squad.length < 18) { this.squad.push(p); cards.push({ kind: 'player', id: p.id }); }
+      else cards.push({ kind: 'converted', n: tradeValue(p), ovr: overall(p) });   // full squad (18): released for training points
     }
     const merged = [];   // same resource twice -> one card
-    for (const c of cards) { const m = c.kind !== 'player' && merged.find((x) => x.kind === c.kind && x.q === c.q); if (m) m.n += c.n; else merged.push(c); }
-    for (const c of merged) if (c.kind === 'token') this.data.currencies.tokens[c.q] += c.n; else if (c.kind !== 'player') this.grant({ [c.kind]: c.n });
+    for (const c of cards) { const m = c.kind !== 'player' && c.kind !== 'converted' && merged.find((x) => x.kind === c.kind && x.q === c.q); if (m) m.n += c.n; else merged.push(c); }
+    for (const c of merged) if (c.kind === 'token') this.data.currencies.tokens[c.q] += c.n; else if (c.kind === 'converted') this.grant({ tp: c.n }); else if (c.kind !== 'player') this.grant({ [c.kind]: c.n });
     P.slots = P.slots.filter((p) => p !== pack); if (P.fresh === pack) P.fresh = null;
     P.opened++; this.save();
     return { tier: pack.tier, source: pack.source, cards: merged };
   }
-  /** ÉLITE pack player: around the club level, a little above the recruitment range. */
-  packPlayer(rng, n) {
+  /** Pack player: rating drawn in the tier range around the club TOTAL (1 in 10 is a nugget: +4), card quality = pack level. */
+  packPlayer(rng, n, [lo, hi], tier) {
     const roles = ['GOALKEEPER', 'CENTER', 'DEFENDER', 'WINGER', 'PLAYMAKER', 'FINISHER', 'ALL_ROUNDER'];
     const used = new Set(this.squad.map((p) => p.number)); let num = 2; while (used.has(num)) num++;
-    const p = makePlayer(rng, `pk${n}${Date.now().toString(36)}`, roles[Math.floor(rng.f() * roles.length)], this.teamTotal().total - 4 + Math.floor(rng.f() * 9), null, num);
-    this.squad.push(p); return p;
+    const nugget = rng.f() < 0.1, r = this.teamTotal().total + lo + Math.floor(rng.f() * (hi - lo + 1)) + (nugget ? 4 : 0);
+    const p = makePlayer(rng, `pk${n}${Date.now().toString(36)}`, roles[Math.floor(rng.f() * roles.length)], Math.min(97, r), null, num);
+    p.quality = tier; return p;
   }
 
   // ------------------------------------------------ XP / level

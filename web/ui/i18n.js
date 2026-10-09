@@ -2,6 +2,7 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    "pack.converted": "EFFECTIF COMPLET : JOUEUR {0} ÉCHANGÉ EN POINTS",
     "home.play_club": "JOUER UN CLUB",
     "home.play_tour": "JOUER UN TOURNOI",
     "home.goals": "OBJECTIFS",
@@ -163,6 +164,7 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    "pack.converted": "SQUAD FULL: {0} PLAYER TRADED FOR POINTS",
     "home.play_club": "PLAY A CLUB",
     "home.play_tour": "PLAY A TOURNAMENT",
     "home.goals": "GOALS",
@@ -324,6 +326,7 @@ export const UI = {
     'tdesc.CENTER': 'Feeds the centre-forward at 2 m.', 'tdesc.COUNTER': 'Lightning counters after every turnover.',
   },
   es: {
+    "pack.converted": "PLANTILLA COMPLETA: JUGADOR {0} CAMBIADO POR PUNTOS",
     "home.play_club": "JUGAR CON UN CLUB",
     "home.play_tour": "JUGAR UN TORNEO",
     "home.goals": "OBJETIVOS",
@@ -356,6 +359,7 @@ export const UI = {
     "pack.rule": "Derrota = Bronce · Empate = Plata · Victoria = Oro · Victoria por 3+ goles = Élite (partido de torneo / playoff ganado: +1 nivel)",
   },
   de: {
+    "pack.converted": "KADER VOLL: {0}-SPIELER GEGEN PUNKTE GETAUSCHT",
     "home.play_club": "MIT EINEM KLUB SPIELEN",
     "home.play_tour": "TURNIER SPIELEN",
     "home.goals": "ZIELE",
@@ -388,6 +392,7 @@ export const UI = {
     "pack.rule": "Niederlage = Bronze · Remis = Silber · Sieg = Gold · Sieg mit 3+ Toren = Elite (gewonnenes Turnier-/Playoff-Spiel: +1 Stufe)",
   },
   it: {
+    "pack.converted": "ROSA COMPLETA: GIOCATORE {0} SCAMBIATO IN PUNTI",
     "home.play_club": "GIOCA CON UN CLUB",
     "home.play_tour": "GIOCA UN TORNEO",
     "home.goals": "OBIETTIVI",
@@ -420,6 +425,7 @@ export const UI = {
     "pack.rule": "Sconfitta = Bronzo · Pareggio = Argento · Vittoria = Oro · Vittoria con 3+ gol = Élite (partita di torneo / playoff vinta: +1 livello)",
   },
   pt: {
+    "pack.converted": "PLANTEL COMPLETO: JOGADOR {0} TROCADO POR PONTOS",
     "home.play_club": "JOGAR COM UM CLUBE",
     "home.play_tour": "JOGAR UM TORNEIO",
     "home.goals": "OBJETIVOS",

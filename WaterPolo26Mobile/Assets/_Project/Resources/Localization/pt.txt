@@ -104,3 +104,4 @@ pos.3 = Meia esquerda
 pos.4 = Ponta esquerda
 pos.5 = Pivô
 cam.eyes = OLHOS DO JOGADOR
+cam.under = DEBAIXO D'ÁGUA

@@ -7,6 +7,7 @@
 // Performance: every rigid part of a bone is merged into ONE mesh with per-vertex colour and
 // roughness, and all athletes share ONE material -> ~11 draw calls per player.
 import * as THREE from '../vendor/three.module.min.js';
+import { UW_STRENGTH } from './water.js';
 
 // ---------------------------------------------------------------- geometry merge helper
 export function mergeParts(parts) {
@@ -50,14 +51,14 @@ function athleteMaterial(waterTint, rich) {
   const m = rich ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.2, clearcoat: 0.8, clearcoatRoughness: 0.12, sheen: 0 })
     : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, envMapIntensity: 1.15 });
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uUwTint = { value: waterTint };
+    sh.uniforms.uUwTint = { value: waterTint }; sh.uniforms.uUwK = UW_STRENGTH;
     sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.32) };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute float aRough;\nvarying float vRough;\nvarying float vUwY;\nvarying vec3 vWp;\nvarying vec3 vBind;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvRough = aRough;\nvBind = position;\nvec4 wpA = modelMatrix * vec4(transformed, 1.0);\nvUwY = wpA.y;\nvWp = wpA.xyz;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-        varying float vRough; varying float vUwY; varying vec3 vWp; varying vec3 vBind; uniform vec3 uUwTint; uniform vec3 uRim;
+        varying float vRough; varying float vUwY; varying vec3 vWp; varying vec3 vBind; uniform vec3 uUwTint; uniform vec3 uRim; uniform float uUwK;
         float hash3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
         float vnoise(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
           return mix(mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x), mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
@@ -81,7 +82,7 @@ function athleteMaterial(waterTint, rich) {
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
         gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);   // rim light: detaches the athlete from the background
-        if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
+        if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85) * uUwK; gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
   };
   m.customProgramCacheKey = () => 'athlete-' + key;
   SHARED.set(key, m);
@@ -144,14 +145,14 @@ function headMaterial(waterTint, rich) {
   const P = { vertexColors: true, map: HEAD.map, normalMap: HEAD.normalMap, roughnessMap: HEAD.roughnessMap, roughness: 1, metalness: 0, envMapIntensity: 1.0 };
   const m = rich ? new THREE.MeshPhysicalMaterial({ ...P, clearcoat: 0.6, clearcoatRoughness: 0.16, sheen: 0.25, sheenColor: new THREE.Color(0xff9a80), sheenRoughness: 0.6 }) : new THREE.MeshStandardMaterial(P);
   m.onBeforeCompile = (sh) => {
-    sh.uniforms.uUwTint = { value: waterTint }; sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.28) };
+    sh.uniforms.uUwTint = { value: waterTint }; sh.uniforms.uUwK = UW_STRENGTH; sh.uniforms.uRim = { value: new THREE.Color(0x9fd8ff).multiplyScalar(0.28) };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying float vUwY;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvUwY = (modelMatrix * vec4(transformed, 1.0)).y;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vUwY;\nuniform vec3 uUwTint;\nuniform vec3 uRim;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vUwY;\nuniform vec3 uUwTint;\nuniform vec3 uRim;\nuniform float uUwK;')
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
         gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);
-        if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
+        if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85) * uUwK; gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
   };
   m.customProgramCacheKey = () => 'scanhead-' + key;
   HEAD.mats.set(key, m);

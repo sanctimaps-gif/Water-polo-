@@ -153,6 +153,12 @@ void main() {
   col = mix(col, vec3(0.93, 0.97, 1.0), foam * 0.7);
 
   float alpha = clamp(mix(uAlpha, 1.0, fresnel) + foam, 0.0, 1.0);
+  if (!gl_FrontFacing) {   // seen from under the water
+    float c = clamp(dot(-n, v), 0.0, 1.0);
+    float win = smoothstep(0.6, 0.74, c);   // Snell's window (~48°): bright surface above, mirror of the pool outside
+    col = mix(vec3(0.06, 0.52, 0.66), vec3(0.78, 0.96, 1.0), win) + uLightCol * pow(max(dot(-n, normalize(v + vec3(0.0, -1.0, 0.0))), 0.0), 60.0) * 0.6;
+    alpha = 0.94;
+  }
   gl_FragColor = vec4(col, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -207,7 +213,7 @@ export class Water {
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms, vertexShader: waterVertex, fragmentShader: waterFragment,
-      transparent: true, depthWrite: false,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
     });
     this.mesh = null;
     this.setQuality(preset);
@@ -270,15 +276,17 @@ export class Water {
  * Applies a cheap "under water" look to a standard material: below the surface the colour
  * fades toward the water tint and darkens with depth (visible through the transparent surface).
  */
+/** Strength of the under-water tint (1 seen from above; low when the camera itself is under the water). */
+export const UW_STRENGTH = { value: 1 };
 export function underwater(material, tint = new THREE.Color(0x1f9fc4)) {
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.uUwTint = { value: tint };
+    shader.uniforms.uUwTint = { value: tint }; shader.uniforms.uUwK = UW_STRENGTH;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying float vUwY;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvUwY = (modelMatrix * vec4(transformed, 1.0)).y;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vUwY;\nuniform vec3 uUwTint;')
-      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (vUwY < 0.0) { float k = clamp(0.22 - vUwY * 0.32, 0.0, 0.7); gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }');
+      .replace('#include <common>', '#include <common>\nvarying float vUwY;\nuniform vec3 uUwTint;\nuniform float uUwK;')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\nif (vUwY < 0.0) { float k = clamp(0.22 - vUwY * 0.32, 0.0, 0.7) * uUwK; gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }');
   };
   material.customProgramCacheKey = () => 'uw';
   return material;

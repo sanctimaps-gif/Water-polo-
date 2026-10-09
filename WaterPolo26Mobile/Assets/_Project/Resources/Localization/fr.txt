@@ -104,3 +104,4 @@ pos.3 = Demi gauche
 pos.4 = Ailier gauche
 pos.5 = Pivot
 cam.eyes = YEUX DU JOUEUR
+cam.under = SOUS L'EAU

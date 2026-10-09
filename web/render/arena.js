@@ -235,7 +235,43 @@ export class Arena {
     const banner2 = banner.clone(); banner2.position.set(0, 0.95, 13.0); banner2.scale.set(1, 0.7, 1); g.add(banner2);
   }
 
+  /** Dense crowd painted on the stand slopes (hundreds of small spectators per tile), 1 draw call per stand. */
+  buildCrowdBackdrop() {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d');
+    g.fillStyle = '#1c2c48'; g.fillRect(0, 0, 512, 256);
+    const shirts = ['#1e5bd8', '#d8321e', '#ffffff', '#202020', '#2fbf71', '#f2c81a', '#6a3fd0', '#0fb5c9', '#e87a2a', '#c8ccd4', '#8a1538', '#3a6ea5'];
+    const skins = ['#f1c7a6', '#e0ac87', '#c68b62', '#8a5a3a', '#5a3622'], hair = ['#1d140f', '#3a2818', '#6b4a2a', '#c9a26b', '#2a2a2a', '#888'];
+    let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let row = 0; row < 4; row++) for (let i = 0; i < 26; i++) {   // 4 rows x 26 people per tile, back rows first
+      const x = i * 19.7 + (row % 2) * 9.8 + rnd() * 4, y = 30 + row * 64 + rnd() * 6, sh = shirts[(rnd() * shirts.length) | 0];
+      g.fillStyle = sh; g.beginPath(); g.ellipse(x, y + 26, 9, 16, 0, 0, Math.PI * 2); g.fill();          // torso
+      if (rnd() < 0.18) { g.strokeStyle = sh; g.lineWidth = 4; g.beginPath(); g.moveTo(x - 6, y + 16); g.lineTo(x - 10, y - 8); g.moveTo(x + 6, y + 16); g.lineTo(x + 11, y - 6); g.stroke(); }   // arms up
+      g.fillStyle = skins[(rnd() * skins.length) | 0]; g.beginPath(); g.arc(x, y + 4, 7, 0, Math.PI * 2); g.fill();   // head
+      g.fillStyle = hair[(rnd() * hair.length) | 0]; g.beginPath(); g.arc(x, y + 1, 7, Math.PI, 0); g.fill();       // hair
+    }
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 4;
+    const mat = new THREE.MeshLambertMaterial({ map: tex });
+    // a slope through the noses of the steps; u = metres / 6 (26 people), v = rows / 4
+    const slope = (p0, p1, across, rows) => {
+      const geo = new THREE.BufferGeometry(), [a0, a1] = across;
+      const P = [...a0(p0), ...a1(p0), ...a0(p1), ...a1(p1)];
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+      const U = across.len / 6, V = rows / 4;
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, U, 0, 0, V, U, V], 2));
+      geo.setIndex([0, 2, 1, 1, 2, 3]); geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat); m.material.side = THREE.DoubleSide; this.group.add(m);
+    };
+    // main stand (9 rows): from (y 0.9, z 13.0) to (y 6.4, z 22.5), x -23..23
+    const main = [(p) => [-23, p[0], p[1]], (p) => [23, p[0], p[1]]]; main.len = 46;
+    slope([0.92, 13.02], [6.5, 22.47], main, 9);
+    for (const s of [-1, 1]) {   // end stands (6 rows)
+      const end = [(p) => [s * p[1], p[0], -7], (p) => [s * p[1], p[0], 11]]; end.len = 18;
+      slope([0.92, 20.42], [4.64, 26.72], end, 6);
+    }
+  }
+
   buildCrowd(count) {
+    this.buildCrowdBackdrop();
     if (count <= 0) return;
     const spots = [];
     for (let r = 0; r < 9; r++) for (let i = 0; i < 64; i++) spots.push([-22.5 + i * 0.7 + (r % 2) * 0.35, 1.2 + r * 0.62, 13.6 + r * 1.05, 0]);

@@ -200,6 +200,9 @@ NON IMPLÉMENTÉ : réfraction réelle (distorsion de l'image sous l'eau), camé
 
 ## Arène — `web/render/arena.js` — IMPLÉMENTÉ
 
+Tribunes pleines : foule dense peinte par le jeu sur les pentes des gradins (silhouettes, maillots, bras levés ; 1 appel de dessin par tribune) derrière les spectateurs 3D animés. Ballon qui flotte : balancement et petites ondes.
+
+
 Carte d'environnement (reflets), lumière principale avec ombres qui suivent l'action, contre-jour,
 plage mouillée réfléchissante, bordure, plots 2 m / 5 m / 6 m, lignes de flotteurs aux couleurs
 réglementaires, buts flottants (poteaux, barre, cadre, flotteurs), bancs, toit à poutres, rangées de
@@ -218,7 +221,7 @@ derrière leur ligne de but plongent l'une après l'autre (plongeon tête la pre
 glissent jusqu'à leur position de départ ; la caméra filme chaque bout puis s'élève vers le jeu,
 coup de sifflet. ~7 s, la simulation est arrêtée pendant ce temps.
 
-**Bouton CAM du HUD** : TV (standard) / MATCH (attaque) / LARGE / YEUX. **YEUX** : vue à la première personne depuis les yeux du joueur qui a la balle (les deux équipes), au ras de l'eau ; il regarde le but quand il arme un tir ; sans porteur, yeux du joueur contrôlé tournés vers le ballon. Petit zoom (−8° de champ) pendant
+**Bouton CAM du HUD** : TV (standard) / MATCH (attaque) / LARGE / YEUX. **SOUS L'EAU** (Paramètres) : caméra immergée à côté du joueur contrôlé (jambes en batteur à œufs, surface vue d'en dessous avec la fenêtre de Snell, brouillard turquoise, lumière diffuse de l'eau) ; le replay d'un but passe aussi sous l'eau. **YEUX** : vue à la première personne depuis les yeux du joueur qui a la balle (les deux équipes), au ras de l'eau ; il regarde le but quand il arme un tir ; sans porteur, yeux du joueur contrôlé tournés vers le ballon. Petit zoom (−8° de champ) pendant
 les tirs, flash et bandeau animé au but avant le plan de but et le replay.
 
 **Autres caméras** (Paramètres > Match, ou PAUSE > PARAMÈTRES) : 1 Standard (TV), 2 Large,

@@ -7,7 +7,7 @@ import { GameState, lookOf, POOLS, BALL_DESIGNS, overall, ROLE_ABBR, countryOf }
 import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
-import { Water } from './render/water.js';
+import { Water, UW_STRENGTH } from './render/water.js';
 import { Athlete, loadScanHead, loadScanBody } from './render/athlete.js';
 import { Arena } from './render/arena.js';
 import { Splashes } from './render/vfx.js';
@@ -54,7 +54,7 @@ const GRAPHICS = ['AUTO', ...TIERS];
 // top view, behind the controlled player, pool deck (low side).
 const HUD_CAMS = ['STANDARD', 'ATTACK', 'WIDE', 'EYES'];   // HUD CAM chip: TV / MATCH / LARGE (all cameras in the settings)
 const CAM_LABEL = { STANDARD: 'cam.tv', ATTACK: 'cam.match', WIDE: 'cam.large', EYES: 'cam.eyes' };
-const CAMERAS = ['ATTACK', 'STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK', 'EYES'];
+const CAMERAS = ['ATTACK', 'STANDARD', 'WIDE', 'CLOSE', 'DYNAMIC', 'TACTICAL', 'BEHIND', 'DECK', 'EYES', 'UNDER'];
 const AMBIENCES = ['EVENT', 'DAY', 'EVENING', 'NIGHT'];
 const TACTIC_KEYS = { BALANCED: 'tactic.balanced', FAST: 'tactic.fast', OFFENSIVE: 'tactic.offensive', DEFENSIVE: 'tactic.defensive', PRESSURE: 'tactic.pressure', CENTER: 'tactic.center', COUNTER: 'tactic.counter' };
 const cycle = (list, v) => list[(list.indexOf(v) + 1) % list.length];
@@ -631,11 +631,18 @@ function updateCamera(dt, v) {
       pos = tmp.set(s.x - (dx / l) * 1.7 + (dz / l) * 0.55, 1.05, s.z - (dz / l) * 1.7 - (dx / l) * 0.55); look = tmp2.set(side * 12.5, 0.7, 0); fov = 46;
       if (!replay.cut) { camera.position.copy(pos); replay.cut = true; }
     } else if (u < 0.62) { pos = tmp.set(side * 18.5, 2.4, ball.z * 0.4 + 1.5); look = ball.clone(); fov = 34; }
+    else if (u < 0.8 && sh) { const s = sh.root.position; pos = tmp.set(s.x - side * 2.4, -1.0, s.z - 2.2); look = tmp2.set(s.x, -0.5, s.z); fov = 58; }   // under the water: the scorer's legs
     else { pos = tmp.set(ball.x - side * 4, 0.9, -7.5); look = ball.clone(); fov = 40; }
     camera.position.lerp(pos, 1 - Math.exp(-dt * 6)); camera.lookAt(look); setFov(fov, dt, 6);
     return;
   }
   if (opts.camera === 'EYES' && c.goalT <= 0 && eyesCamera(dt, v)) return;
+  if (opts.camera === 'UNDER' && c.goalT <= 0 && m.human) {   // under the water, beside the controlled player: legs, eggbeater
+    const p = m.players[m.human.id], r = athletes[p.id].root.position, s = m.sign(p.team);
+    pos = tmp.set(Math.max(-12, Math.min(12, r.x - s * 2.6)), -1.05, Math.max(-9.5, Math.min(9.5, r.z - 2.4)));
+    camera.position.lerp(pos, 1 - Math.exp(-dt * 4)); camera.lookAt(r.x, -0.55, r.z); setFov(60, dt, 4);
+    return;
+  }
   const target = ball.clone();
   if (m.human) target.lerp(athletes[m.human.id].root.position, opts.camera === 'CLOSE' || opts.camera === 'BEHIND' ? 0.55 : 0.25);
   const team = m.possessionTeam, cam = opts.camera;
@@ -719,7 +726,7 @@ function setFov(fov, dt, rate) {
 }
 
 // ------------------------------------------------------------------ per-frame presentation
-let prevBallY = 1, prevBallPos = new THREE.Vector3(), dripT = 0;
+let prevBallY = 1, prevBallPos = new THREE.Vector3(), dripT = 0, floatT = 0;
 const lookGoal = new THREE.Vector3();
 const wakeList = [];
 function updateWorld(dt, v) {
@@ -739,6 +746,11 @@ function updateWorld(dt, v) {
   // Ball meets the water: splash scaled by its speed.
   if (v.owner < 0 && prevBallY > 0.2 && ballMesh.position.y <= 0.16) {
     const sp = Math.hypot(bvx, bvz); vfx.burst(ballMesh.position.x, ballMesh.position.z, Math.min(1.4, 0.2 + sp / 10)); audio.splash(Math.min(1, sp / 10));
+  }
+  // Ball floating on the water: gentle bob and roll, small rings around it.
+  if (v.owner < 0 && ballMesh.position.y < 0.2 && Math.hypot(bvx, bvz) < 1.5) {
+    ballMesh.position.y += Math.sin(time * 2.1) * 0.012; ballMesh.rotation.z += Math.sin(time * 0.9) * dt * 0.15;
+    floatT -= dt; if (floatT <= 0) { floatT = 1.3; water.ripple(ballMesh.position.x, ballMesh.position.z, 0.25); }
   }
   updateTrail(v.owner < 0 && Math.hypot(bvx, bvz) > 4, ballMesh.position);
   prevBallY = ballMesh.position.y; prevBallPos.copy(ballMesh.position);
@@ -1043,7 +1055,16 @@ function frame(now) {
     water.setWakes([{ x: 0, z: -6, vx: 0, vz: 0 }]);
     selRing.visible = selArrow.visible = passRing.visible = false; ballShadow.material.opacity = 0; trail.line.visible = false;
   }
+  underwaterLook();
   renderer.render(scene, camera);
+}
+// Camera under the surface: turquoise water fog and background (restored above the surface).
+let uwSaved = null;
+const uwLight = new THREE.HemisphereLight(0x9fe8ff, 0x2fb8d8, 1.6);   // light scattered by the water all around
+function underwaterLook() {
+  const under = camera.position.y < -0.02;
+  if (under && !uwSaved) { uwSaved = { fog: scene.fog, bg: scene.background }; scene.add(uwLight); scene.fog = new THREE.Fog(0x17a9c9, 0.5, 17); scene.background = new THREE.Color(0x17a9c9); UW_STRENGTH.value = 0.15; }
+  else if (!under && uwSaved) { scene.fog = uwSaved.fog; scene.background = uwSaved.bg; uwSaved = null; UW_STRENGTH.value = 1; scene.remove(uwLight); }
 }
 
 // Radar: the whole pool seen from above (players, ball, controlled player), redrawn at ~15 Hz.

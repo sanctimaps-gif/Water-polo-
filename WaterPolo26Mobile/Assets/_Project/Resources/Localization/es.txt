@@ -104,3 +104,4 @@ pos.3 = Lateral izquierdo
 pos.4 = Extremo izquierdo
 pos.5 = Boya
 cam.eyes = OJOS DEL JUGADOR
+cam.under = BAJO EL AGUA

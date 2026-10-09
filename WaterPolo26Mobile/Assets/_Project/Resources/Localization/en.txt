@@ -104,3 +104,4 @@ pos.3 = Left flat
 pos.4 = Left wing
 pos.5 = Centre forward
 cam.eyes = PLAYER'S EYES
+cam.under = UNDERWATER

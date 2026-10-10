@@ -29,3 +29,5 @@ jobs:
         run: node tools/web-tests/crawl.mjs
       - name: Web build — DÉFIS (penalty, free throw, power play, tutorial)
         run: node tools/web-tests/challenges.mjs
+      - name: Offline cache (sw.js) up to date
+        run: node tools/build-sw.mjs --check

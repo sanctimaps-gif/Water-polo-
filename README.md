@@ -14,6 +14,10 @@ Jeu mobile de water-polo en 3D (Android, iPhone, iPad, tablettes) — **Unity 6 
 Version web du prototype : même simulation de match (portée en JavaScript depuis le C#), rendu 3D
 Three.js, contrôles tactiles. **Jeu exclusivement en paysage** : téléphone tenu verticalement, tout l'affichage
 est tourné de 90° automatiquement (pas de message « tournez votre appareil »). Au clavier : WASD, Maj, J, K, L, Q.
+**Hors ligne** : à la première ouverture (avec réseau), tout le jeu est mis en cache (`sw.js`, ~3,4 Mo) ;
+ensuite il se lance et se joue sans connexion (matchs, carrière, paquets, sauvegarde locale). Sur téléphone,
+« Ajouter à l'écran d'accueil » l'installe comme une appli. Après une modification des fichiers du jeu :
+`node tools/build-sw.mjs` (vérifié en CI).
 C'est une démo jouable du gameplay ; le jeu final reste l'application Unity (Android / iOS).
 
 ## Documentation

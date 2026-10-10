@@ -129,6 +129,18 @@ export async function loadScanHead(base = 'web/assets/head/') {
   return HEAD;
 }
 export const scanHeadReady = () => !!HEAD;
+/** Motion-captured clips retargeted to this rig (web/assets/anim, see tools/anim): joint values per frame. */
+const CLIPS = {};
+export async function loadAnimations(base = 'web/assets/anim/') {
+  const c = await (await fetch(base + 'treading.json')).json();
+  CLIPS.treading = c; return CLIPS;
+}
+/** Clip pose at cycle position u (0..1, looping), linear between frames. */
+function sampleClip(c, u, out) {
+  const n = c.frames.length, x = (((u % 1) + 1) % 1) * n, i = Math.floor(x) % n, f = x - Math.floor(x), A = c.frames[i], B = c.frames[(i + 1) % n];
+  for (let k = 0; k < c.keys.length; k++) out[c.keys[k]] = A[k] + (B[k] - A[k]) * f;
+  return out;
+}
 
 /**
  * Muscle volume (bind pose, metres, y up, z forward): each vertex is pushed along its normal by smooth
@@ -517,7 +529,7 @@ const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.
 const wrap = (a) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -Math.PI) a += 2 * Math.PI; return a; };
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const THROW_DUR = { pass: 0.36, shot: 0.7, power: 0.75, lob: 0.55 };   // whip + follow-through (shot ~0.25 s whip, then the fall forward)
-const JOINTS = ['chestX', 'chestY', 'chestZ', 'pelvisY', 'pelvisZ', 'pitch', 'roll', 'twist', 'neck', 'headX', 'headY', 'shRx', 'shRz', 'elR', 'shLx', 'shLz', 'elL', 'hipRx', 'hipRz', 'knR', 'knRy', 'hipLx', 'hipLz', 'knL', 'knLy', 'rise'];
+const JOINTS = ['chestX', 'chestY', 'chestZ', 'pelvisY', 'pelvisZ', 'pitch', 'roll', 'twist', 'neck', 'headX', 'headY', 'shRx', 'shRz', 'shRy', 'elR', 'shLx', 'shLz', 'shLy', 'elL', 'hipRx', 'hipRz', 'knR', 'knRy', 'hipLx', 'hipLz', 'knL', 'knLy', 'rise'];
 
 export class Athlete {
   /**
@@ -962,10 +974,10 @@ export class Athlete {
     // turning the pelvis a little; travelling sideways / backward leans the body into the move.
     const travel = 1 - w.swim, back = clamp(-fwdV / 1.2, 0, 1), side = clamp(latV / 1.2, -1, 1);
     const scull = 0.18 + 0.22 * clamp(Math.hypot(fwdV, latV) / 1.2, 0, 1);
-    const tread = {
+    const tread = CLIPS.treading ? this.mocapTread(back, side, travel, fatigue) : {
       chestX: 0.04 - back * 0.12, chestY: Math.sin(t) * 0.03, chestZ: side * 0.08, pelvisY: Math.sin(t) * 0.07, pelvisZ: 0,
       pitch: 0.1 - back * 0.22 * travel, roll: -side * 0.18 * travel, twist: 0, neck: 0, headX: -0.1 + back * 0.1, headY: 0,
-      shRx: -0.5 + Math.sin(t) * 0.1, shRz: 0.5 + Math.sin(t * 2 + 1) * scull, elR: -1.05 + Math.sin(t * 2 + 0.5) * 0.3,
+      shRy: 0, shLy: 0, shRx: -0.5 + Math.sin(t) * 0.1, shRz: 0.5 + Math.sin(t * 2 + 1) * scull, elR: -1.05 + Math.sin(t * 2 + 0.5) * 0.3,
       shLx: -0.5 + Math.sin(t + 2) * 0.1, shLz: -0.5 - Math.sin(t * 2 + 3) * scull, elL: -1.05 + Math.sin(t * 2 + 2.5) * 0.3,
       hipRx: -1.05, hipRz: 0.55, knR: 1.55, knRy: Math.sin(t) * 0.7, hipLx: -1.05, hipLz: -0.55, knL: 1.55, knLy: Math.sin(t + Math.PI) * 0.7,
       rise: (Math.sin(t * 2) * 0.012) - (1 - fatigue) * 0.06,
@@ -983,7 +995,7 @@ export class Athlete {
       chestX: -0.18, chestY: roll, chestZ: 0, pelvisY: roll * 0.6, pelvisZ: 0,
       pitch: 1.0, roll: 0, twist: 0, neck: -0.6, headX: -0.6, headY: -roll * 0.95,
       // recovery elbow-led and close to the water, long reach at the entry, S-shaped pull under the body
-      shRx: qR - 2 * Math.PI, shRz: 0.14 + 0.2 * Math.max(0, Math.sin(qR)) - 0.12 * Math.max(0, -Math.sin(qR - 0.35)), elR: crawlElbow(qR),
+      shRy: 0, shLy: 0, shRx: qR - 2 * Math.PI, shRz: 0.14 + 0.2 * Math.max(0, Math.sin(qR)) - 0.12 * Math.max(0, -Math.sin(qR - 0.35)), elR: crawlElbow(qR),
       shLx: qL - 2 * Math.PI, shLz: -0.14 - 0.2 * Math.max(0, Math.sin(qL)) + 0.12 * Math.max(0, -Math.sin(qL - 0.35)), elL: crawlElbow(qL),
       // six-beat flutter kick from the hips, the knee bends a little later (whip), small and fast
       hipRx: 0.05 + Math.sin(p * 3) * 0.24, hipRz: 0.05, knR: 0.12 + Math.max(0, Math.sin(p * 3 - 0.7)) * 0.42, knRy: 0,
@@ -1109,8 +1121,9 @@ export class Athlete {
     this.torso.rotation.set(0, q.twist * 0.35 + q.pelvisY, q.pelvisZ);
     this.chest.rotation.set(q.chestX, q.twist * 0.65 + q.chestY, q.chestZ);
     this.head.rotation.set(q.neck + q.headX, q.headY, 0);
-    this.armR.sh.rotation.set(q.shRx, 0, q.shRz); this.armR.el.rotation.set(q.elR, 0, 0);
-    this.armL.sh.rotation.set(q.shLx, 0, q.shLz); this.armL.el.rotation.set(q.elL, 0, 0);
+    // shoulder: flexion (x), abduction (z), then the humeral rotation about the arm's own axis (y, applied first: order XZY)
+    this.armR.sh.rotation.set(q.shRx, q.shRy, q.shRz, 'XZY'); this.armR.el.rotation.set(q.elR, 0, 0);
+    this.armL.sh.rotation.set(q.shLx, q.shLy, q.shLz, 'XZY'); this.armL.el.rotation.set(q.elL, 0, 0);
     this.legR.hip.rotation.set(q.hipRx, 0, q.hipRz); this.legR.kn.rotation.set(q.knR, q.knRy, 0);
     this.legL.hip.rotation.set(q.hipLx, 0, q.hipLz); this.legL.kn.rotation.set(q.knL, q.knLy, 0);
 
@@ -1176,6 +1189,17 @@ export class Athlete {
    * Cinematic poses (pool entry), applied after update(): 'stand' upright on the deck, arms down;
    * 'dive' head-first racing dive, u = 0 (take-off) .. 1 (entry): body pitches down, arms over the head.
    */
+  /** Treading water from the motion-captured clip (Mixamo "Treading Water", retargeted): alternate leg
+   *  cycles, hands sculling in front, body leaning forward. Played faster than the clip (match tempo), the
+   *  goalkeeper faster still; travelling backward / sideways leans the body into the move as before. */
+  mocapTread(back, side, travel, fatigue) {
+    const P = { chestX: 0, chestY: 0, chestZ: 0, pelvisY: 0, pelvisZ: 0, pitch: 0, roll: 0, twist: 0, neck: 0, headX: 0, headY: 0,
+      shRx: 0, shRz: 0, shRy: 0, elR: 0, shLx: 0, shLz: 0, shLy: 0, elL: 0, hipRx: 0, hipRz: 0, knR: 0, knRy: 0, hipLx: 0, hipLz: 0, knL: 0, knLy: 0, rise: 0 };
+    sampleClip(CLIPS.treading, (this.tread / (2 * Math.PI)) * 0.67, P);
+    P.chestX -= back * 0.12; P.chestZ += side * 0.08; P.pitch -= back * 0.3 * travel; P.roll -= side * 0.18 * travel;
+    P.rise -= (1 - fatigue) * 0.06;
+    return P;
+  }
   overridePose(kind, u = 0) {
     const L = [this.legR, this.legL], A = [this.armR, this.armL];
     this.torso.rotation.set(0, 0, 0); this.chest.rotation.set(0, 0, 0);
@@ -1262,6 +1286,7 @@ export const JOINT_LIMITS = {
   hipRx: [-2.2, 0.45], hipLx: [-2.2, 0.45],                 // hip: 125° flexion, 25° extension
   hipRz: [-0.35, 0.9], hipLz: [-0.9, 0.35],                 // hip abduction 50°, adduction 20°
   shRz: [-0.45, 3.1], shLz: [-3.1, 0.45],                   // shoulder abduction 180°, adduction 25°
+  shRy: [-1.4, 1.4], shLy: [-1.4, 1.4],                     // humeral rotation (internal / external) ~80°
   chestX: [-0.45, 0.75], chestY: [-0.65, 0.65], chestZ: [-0.45, 0.45],   // thoracolumbar flex / ext, rotation, side bend
   pelvisY: [-0.5, 0.5], pelvisZ: [-0.3, 0.3],
   headY: [-1.3, 1.3],                                       // neck rotation 75°

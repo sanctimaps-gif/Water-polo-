@@ -160,6 +160,12 @@ hauteur réduites), tête qui suit le ballon.
 Mélange : poids lissés entre états, interpolation par le plus court angle (pas de saut de pose).
 IK : le bras droit se tend vers le ballon qui arrive. Le ballon tenu est attaché à la main.
 
+## Animations capturées (Mixamo) — IMPLÉMENTÉ
+
+- `web/assets/anim/treading.json` : « Treading Water » (Mixamo, Adobe, libre de droits), fourni par l'utilisateur, **retargeté** sur le squelette du jeu (`tools/anim`) : pour chaque image (30 i/s, boucle de 3 s), les angles des articulations du jeu (bassin, thorax, tête, épaules avec la **rotation humérale** ajoutée au squelette, coudes, hanches, genoux) qui reproduisent au mieux les directions du bassin, du thorax, de la tête, des bras / avant-bras et des cuisses / jambes de la capture, dans les limites articulaires (erreur d'ajustement : torse ≈ 0, bras ≈ 0, jambes < 0,09).
+- En jeu : remplace le surplace procédural (eggbeater) dès que le fichier est chargé ; joué plus vite que le clip (rythme de match, gardien encore plus vite), avec les inclinaisons de déplacement (recul, côté) et la fatigue par-dessus. Sans le fichier (tests Node), le surplace procédural reste utilisé.
+- Ajouter un autre clip Mixamo : `node tools/anim/extract.mjs clip.fbx pos.json` puis `node tools/anim/retarget.cjs pos.json web/assets/anim/<nom>.json <nom> "<source>"` (voir l'en-tête du fichier).
+
 ## Eau — `web/render/water.js` — IMPLÉMENTÉ
 
 Shader : houle (4 ondes), **ondes d'impact** (24 sources : ballon qui tombe, tirs, arrêts, mouvements

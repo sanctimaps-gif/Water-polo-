@@ -8,7 +8,7 @@ import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
 import { Water, UW_STRENGTH } from './render/water.js';
-import { Athlete, loadScanHead, loadScanBody } from './render/athlete.js';
+import { Athlete, loadScanHead, loadScanBody, loadAnimations } from './render/athlete.js';
 import { Arena } from './render/arena.js';
 import { Splashes } from './render/vfx.js';
 import { MatchAudio } from './render/audio.js';
@@ -1399,7 +1399,7 @@ function buildShowcase() {
 // ------------------------------------------------------------------ boot
 updateOrientationGate();   // landscape layout before the first frame
 (async () => {
-  await Promise.all([loadLang('en'), loadLang(lang), loadScanHead().catch((e) => console.warn('scan head', e)), loadScanBody().catch((e) => console.warn('scan body', e))]);
+  await Promise.all([loadLang('en'), loadLang(lang), loadScanHead().catch((e) => console.warn('scan head', e)), loadScanBody().catch((e) => console.warn('scan body', e)), loadAnimations().catch((e) => console.warn('animations', e))]);
   applyQuality(tier);
   setupInput();
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });

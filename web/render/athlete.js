@@ -132,9 +132,10 @@ export const scanHeadReady = () => !!HEAD;
 /** Motion-captured clips retargeted to this rig (web/assets/anim, see tools/anim): joint values per frame. */
 const CLIPS = {};
 export async function loadAnimations(base = 'web/assets/anim/') {
-  await Promise.all(['treading', 'shot', 'pass', 'dive1', 'dive2', 'victory'].map(async (n) => { CLIPS[n] = await (await fetch(base + n + '.json')).json(); }));
+  await Promise.all(['treading', 'shot', 'pass', 'dive1', 'dive2', 'victory', 'entry'].map(async (n) => { CLIPS[n] = await (await fetch(base + n + '.json')).json(); }));
   return CLIPS;
 }
+export const hasClip = (n) => !!CLIPS[n];
 /** Clip pose at frame `fr` (clamped, linear), optionally mirrored (left <-> right) and limited to some keys. */
 const MIRROR_SWAP = [['shRx', 'shLx', 1], ['shRz', 'shLz', -1], ['shRy', 'shLy', -1], ['elR', 'elL', 1], ['hipRx', 'hipLx', 1], ['hipRz', 'hipLz', -1], ['knR', 'knL', 1]];
 const MIRROR_NEG = ['roll', 'pelvisY', 'pelvisZ', 'chestY', 'chestZ', 'headY', 'twist'];
@@ -1250,6 +1251,23 @@ export class Athlete {
     }
     for (const a of A) if (a.sm) a.sm.rotation.set(a.sh.rotation.x * 0.5, 0, a.sh.rotation.z * 0.5);
   }
+  /** Pool entry (pre-match cinematic): full-body pose of the captured run-up and dive at frame `fr`.
+   *  Returns the capture's hips path { fwd, up, headUp } in metres scaled to this player (null if no clip). */
+  entryPose(fr) {
+    const c = CLIPS.entry; if (!c) return null;
+    const P = clipPose(c, fr), sc = this.standHeight() / 135, n = c.root.length, x = clamp(fr, 0, n - 1), i = Math.min(n - 2, Math.floor(x)), f = x - i;
+    const R = (k) => (c.root[i][k] + (c.root[i + 1][k] - c.root[i][k]) * f) * sc;
+    this.pivot.rotation.set(P.pitch ?? 0, 0, P.roll ?? 0); this.torso.rotation.set(0, P.pelvisY ?? 0, P.pelvisZ ?? 0);
+    this.chest.rotation.set(P.chestX ?? 0, P.chestY ?? 0, P.chestZ ?? 0); this.head.rotation.set(P.headX ?? 0, P.headY ?? 0, 0);
+    this.armR.sh.rotation.set(P.shRx ?? 0, P.shRy ?? 0, P.shRz ?? 0, 'XZY'); this.armR.el.rotation.set(P.elR ?? 0, 0, 0);
+    this.armL.sh.rotation.set(P.shLx ?? 0, P.shLy ?? 0, P.shLz ?? 0, 'XZY'); this.armL.el.rotation.set(P.elL ?? 0, 0, 0);
+    this.legR.hip.rotation.set(P.hipRx ?? 0, 0, P.hipRz ?? 0); this.legR.kn.rotation.set(P.knR ?? 0, 0, 0);
+    this.legL.hip.rotation.set(P.hipLx ?? 0, 0, P.hipLz ?? 0); this.legL.kn.rotation.set(P.knL ?? 0, 0, 0);
+    for (const a of [this.armR, this.armL]) if (a.sm) a.sm.quaternion.copy(IDQ).slerp(a.sh.quaternion, 0.5);
+    return { fwd: R(0), up: R(1), headUp: R(2), frames: n };
+  }
+  /** World position of the hips (between the two hip joints). */
+  hipsWorld(out) { this.legR.hip.getWorldPosition(out); this.legL.hip.getWorldPosition(tmpV2); return out.add(tmpV2).multiplyScalar(0.5); }
   /** Height of the chest pivot above the feet when standing (m). */
   standHeight() { return 1.42 * this.morph.height; }
 

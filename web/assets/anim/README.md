@@ -10,3 +10,4 @@ angles are stored here, no Mixamo character). Mixamo animations: royalty-free fo
 | `pass.json` | Throw Object | pass release (mirrored onto the throwing arm) |
 | `dive1.json`, `dive2.json` | Goalkeeper Diving Save, Goalkeeper Diving Save 2 | goalkeeper dive, take-off to full extension (one clip per side, mirrored for variety) |
 | `victory.json` | Victory | goal celebration (upper body; the legs keep treading water) |
+| `entry.json` | Run To Dive | pre-match cinematic: run-up on the deck and racing dive into the pool (full body; the hips follow the capture's path, stored in `root`) |

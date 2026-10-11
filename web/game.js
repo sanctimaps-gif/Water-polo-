@@ -8,7 +8,7 @@ import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
 import { Water, UW_STRENGTH } from './render/water.js';
-import { Athlete, loadScanHead, loadScanBody, loadAnimations } from './render/athlete.js';
+import { Athlete, loadScanHead, loadScanBody, loadAnimations, hasClip } from './render/athlete.js';
 import { Arena } from './render/arena.js';
 import { Splashes } from './render/vfx.js';
 import { MatchAudio } from './render/audio.js';
@@ -467,13 +467,14 @@ function startMatch(ctx) {
 // after the other (splashes), glide to their start positions; the camera cuts between the two ends
 // then rises to the match view. Tap to skip. The simulation does not run meanwhile.
 let intro = null;
-const INTRO_T = 7.2;
+const INTRO_T = 7.9;
 function startIntro() {
   const m = match;
   intro = { t: 0, actors: m.players.map((p, i) => {
     const t = p.team, s = m.sign(t), order = p.isGK ? 3 : [0, 5, 2, 4, 1, 6][p.slot];
-    return { i, t, s, start: { x: p.pos.x, z: p.pos.z }, deck: { x: -s * 15.1, z: p.isGK ? 0 : -6 + order * 2 },
-      entry: { x: -s * 13.0 }, jump: (t === 0 ? 1.0 : 3.2) + order * 0.17, splashed: false };
+    // run-up on the deck from 2.3 m behind the pool edge (x = ±14.5), take-off at the edge (captured clip)
+    return { i, t, s, start: { x: p.pos.x, z: p.pos.z }, deck: { x: -s * (hasClip('entry') ? 16.8 : 15.1), z: p.isGK ? 0 : -6 + order * 2 },
+      entry: { x: -s * 13.0 }, jump: (t === 0 ? 1.0 : 3.5) + order * 0.17, splashed: false };
   }) };
   const ov = $('intro');
   ov.innerHTML = `<div class="it-vs"><b style="background:${hex(m.teams[0].def.color)}">${m.teams[0].def.short}</b><i>${L('ui.vs')}</i><b style="background:${hex(m.teams[1].def.color)}">${m.teams[1].def.short}</b></div><small>${L('hud.skip')}</small>`;
@@ -493,25 +494,35 @@ function updateIntro(dt) {
   for (const a of it.actors) {
     const ath = athletes[a.i], u = (it.t - a.jump) / DIVE;
     const st = { x: a.deck.x, z: a.deck.z, fx: a.s, fz: 0, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: ballMesh.position, receive: false };
-    if (u < 0) {   // standing on the deck
+    const fr = (it.t - a.jump) * 30, cap = fr >= 0 && fr < 36 && hasClip('entry');
+    if (u < 0 && !cap) {   // standing on the deck
       ath.update(dt, st); ath.overridePose('stand'); ath.root.position.set(a.deck.x, 0.3 + ath.standHeight(), a.deck.z);
-    } else if (u < 1) {   // flight: ballistic arc head first
+    } else if (cap) {   // captured run-up and racing dive: the hips follow the capture's path (deck top at y = 0.3)
+      st.x = ath.root.position.x; ath.update(dt, st);
+      const r = ath.entryPose(fr);
+      ath.root.position.set(0, 0, 0); ath.root.updateMatrixWorld(true); ath.hipsWorld(tmp);
+      ath.root.position.set(a.deck.x + a.s * r.fwd - tmp.x, 0.3 + r.up - tmp.y, a.deck.z - tmp.z);
+      if (!a.splashed && r.headUp < -0.3) { a.splashed = true; const hx = a.deck.x + a.s * (r.fwd + 0.5); a.entry.x = hx; vfx.burst(hx, a.deck.z, 1.3); audio.splash(0.9); }
+      a.capEnd = it.t; a.capY = ath.root.position.y;
+    } else if (u < 1 && !a.capEnd) {   // flight: ballistic arc head first
       const x = a.deck.x + (a.entry.x - a.deck.x) * u, y = (0.3 + ath.standHeight()) * (1 - u) - 0.25 * u + 1.1 * u * (1 - u);
       st.x = x; ath.update(dt, st); ath.overridePose('dive', u); ath.root.position.set(x, y, a.deck.z);
     } else {   // entry splash, glide / swim to the start position, then tread water
       if (!a.splashed) { a.splashed = true; vfx.burst(a.entry.x, a.deck.z, 1.3); audio.splash(0.9); }
-      const g = Math.min(1, (it.t - a.jump - DIVE) / GLIDE), e = g * g * (3 - 2 * g);
+      const g = Math.min(1, (it.t - (a.capEnd ?? a.jump + DIVE)) / GLIDE), e = g * g * (3 - 2 * g);
       const x = a.entry.x + (a.start.x - a.entry.x) * e, z = a.deck.z + (a.start.z - a.deck.z) * e;
       Object.assign(st, { x, z, vx: g < 1 ? a.s * 1.6 : 0, vz: 0 });
       ath.update(dt, st);
+      if (a.capEnd !== undefined) { const k = Math.min(1, (it.t - a.capEnd) / 0.5); ath.root.position.y += (a.capY - ath.root.position.y) * (1 - k * k * (3 - 2 * k)); }   // surface from the dive
     }
   }
   // camera: home end (dives), away end (dives), then rising wide shot over the pool
   const tt = it.t; let p, l, fov = 45;
-  if (tt < 3.0) { const k = tt / 3; p = tmp.set(-6 - 3 * k, 4.6 - 1.4 * k, -9 + 1.5 * k); l = tmp2.set(-14, 0.8, 0); }
-  else if (tt < 5.2) { const k = (tt - 3) / 2.2; p = tmp.set(6 + 3 * k, 4.6 - 1.4 * k, -9 + 1.5 * k); l = tmp2.set(14, 0.8, 0); }
-  else { const k = Math.min(1, (tt - 5.2) / 2), e = k * k * (3 - 2 * k); p = tmp.set(0, 1.2 + 9 * e, -7 - 12 * e); l = tmp2.set(0, 0, 0); fov = 40 + 10 * e; }
-  if (tt < 0.05 || Math.abs(tt - 3.0) < dt || Math.abs(tt - 5.2) < dt) camera.position.copy(p); else camera.position.lerp(p, 1 - Math.exp(-dt * 5));
+  const C1 = 3.4, C2 = 5.9;
+  if (tt < C1) { const k = tt / C1; p = tmp.set(-6 - 3 * k, 4.6 - 1.4 * k, -9 + 1.5 * k); l = tmp2.set(-14.5, 0.8, 0); }
+  else if (tt < C2) { const k = (tt - C1) / (C2 - C1); p = tmp.set(6 + 3 * k, 4.6 - 1.4 * k, -9 + 1.5 * k); l = tmp2.set(14.5, 0.8, 0); }
+  else { const k = Math.min(1, (tt - C2) / 2), e = k * k * (3 - 2 * k); p = tmp.set(0, 1.2 + 9 * e, -7 - 12 * e); l = tmp2.set(0, 0, 0); fov = 40 + 10 * e; }
+  if (tt < 0.05 || Math.abs(tt - C1) < dt || Math.abs(tt - C2) < dt) camera.position.copy(p); else camera.position.lerp(p, 1 - Math.exp(-dt * 5));
   camera.lookAt(l); setFov(fov, dt, 8);
   selRing.visible = selArrow.visible = passRing.visible = false;
   if (it.t >= INTRO_T) {

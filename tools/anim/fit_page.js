@@ -4,7 +4,7 @@ async (data) => {
   const A = await import('/web/render/athlete.js');
   await A.loadScanHead('/web/assets/head/'); await A.loadScanBody('/web/assets/body/');
   const a = new A.Athlete({ teamColor: 0x1e5bd8, capColor: 0x1e5bd8, trimColor: 0xffffff, number: 3, role: 'CENTER', bodyRole: 'CENTER', isGK: false, seed: 11, preset: { limbSeg: 10, faceDetail: true, scanHead: true } });
-  const LIM = A.JOINT_LIMITS, out = [], V = (p) => new THREE.Vector3(...p);
+  const LIM = { ...A.JOINT_LIMITS, shRx: [-3.75, 1.05], shLx: [-3.75, 1.05] }, out = [], V = (p) => new THREE.Vector3(...p);
   const W = (o) => o.getWorldPosition(new THREE.Vector3());
   const dir = (p, q) => q.clone().sub(p).normalize();
   const set = (q) => {
@@ -57,7 +57,17 @@ async (data) => {
     let eA = 0;
     for (const s of ['R', 'L']) {
       const m = side(s, armRight), arm = ARM[s], u = dir(M(m + 'Arm'), M(m + 'ForeArm')), fo = dir(M(m + 'ForeArm'), M(m + 'Hand'));
-      eA += opt(['sh' + s + 'x', 'sh' + s + 'z', 'sh' + s + 'y', 'el' + s], () => mis(dir(W(arm.sh), W(arm.el)), u) * 2 + mis(dir(W(arm.el), W(arm.wr)), fo));
+      // multi-start: the previous frame's solution and a few seeds (an arm going overhead jumps to another Euler branch)
+      const ks = ['sh' + s + 'x', 'sh' + s + 'z', 'sh' + s + 'y', 'el' + s], f = () => mis(dir(W(arm.sh), W(arm.el)), u) * 2 + mis(dir(W(arm.el), W(arm.wr)), fo);
+      let best = null;
+      for (const seed of [null, [-3, 0.3], [-1.6, 0.2], [-1.6, 1.4], [0, 0.3], [-2.4, 1.6]]) {
+        const keep = ks.map((k) => q[k]);
+        if (seed) { q[ks[0]] = seed[0]; q[ks[1]] = seed[1] * (s === 'R' ? 1 : -1); q[ks[2]] = 0; q[ks[3]] = -0.5; }
+        const e = opt(ks, f);
+        if (!best || e < best.e - 1e-6) best = { e, v: ks.map((k) => q[k]) }; else ks.forEach((k, i) => { q[k] = keep[i]; });
+        ks.forEach((k, i) => { q[k] = best.v[i]; });
+      }
+      set(q); eA += best.e;
     }
     let eL = 0;
     for (const s of ['R', 'L']) {

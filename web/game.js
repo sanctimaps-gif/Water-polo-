@@ -1388,6 +1388,9 @@ function buildShowcase() {
       const cyc = (t % 2.4), charging = st === 'wind' && cyc < 1.5;
       if (st === 'wind' && !charging && a.throwT <= 0 && !a._thrown) { a.playThrow('shot'); a._thrown = true; }
       if (charging) a._thrown = false;
+      // goalkeeper: a dive every 3 s, alternating sides; holder: a pass every 2.5 s (animation checks)
+      if (st === 'gk' && a.diveT <= 0 && t % 3 < 0.05) a.playDive((a._dv = -(a._dv || -1)));
+      if (st === 'hold' && a.throwT <= 0 && t % 2.5 < 0.05) a.playThrow('pass');
       return { x, z: 0, fx: 0, fz: -1, vx: st === 'swim' ? 0 : 0, vz: st === 'swim' ? -1.5 : 0, sprint: false, hasBall: st === 'hold' || charging || (st === 'swim' && new URLSearchParams(location.search).has('dribble')), charging,
         charge: Math.min(1, cyc / 1.2), block: 0, stamina: 1, ball: new THREE.Vector3(x, 1, -3), receive: false };
     };

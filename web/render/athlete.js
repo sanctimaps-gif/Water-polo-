@@ -132,9 +132,31 @@ export const scanHeadReady = () => !!HEAD;
 /** Motion-captured clips retargeted to this rig (web/assets/anim, see tools/anim): joint values per frame. */
 const CLIPS = {};
 export async function loadAnimations(base = 'web/assets/anim/') {
-  const c = await (await fetch(base + 'treading.json')).json();
-  CLIPS.treading = c; return CLIPS;
+  await Promise.all(['treading', 'shot', 'pass', 'dive1', 'dive2', 'victory'].map(async (n) => { CLIPS[n] = await (await fetch(base + n + '.json')).json(); }));
+  return CLIPS;
 }
+/** Clip pose at frame `fr` (clamped, linear), optionally mirrored (left <-> right) and limited to some keys. */
+const MIRROR_SWAP = [['shRx', 'shLx', 1], ['shRz', 'shLz', -1], ['shRy', 'shLy', -1], ['elR', 'elL', 1], ['hipRx', 'hipLx', 1], ['hipRz', 'hipLz', -1], ['knR', 'knL', 1]];
+const MIRROR_NEG = ['roll', 'pelvisY', 'pelvisZ', 'chestY', 'chestZ', 'headY', 'twist'];
+const UPPER = ['chestX', 'chestY', 'chestZ', 'pelvisY', 'headX', 'headY', 'shRx', 'shRz', 'shRy', 'elR', 'shLx', 'shLz', 'shLy', 'elL'];
+function clipPose(c, fr, mirror = false, keys = null) {
+  const n = c.frames.length, x = clamp(fr, 0, n - 1), i = Math.min(n - 2, Math.floor(x)), f = x - i, A = c.frames[i], B = c.frames[i + 1], o = {};
+  for (let k = 0; k < c.keys.length; k++) { const a = A[k], b = B[k]; let d = b - a; if (d > Math.PI) d -= 2 * Math.PI; else if (d < -Math.PI) d += 2 * Math.PI; o[c.keys[k]] = a + d * f; }
+  if (mirror) {
+    for (const [r, l, sg] of MIRROR_SWAP) { const a = o[r] ?? 0, b = o[l] ?? 0; o[r] = b * sg; o[l] = a * sg; }
+    for (const k of MIRROR_NEG) if (k in o) o[k] = -o[k];
+  }
+  if (keys) for (const k in o) if (!keys.includes(k)) delete o[k];
+  return o;
+}
+/** Key frames of the captured clips (30 fps): where each game action starts, is cocked, releases and ends. */
+const CLIP_MARKS = {
+  shot: { wind0: 40, cock: 51, end: 78, mirror: false },   // pitching (thrower's arm = our armR): arm back, cocked high behind the head, whip, follow-through
+  pass: { cock: 63, end: 82, mirror: true },               // throw: short wind-up, release, follow-through (thrower's right arm -> mirrored onto armR)
+  dive1: { a: 10, b: 38, side: 1 },                         // goalkeeper: take-off to full extension (the fall to the ground is not used)
+  dive2: { a: 10, b: 34, side: -1 },
+  victory: { a: 8, b: 100 },                                 // both arms up, fists, held, then down
+};
 /** Clip pose at cycle position u (0..1, looping), linear between frames. */
 function sampleClip(c, u, out) {
   const n = c.frames.length, x = (((u % 1) + 1) % 1) * n, i = Math.floor(x) % n, f = x - Math.floor(x), A = c.frames[i], B = c.frames[(i + 1) % n];
@@ -897,7 +919,7 @@ export class Athlete {
   playSave() { this.saveT = 0.5; }
   /** Look at a point for a while (pass target, goal...), then back to the default look target. */
   lookAtFor(x, y, z, dur) { this.lookTarget.set(x, y, z); this.lookT = dur; }
-  playDive(dir) { this.diveT = 0.9; this.diveDir = dir; }
+  playDive(dir) { this.diveT = 0.9; this.diveDir = dir; this.diveClip = Math.random() < 0.5 ? 'dive1' : 'dive2'; }
   playCelebrate(kind = 'arms') { this.celebrateT = 2.6; this.celebrateKind = kind; }
 
   /**
@@ -1045,7 +1067,10 @@ export class Athlete {
       // straight), then cocked high behind the head (elbow above the shoulder); the eggbeater lifts the
       // body out of the water to the waist; pelvis and thorax turn back, the free arm sculls out to the side.
       const arc = Math.sin(le * Math.PI);
-      mix(P, { shRx: -1.0 + (-2.0 - 0.75 * c) * le, shRz: 0.3 + 0.75 * arc, elR: -0.1 - (1.0 + 0.45 * c) * le,
+      if (CLIPS.shot) {   // captured wind-up (arm back then cocked high behind the head), eggbeater lift as before
+        const m = CLIP_MARKS.shot, cp = clipPose(CLIPS.shot, m.wind0 + (m.cock - m.wind0) * le, m.mirror, UPPER);
+        mix(P, { ...cp, pitch: -0.12 * c, rise: 0.08 + (0.1 + 0.14 * c) * le, twist: 0 }, w.wind);
+      } else mix(P, { shRx: -1.0 + (-2.0 - 0.75 * c) * le, shRz: 0.3 + 0.75 * arc, elR: -0.1 - (1.0 + 0.45 * c) * le,
         pelvisY: -0.22 * c * le, chestY: -0.5 * c * le, chestZ: 0.14 * c, chestX: -0.16 * c, twist: 0, pitch: -0.12 * c,
         rise: 0.08 + (0.1 + 0.14 * c) * le, shLx: -0.9, shLz: -0.95, elL: -0.35 + Math.sin(this.tread * 2) * 0.15, headY: 0.35 * c }, w.wind);
     }
@@ -1063,7 +1088,11 @@ export class Athlete {
       // Release high in front, then (footage) the arm carries on down across the body, the thorax keeps
       // turning and the player falls forward back into the water.
       const big = kind === 'shot' || kind === 'power';
-      mix(P, { shRx: -3.6 + ea * K[0] + (big ? ft * 0.9 : 0), shRz: 0.25 - (big ? 0.75 * ft : 0), elR: -1.1 * (1 - ea) * (kind === 'lob' ? 0.4 : 1) - (big ? 0.35 * ft : 0), twist: 0,
+      const cl = big || kind === 'pass' ? CLIPS[big ? 'shot' : 'pass'] : null;
+      if (cl) {   // captured release: whip through and follow-through, sped up to the game's throw duration
+        const m = CLIP_MARKS[big ? 'shot' : 'pass'], cp = clipPose(cl, m.cock + (m.end - m.cock) * clamp(u, 0, 1), m.mirror, UPPER);
+        mix(P, { ...cp, twist: 0, pitch: K[2] * ea - 0.1 + (big ? 0.2 * ft : 0), rise: Math.min(0.32, K[3]) * (1 - ea * 0.5) * (1 - u) + 0.05 - (big ? 0.05 * ft : 0) }, w.throw);
+      } else mix(P, { shRx: -3.6 + ea * K[0] + (big ? ft * 0.9 : 0), shRz: 0.25 - (big ? 0.75 * ft : 0), elR: -1.1 * (1 - ea) * (kind === 'lob' ? 0.4 : 1) - (big ? 0.35 * ft : 0), twist: 0,
         pelvisY: (-0.22 + 0.36 * ep) * K[1], chestY: (-0.5 + 0.85 * ec + (big ? 0.3 * ft : 0)) * K[1], chestX: -0.16 + 0.4 * ea * K[1] + (big ? 0.25 * ft : 0), chestZ: 0.14 * (1 - ec),
         pitch: K[2] * ea - 0.1 + (big ? 0.2 * ft : 0), rise: Math.min(0.32, K[3]) * (1 - ea * 0.5) * (1 - u) + 0.05 - (big ? 0.05 * ft : 0),
         shLx: -1.35 + 0.9 * ec, shLz: -0.5, elL: -0.2, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
@@ -1082,14 +1111,20 @@ export class Athlete {
     if (w.dive > 0) {
       const d = this.diveDir, u = 1 - this.diveT / 0.9;
       const reach = { roll: -d * 0.85, rise: 0.38 * Math.sin(Math.min(1, u * 1.5) * Math.PI) + 0.1, pitch: 0 };
-      if (d > 0) Object.assign(reach, { shRx: -2.5, shRz: 1.45, elR: -0.05, shLx: -2.8, shLz: -0.5, elL: -0.2 });
+      if (CLIPS.dive1) {   // captured dive toward the ball side (two clips, mirrored for the other side)
+        const k = this.diveClip || 'dive1', m = CLIP_MARKS[k], cp = clipPose(CLIPS[k], m.a + (m.b - m.a) * clamp(u / 0.8, 0, 1), m.side !== d);
+        delete cp.rise; cp.roll = clamp(cp.roll ?? 0, -1.1, 1.1); cp.pitch = (cp.pitch ?? 0) * 0.35;
+        Object.assign(reach, cp);
+      } else if (d > 0) Object.assign(reach, { shRx: -2.5, shRz: 1.45, elR: -0.05, shLx: -2.8, shLz: -0.5, elL: -0.2 });
       else Object.assign(reach, { shLx: -2.5, shLz: -1.45, elL: -0.05, shRx: -2.8, shRz: 0.5, elR: -0.2 });
       mix(P, reach, w.dive);
     }
     // ---- celebration
     if (w.celebrate > 0) {
       const ct = this.celebrateT;
-      const cel = this.celebrateKind === 'splash'
+      const cv = CLIPS.victory && this.celebrateKind !== 'splash' ? CLIP_MARKS.victory : null;
+      const cel = cv ? { ...clipPose(CLIPS.victory, cv.a + (cv.b - cv.a) * clamp(1 - ct / 2.6, 0, 1), false, UPPER), rise: 0.28 + Math.abs(Math.sin(ct * 5)) * 0.18, pitch: -0.1 }
+        : this.celebrateKind === 'splash'
         ? { shRx: -1.4 + Math.sin(ct * 14) * 0.9, shRz: 0.5, elR: -0.3, shLx: -1.4 - Math.sin(ct * 14) * 0.9, shLz: -0.5, elL: -0.3, rise: 0.15, pitch: 0.3 }
         : { shRx: -3.0 + Math.sin(ct * 9) * 0.25, shRz: 0.45, elR: -0.2, shLx: -3.0 - Math.sin(ct * 9) * 0.25, shLz: -0.45, elL: -0.2,
             rise: 0.28 + Math.abs(Math.sin(ct * 5)) * 0.22, pitch: -0.1, headX: -0.3 };

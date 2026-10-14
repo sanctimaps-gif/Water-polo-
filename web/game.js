@@ -347,11 +347,11 @@ let currentMove = { x: 0, y: 0, z: 0 };
 // Pre-match screen: the best player of each team standing on the deck, full body, either side of the card.
 let pmView = null;
 function clearPrematch() { if (pmView) { for (const a of pmView.ath) scene.remove(a.root); for (const l of pmView.lights) scene.remove(l, l.target); pmView = null; } }
-function buildPrematch(oppId, pref = 'home') {
+function buildPrematch(oppId, pref = 'home', free = false) {
   clearPrematch();
-  const me = { ...state.clubInfo('user'), kits: state.data.club.kits }, opp = state.clubInfo(oppId), kits = matchKits(me, opp, pref);
+  const me = free ? state.freeClub() : { ...state.clubInfo('user'), kits: state.data.club.kits }, opp = state.clubInfo(oppId), kits = matchKits(me, opp, pref);
   const best = (sq) => sq.filter((p) => p.role !== 'GOALKEEPER').sort((a, b) => overall(b) - overall(a))[0];
-  const ath = [best(state.squad), best(state.opponentSquad(oppId))].map((p, i) => {
+  const ath = [best(free ? state.freeSquad() : state.squad), best(state.opponentSquad(oppId))].map((p, i) => {
     const look = lookOf(p), K = kits[i];
     const a = new Athlete({ ...kitOptions(K.kit, K.gk, false, i === 0), number: p.number, role: p.role, bodyRole: look.role, isGK: false, seed: look.seed, preset });
     scene.add(a.root); return a;
@@ -360,7 +360,7 @@ function buildPrematch(oppId, pref = 'home') {
   const key = new THREE.DirectionalLight(0xfff3e4, 2.4), rim = new THREE.DirectionalLight(0x9fd4ff, 1.6);
   key.position.set(1.5, 3.6, -5); key.target.position.set(0, 1.2, -11.6); rim.position.set(-1, 3, -15); rim.target.position.set(0, 1, -11.6);
   const lights = [key, rim]; for (const l of lights) scene.add(l, l.target);
-  pmView = { ath, lights, key: oppId + '|' + pref };
+  pmView = { ath, lights, key: oppId + '|' + pref + '|' + free };
   setBall(state.data.club.ball || 'classic');
 }
 function updatePrematchView(dt) {
@@ -438,11 +438,12 @@ let matchCtx = null, paused = false;
 function startMatch(ctx) {
   matchCtx = ctx; paused = false;
   const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: 0, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing, autoSwitch: opts.autoSwitch !== false };
-  match = new Match(cfg, state.userTeamDef(), state.opponentTeamDef(ctx.opponent, ctx.rating));
-  heroPreview = null; setBall(state.data.club.ball || 'classic');
-  const pool = POOLS.find((x) => x.id === state.data.club.pool);   // the club's home pool sets the arena ambience
+  const free = ctx.mode === 'free';   // CHAMPIONNATS: another club (its own squad), outside the career
+  match = new Match(cfg, free ? state.freeTeamDef() : state.userTeamDef(), state.opponentTeamDef(ctx.opponent, ctx.rating));
+  heroPreview = null; setBall(free ? 'classic' : state.data.club.ball || 'classic');
+  const pool = free ? null : POOLS.find((x) => x.id === state.data.club.pool);   // the club's home pool sets the arena ambience
   arena.setAmbience(ctx.away || !pool ? opts.ambience : pool.ambience);
-  tacticIdx = Math.max(0, TACTICS.indexOf(state.data.club.tactic));
+  tacticIdx = Math.max(0, TACTICS.indexOf(free ? 'BALANCED' : state.data.club.tactic));
   if (ctx.mode === 'challenge') match.startDrill(ctx.drill); else match.start();
   drillKey = '';
   tape.length = 0; record(match, []); record(match, []);
@@ -816,7 +817,7 @@ function finishMatch(forfeit) {
   }
   const summary = ctx.mode === 'quick' && forfeit ? null : state.applyResult(ctx, { hs, as, stats, players });
   leaveMatch();
-  if (summary) { audio.whistle(false); app.show('results', { summary, hs, as, stats, statsOpp, opponent: m.teams[1].def.short }, false); }
+  if (summary) { audio.whistle(false); app.show('results', { summary, hs, as, stats, statsOpp, opponent: m.teams[1].def.short, mine: m.teams[0].def.short }, false); }
   else app.home();
 }
 function leaveMatch() {
@@ -905,19 +906,25 @@ function statsHtml() {
     + row(L('pz.manup'), a.ppChances, b.ppChances, `${a.ppChances}(${a.ppGoals})`, `${b.ppChances}(${b.ppGoals})`);
 }
 /** Substitutions (rolling, as in water polo): tap a player in the water, then a substitute. */
+/** Squad player of the user's side by id (the career squad, or the club of a free championship). */
+const sqOf = (id) => state.player(id) || (matchCtx && matchCtx.mode === 'free' ? state.freeSquad().find((p) => p.id === id) : null);
+function subsBench() {
+  if (matchCtx.mode !== 'free') return state.bench();
+  const used = new Set(match.teams[0].players.map((mp) => mp.pid)); return state.freeSquad().filter((p) => !used.has(p.id));
+}
 function teamHtml() {
-  const inWater = [...match.teams[0].field, match.teams[0].gk], bench = state.bench().sort((x, y) => (x.role === 'GOALKEEPER') - (y.role === 'GOALKEEPER'));
+  const inWater = [...match.teams[0].field, match.teams[0].gk], bench = subsBench().sort((x, y) => (x.role === 'GOALKEEPER') - (y.role === 'GOALKEEPER'));
   const card = (p, extra, sel) => `<div class="sub-card ${sel ? 'sel' : ''}" ${extra}>${cardHtml(p)}</div>`;
-  const wp = inWater.map((mp) => { const sq = mp.pid ? state.player(mp.pid) : null; if (!sq) return '';
+  const wp = inWater.map((mp) => { const sq = mp.pid ? sqOf(mp.pid) : null; if (!sq) return '';
     return card({ ...sq, form: Math.round(mp.stamina * 100) }, `data-in="${mp.id}"`, pzSel === mp.id); }).join('');
   return `<p class="pz-hint">${L(pzSel === null ? 'pz.sub_pick' : 'pz.sub_bench')}</p><div class="sub-grid">${wp}</div><h4>${L('ui.bench')}</h4>
     <div class="sub-grid subs">${bench.map((p) => card(p, `data-bench="${p.id}"`, false)).join('') || `<p class="pz-hint">—</p>`}</div>`;
 }
 function substitute(mpId, benchId) {
-  const mp = match.players[mpId], sq = state.player(benchId); if (!mp || !sq || mp.excluded > 0) return false;
+  const mp = match.players[mpId], sq = sqOf(benchId); if (!mp || !sq || mp.excluded > 0) return false;
   if (mp.isGK !== (sq.role === 'GOALKEEPER')) { toast(L(mp.isGK ? 'pz.need_gk' : 'pz.no_gk'), 1.5); return false; }
   const old = mp.pid; match.substitute(mp, state.playerDef(sq, mp.isGK ? -1 : mp.slot));
-  if (old) state.swap(old, benchId);   // the line-up follows (career stats, next match)
+  if (old && matchCtx.mode !== 'free') state.swap(old, benchId);   // the line-up follows (career stats, next match)
   scene.remove(athletes[mpId].root); athletes[mpId] = makeAthlete(match, mp); athletes[mpId].root.position.set(mp.pos.x, 0, mp.pos.z);
   lastWho = null; haptic([20, 30, 20]); return true;
 }
@@ -934,7 +941,7 @@ function pausePanel(kind) {
       if (a) { pzSel = +a.dataset.in === pzSel ? null : +a.dataset.in; pausePanel('team'); }
       else if (b && pzSel !== null) { if (substitute(pzSel, b.dataset.bench)) { pzSel = null; toast(L('pz.subbed'), 1.2); } pausePanel('team'); }
     };
-    fillPortraits(el, [...match.teams[0].players.map((mp) => mp.pid && state.player(mp.pid)).filter(Boolean), ...state.bench()]);
+    fillPortraits(el, [...match.teams[0].players.map((mp) => mp.pid && sqOf(mp.pid)).filter(Boolean), ...subsBench()]);
     return;
   }
   if (kind === 'settings') {
@@ -1159,13 +1166,14 @@ let lineup = null;
 const LINE_POS = { 4: [8, 6], 5: [41, 2], 0: [74, 6], 3: [16, 36], 2: [41, 36], 1: [66, 36], '-1': [41, 68] };
 function lineupHtml(t) {
   const m = match, def = m.teams[t].def;
-  const players = t === 0 ? [state.player(state.lineup.gk), ...state.lineup.slots.map((id) => state.player(id))].map((p, i) => ({ ...p, slot: i ? i - 1 : -1 }))
-    : state.opponentSquad(def.id).slice(0, 7).map((p) => ({ ...p, slot: p.slot ?? -1 }));
-  const total = t === 0 ? state.teamTotal().total : state.opponentTotal(def.id);
+  const free = t === 0 && matchCtx.mode === 'free';
+  const players = t === 0 && !free ? [state.player(state.lineup.gk), ...state.lineup.slots.map((id) => state.player(id))].map((p, i) => ({ ...p, slot: i ? i - 1 : -1 }))
+    : (free ? state.freeSquad() : state.opponentSquad(def.id)).slice(0, 7).map((p) => ({ ...p, slot: p.slot ?? -1 }));
+  const total = free ? state.freeClub().total : t === 0 ? state.teamTotal().total : state.opponentTotal(def.id);
   const html = `<div class="lu-banner" style="--tc:${hexCss(def.color)}">${crest(def, 64)}<div><b>${def.name}</b><span class="lu-ovr">${total}<small>OVR</small></span></div><i>${L(FORM_NAME[m.teams[t].formation] || 'form.arc')}</i></div>
     <div class="lu-pool"><div class="lu-goal"></div><div class="lu-l2"></div><div class="lu-l5"></div>
     ${players.map((p) => { const [x, y] = LINE_POS[p.slot] || [41, 36]; return cardHtml(p, { style: `left:${x}%;top:${y}%` }); }).join('')}</div>`;
-  return { html, players, kits: t === 0 ? null : def.kits };
+  return { html, players, kits: t === 0 && !free ? null : def.kits };
 }
 function showLineups(done) {
   lineup = { t: 0, team: 0, done }; paused = true;
@@ -1365,7 +1373,7 @@ const app = new App($('app'), {
   L, state,
   setHero: (v, name) => { heroVisible = v; if (name !== 'prematch') clearPrematch(); },
   refreshBall: () => setBall(state.data.club.ball || 'classic'),
-  prematch: (opp, pref) => { if (!pmView || pmView.key !== opp + '|' + pref) buildPrematch(opp, pref); },
+  prematch: (opp, pref, free = false) => { if (!pmView || pmView.key !== opp + '|' + pref + '|' + free) buildPrematch(opp, pref, free); },
   portrait: (p, capColor) => { try { return portraitFor(p, capColor); } catch (e) { console.warn('portrait', e); return null; } },
   refreshHero: () => buildHero(),
   // club editor: live 3D preview of a draft identity (null = back to the saved club)

@@ -4,8 +4,8 @@
 // photos (see docs/UI.md). Real data can be plugged in later through the same structures,
 // with `source` / `lastUpdated` fields filled from official sources.
 import { Rng, N, TACTICS, DRILLS } from './sim.js';
-import { WORLD_COUNTRIES, REAL_CLUBS, LEAGUES as W_LEAGUES, CONTINENT_INFO, clubById, countryOf, countryClubs, reserveClub, divisionName, applyMoves, continentalPlaces, DIVS } from './world.js';
-export { WORLD_COUNTRIES, CONTINENT_INFO, clubById, countryOf, countryClubs, divisionName, DIVS };
+import { WORLD_COUNTRIES, REAL_CLUBS, LEAGUES as W_LEAGUES, CONTINENT_INFO, clubById, countryOf, countryClubs, reserveClub, divisionName, applyMoves, continentalPlaces, DIVS, PROMOTED } from './world.js';
+export { WORLD_COUNTRIES, CONTINENT_INFO, clubById, countryOf, countryClubs, divisionName, DIVS, PROMOTED };
 
 const SAVE_KEY = 'wp26.save', SAVE_VERSION = 1;
 const DATA_SOURCE = { source: 'WP26 original fictional data', lastUpdated: '2026-10-04', licensed: false };
@@ -109,12 +109,12 @@ export const PACK_TIERS = [
 ];
 export const PACK_SLOTS = 4;
 /** Pack level of a match: defeat → bronze, draw → silver, win → gold, win by 3+ goals → elite;
- *  a won tournament / playoff match goes up one level; a quick match gives at most silver. */
+ *  a won tournament match goes up one level; a quick match or a free championship match gives at most silver. */
 export function packTier(mode, hs, as) {
   let t = hs > as ? 2 : hs === as ? 1 : 0;
   if (hs - as >= 3) t = 3;
-  if (hs > as && (mode === 'tournament' || mode === 'playoff')) t = Math.min(3, t + 1);
-  if (mode === 'quick') t = Math.min(1, t);
+  if (hs > as && mode === 'tournament') t = Math.min(3, t + 1);
+  if (mode === 'quick' || mode === 'free') t = Math.min(1, t);
   return t;
 }
 
@@ -140,6 +140,7 @@ export function ensurePlayer(p) {
   if (!p.skills) p.skills = (ROLE_SKILLS[p.role] || ROLE_SKILLS.ALL_ROUNDER).map((id, i) => ({ id, level: i === 0 ? 1 : 0 }));
   if (!p.career) p.career = { matches: 0, wins: 0, draws: 0, goals: 0, assists: 0, shots: 0, steals: 0, saves: 0, passes: 0 };
   if (!p.weight) p.weight = Math.round(p.height * 0.48 + (p.role === 'CENTER' ? 12 : p.role === 'WINGER' ? -4 : 2));
+  if (p.contract === undefined) p.contract = 1 + ((p.number || 0) % 3);   // seasons left (MERCATO: contracts)
   return p;
 }
 /** Stats used in a match: trained stats + skills + PHYSIQUE boost, scaled by form (0..100: -8 % .. 0 %). */
@@ -153,6 +154,9 @@ export function matchStats(p) {
   }
   return st;
 }
+/** MERCATO: transfer value in coins (rating, training level, card quality); a sale pays 60 % of it. */
+export const marketValue = (p) => Math.round(150 * Math.pow(1.12, overall(p) - 60) + (p.level - 1) * 20 + (p.quality || 0) * 250);
+export const CONTRACT_MULT = { 1: 0.8, 2: 1, 3: 1.25 };   // signing fee by contract length (seasons)
 /** Value of a player when exchanged for training points. */
 export const tradeValue = (p) => Math.round(overall(p) * 3 + (p.level - 1) * 25 + (p.quality || 0) * 150);
 
@@ -195,6 +199,17 @@ export function generateSquad(clubId, rating) {
   SLOT_ROLES.forEach((role, i) => squad.push(makePlayer(rng, `${clubId}-${i}`, role, rating, i, i + 2)));
   ['GOALKEEPER', 'DEFENDER', 'WINGER', 'ALL_ROUNDER'].forEach((role, i) => squad.push(makePlayer(rng, `${clubId}-b${i}`, role, rating - 4, null, 8 + i)));
   return squad;
+}
+
+/** Career start: the 3 best players of the club's original squad replace players of the same role in a
+ *  fictional Division 3 squad (numbers kept unique). */
+export function keepThree(orig, fict) {
+  const stars = [...orig].sort((a, b) => overall(b) - overall(a)).slice(0, 3), used = new Set();
+  for (const st of stars) {
+    const i = fict.findIndex((p, k) => !used.has(k) && p.role === st.role) >= 0 ? fict.findIndex((p, k) => !used.has(k) && p.role === st.role) : fict.findIndex((p, k) => !used.has(k) && p.role !== 'GOALKEEPER');
+    used.add(i); fict[i] = { ...st, number: fict[i].number, star: true };
+  }
+  return fict;
 }
 
 // ---------------------------------------------------------------- time helpers (real timers)
@@ -261,6 +276,7 @@ function defaultState() {
     objectives: { day: '', list: [] },
     gift: { lastDay: '', streak: 0 },
     packs: { slots: [], fresh: null, seq: 0, opened: 0 },
+    free: null,
   };
 }
 
@@ -287,8 +303,13 @@ export class GameState {
         raw.tournaments ??= {}; raw.clubChosen ??= true; raw.challenges ??= {};
         // Saves made before the 5-division world: career in division 1 of the club's country.
         raw.career ??= { country: countryOf(cl.country) ? cl.country : 'FRA', division: 1 }; raw.world ??= {}; raw.careerHistory ??= []; raw.seasonEnd ??= null; raw.continental ??= null;
-        raw.packs ??= { slots: [], fresh: null, seq: 0, opened: 0 };
-        if (!raw.league.division || Object.keys(raw.league.table).some((id) => id !== 'user' && !clubById(id))) raw.league = null;   // rebuilt by the constructor
+        raw.packs ??= { slots: [], fresh: null, seq: 0, opened: 0 }; raw.free ??= null;
+        // Saves made before the 3-division career: the club restarts its pyramid in Division 3 (or keeps a lower number).
+        if (Object.values(raw.world).some((w) => w.divisions.length !== DIVS) || raw.career.division > DIVS) {
+          raw.world = {}; raw.career.division = Math.min(raw.career.division, DIVS); raw.league = null; raw.seasonEnd = null; raw.continental = null;
+        }
+        if (raw.seasonEnd && raw.seasonEnd.stage === 'playoff') raw.seasonEnd = null;
+        if (raw.league && (!raw.league.division || Object.keys(raw.league.table).some((id) => id !== 'user' && !clubById(id)))) raw.league = null;   // rebuilt by the constructor
         return raw;
       }
     } catch { /* corrupted or unavailable storage: start fresh */ }
@@ -302,7 +323,7 @@ export class GameState {
   /** Real club of the database (game identity). */
   baseClub(id) { return clubById(id); }
 
-  // ------------------------------------------------ world: 5 divisions × 9 clubs per country (+ the user's club)
+  // ------------------------------------------------ world: 3 divisions × 9 clubs per country (+ the user's club)
   /** Divisions of a country as they evolve in this career (promotions); the user's base club is replaced. */
   worldState(code) {
     let w = this.data.world[code];
@@ -314,7 +335,7 @@ export class GameState {
     return w;
   }
   divisionIds(code, d) { return this.worldState(code).divisions[d - 1]; }
-  /** Division (1..5) of a club at the start of a career in its country. */
+  /** Division (1..3) of a club in its country's pyramid (a club career itself always starts in Division 3). */
   startDivision(id) { const c = clubById(id); if (!c) return DIVS; const k = countryClubs(c.country).divisions.findIndex((d) => d.includes(id)); return k >= 0 ? k + 1 : DIVS; }
   makeLeague(season, code, d) { return newLeague(season, code, d, this.divisionIds(code, d)); }
   /** Identity draft from a real club (for "JOUER AVEC" or as the starting point of "CRÉER MA VERSION"). */
@@ -325,24 +346,29 @@ export class GameState {
       logo: { ...b.logo }, kits: JSON.parse(JSON.stringify(b.kits)), ball: 'classic', pool: 'aqua', tactic: 'BALANCED', formation: 'arc', baseClubId: b.id };
   }
   /**
-   * Starts the career with a club. mode 'with' = the club of the game as it is; 'version' = the user's own
-   * version (identity edited in the editor, kept with baseClubId). squad: 'start' (starting squad generated
-   * from the club level) or 'own' (younger squad + recruitment budget).
+   * Starts the club career. mode 'with' = the club of the game as it is; 'version' = the user's own version
+   * (identity edited in the editor, kept with baseClubId). As in mobile football careers, EVERY career starts
+   * in Division 3 of the country, even with a big club: only the 3 best players of the club's squad are kept,
+   * the other places go to fictional players of the Division 3 level. squad 'own' = a younger squad of the
+   * Division 3 level + a recruitment budget.
    */
-  chooseClub(identity, { mode = 'with', squad = 'start', division } = {}) {
+  chooseClub(identity, { mode = 'with', squad = 'start' } = {}) {
     const b = identity.baseClubId ? this.baseClub(identity.baseClubId) : null;
-    const country = countryOf(identity.country) ? identity.country : b ? b.country : 'FRA', div = division || (b ? this.startDivision(b.id) : DIVS);
-    const avg = Math.round(countryClubs(country).divisions[div - 1].reduce((a, id) => a + clubById(id).rating, 0) / 9), rating = b ? b.rating - 2 : avg - 2;
+    const country = countryOf(identity.country) ? identity.country : b ? b.country : 'FRA', div = DIVS;
+    const d3 = Math.round(countryClubs(country).divisions[div - 1].reduce((a, id) => a + clubById(id).rating, 0) / 9);
     const club = { ...defaultState().club, ...identity, tactic: identity.tactic || 'BALANCED', createdAt: Date.now() };
     club.customClubId = mode === 'version' || !b ? 'my-' + Date.now().toString(36) : null;
     club.short = String(club.short || 'MON').toUpperCase().slice(0, 4); club.logo.letters ??= club.short;
     this.data.club = club;
-    this.data.squad = generateSquad('user-' + (club.customClubId || b.id), squad === 'own' ? rating - 6 : rating);
-    if (squad === 'own') this.grant({ coins: 3000, tp: 600 });
+    const key = 'user-' + (club.customClubId || b.id);
+    if (squad === 'own') { this.data.squad = generateSquad(key, d3 - 6); this.grant({ coins: 3000, tp: 600 }); }
+    else this.data.squad = keepThree(b ? generateSquad(key + '-orig', b.rating - 2) : [], generateSquad(key, d3 - 2));
+    this.data.squad.forEach((p, i) => { p.contract = 2 + (i % 2); });   // starting contracts: 2 or 3 seasons
     this.autoLineup(false);
     club.country = country; this.data.career = { country, division: div }; this.data.world = {}; this.data.seasonEnd = null; this.data.continental = null;
     this.data.league = this.makeLeague((this.data.league && this.data.league.season) || 1, country, div);
     this.data.tournaments = {}; this.data.clubChosen = true; this.data.clubMode = mode; this.data.squadMode = squad;
+    this.data.market = null;
     this.save();
   }
   /** MON CLUB customisation after the choice: identity edited, squad / league / country kept. */
@@ -370,7 +396,7 @@ export class GameState {
   // ------------------------------------------------ change of championship (country) at the end of a season
   /** Allowed between two seasons: the championship is over and the new one has not started. */
   canChangeCountry() {   // (a rest round simulated for the other clubs does not close the window)
-    const lg = this.data.league; return lg.season > 1 && !this.pendingPlayoff() && !lg.rounds.some((r) => r.some((f) => f.hs !== null && (f.home === 'user' || f.away === 'user')));
+    const lg = this.data.league; return lg.season > 1 && !lg.rounds.some((r) => r.some((f) => f.hs !== null && (f.home === 'user' || f.away === 'user')));
   }
   /** Every national championship of the game: name, clubs, average rating. */
   leagueOptions() {
@@ -386,21 +412,12 @@ export class GameState {
     this.data.league = this.makeLeague(this.data.league.season, code, this.data.career.division);
     this.save(); return true;
   }
-  // ------------------------------------------------ end of season: playoffs, promotions, continental places
-  /** The user's playoff match if one is pending: { opponent, kind: 'promotion' | 'continental', home }. */
-  pendingPlayoff() {
-    const se = this.data.seasonEnd; if (!se || se.stage !== 'playoff') return null;
-    const p = se.playoff; return { opponent: p.a === 'user' ? p.b : p.a, kind: p.kind, home: p.a === 'user', season: se.season, division: se.division };
-  }
-  /** Final ranking of the user's division; the 2nd v 3rd match is played by the user if involved, else simulated. */
+  // ------------------------------------------------ end of season: promotions, continental places
+  /** Final ranking of the user's division, then the whole country (other divisions simulated) and the moves. */
   startSeasonEnd(rng) {
     const lg = this.data.league, R = this.sortTable(lg.table);
-    this.data.seasonEnd = { stage: 'playoff', season: lg.season, country: lg.country, division: lg.division, ranking: R, table: JSON.parse(JSON.stringify(lg.table)),
-      playoff: { a: R[1], b: R[2], as: null, bs: null, winner: null, pens: false, kind: lg.division === 1 ? 'continental' : 'promotion' } };
-    if (R[1] === 'user' || R[2] === 'user') return true;
-    const p = this.data.seasonEnd.playoff, x = this.simScore(p.a, p.b, rng, true);
-    p.as = x.hs; p.bs = x.as; p.pens = !!x.pens; p.winner = x.hs > x.as || x.pens === 'home' ? p.a : p.b;
-    this.finalizeSeason(rng); return false;
+    this.data.seasonEnd = { stage: 'ranked', season: lg.season, country: lg.country, division: lg.division, ranking: R, table: JSON.parse(JSON.stringify(lg.table)) };
+    return this.finalizeSeason(rng);
   }
   /** Simulated season of a division (home and away). */
   simDivision(ids, rng) {
@@ -410,18 +427,17 @@ export class GameState {
   }
   /**
    * End of season of the user's country: every division ranked (the user's one played, the others simulated),
-   * 2nd v 3rd playoffs, promotions (1st + playoff winner) with the matching moves down (9 AI clubs per division
-   * kept, the user's club is never relegated), Division 1 champion and continental places, history, new season.
+   * promotions (the first 4 of divisions 2 and 3) with the matching moves down (9 AI clubs per division kept,
+   * the user's club is never relegated), Division 1 champion and continental places, contracts, new season.
    */
   finalizeSeason(rng) {
     const se = this.data.seasonEnd, code = se.country, W = this.worldState(code), d0 = se.division, pr = this.data.profile;
-    const rankings = [], playoffs = [], tables = [];
+    const rankings = [], tables = [];
     for (let d = 1; d <= DIVS; d++) {
-      if (d === d0) { rankings.push(se.ranking); playoffs.push(se.playoff); tables.push(se.table); continue; }
-      const t = this.simDivision(W.divisions[d - 1], rng), r = this.sortTable(t), x = this.simScore(r[1], r[2], rng, true);
-      rankings.push(r); tables.push(t); playoffs.push({ a: r[1], b: r[2], as: x.hs, bs: x.as, pens: !!x.pens, winner: x.hs > x.as || x.pens === 'home' ? r[1] : r[2], kind: d === 1 ? 'continental' : 'promotion' });
+      if (d === d0) { rankings.push(se.ranking); tables.push(se.table); continue; }
+      const t = this.simDivision(W.divisions[d - 1], rng); rankings.push(this.sortTable(t)); tables.push(t);
     }
-    const moves = applyMoves(W.divisions, rankings, playoffs, d0), places = continentalPlaces(code, rankings[0], playoffs[0]);
+    const moves = applyMoves(W.divisions, rankings, d0), places = continentalPlaces(code, rankings[0]);
     W.divisions = moves.divisions; W.continental = { season: se.season + 1, places };
     const mine = places.find((p) => p.id === 'user'), pos = se.ranking.indexOf('user') + 1, promoted = moves.userTo < d0, champion = d0 === 1 && pos === 1;
     this.data.continental = mine ? { season: se.season + 1, competition: mine.competition, seed: mine.seed, country: code } : null;
@@ -434,10 +450,11 @@ export class GameState {
     this.grant(reward);
     this.addPack(champion || promoted ? 3 : pos <= 3 ? 2 : 1, 'season');   // PACK DE SAISON
     const summary = { season: se.season, country: code, division: d0, divisionName: divisionName(code, d0), newDivision: moves.userTo, newDivisionName: divisionName(code, moves.userTo),
-      table: se.table, ranking: se.ranking, position: pos, playoff: se.playoff, promoted: d0 > 1 ? moves.promoted[d0] : null, relegated: moves.relegated[d0] || [],
+      table: se.table, ranking: se.ranking, position: pos, promoted: d0 > 1 ? moves.promoted[d0] : null, relegated: moves.relegated[d0] || [],
       champion: rankings[0][0], continental: d0 === 1 ? places : null, myPlace: mine || null, userPromoted: promoted, userChampion: champion, reward,
       divisions: rankings.map((r, i) => ({ division: i + 1, name: divisionName(code, i + 1), first: r[0], up: i > 0 ? moves.promoted[i + 1] : null })) };
     this.data.careerHistory.push({ season: se.season, country: code, division: d0, position: pos, promoted, champion, continental: mine ? mine.competition : null });
+    summary.contracts = this.seasonContracts();   // contracts: one season less, expired players leave
     this.data.career.division = moves.userTo;
     this.data.league = this.makeLeague(se.season + 1, code, moves.userTo);
     this.data.lastSeason = { season: se.season, country: code, position: pos, champion };
@@ -691,6 +708,80 @@ export class GameState {
     this.squad.push(p); this.save(); return p;
   }
 
+  // ------------------------------------------------ CHAMPIONNATS: a free season of a Division 1 with any club (outside the career)
+  /** Runs `fn` with the free championship as the current league and its club as 'user'. */
+  freeRun(fn) { const keep = this.data.league; this.data.league = this.data.free.league; this._free = true; try { return fn(); } finally { this.data.league = keep; this._free = false; } }
+  startFree(country, clubId) {
+    const ids = countryClubs(country).divisions[0].filter((id) => id !== clubId);
+    if (!clubById(clubId) || ids.length !== 8 && ids.length !== 9) return false;
+    this.data.free = { country, clubId, league: newLeague(1, country, 1, ids.slice(0, 8)), done: false, position: 0 };
+    this.save(); return true;
+  }
+  stopFree() { this.data.free = null; this.save(); }
+  freeNext() { return this.data.free && !this.data.free.done ? this.freeRun(() => this.nextLeagueMatch()) : null; }
+  freeStandings() { return this.data.free ? this.freeRun(() => this.standings()) : []; }
+  freeClub() { const F = this.data.free, c = F && clubById(F.clubId); return c ? { ...c, id: 'user', baseId: c.id, total: this.opponentTotal(c.id) } : null; }
+  /** Squad of the free club (generated from its level, always the same players). */
+  freeSquad() { const F = this.data.free; if (!F) return []; if (!this._fsq || this._fsq.id !== F.clubId) this._fsq = { id: F.clubId, sq: this.opponentSquad(F.clubId) }; return this._fsq.sq; }
+  freeTeamDef() {
+    const c = clubById(this.data.free.clubId), sq = this.freeSquad();
+    const gk = sq.find((p) => p.role === 'GOALKEEPER'), field = sq.filter((p) => p !== gk).slice(0, 6);
+    return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: 'BALANCED', formation: 'arc',
+      players: [this.playerDef(gk, -1), ...field.map((p, i) => this.playerDef(p, i))] };
+  }
+
+  // ------------------------------------------------ MERCATO: transfer list, sales, contracts
+  /** Players on the transfer list: 12 per day, around the club TOTAL (some above), every role. */
+  market() {
+    const day = dayKey(), m = this.data.market;
+    if (m && m.day === day && m.season === this.data.league.season) return m.list;
+    const rng = new Rng([...day + this.data.league.season + (this.data.club.customClubId || this.data.club.baseClubId || '')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 11));
+    const roles = ['GOALKEEPER', 'CENTER', 'DEFENDER', 'WINGER', 'PLAYMAKER', 'FINISHER', 'ALL_ROUNDER'], tot = this.teamTotal().total;
+    const bought = new Set(m && m.day === day ? m.bought : []);
+    const list = Array.from({ length: 12 }, (_, i) => {
+      const p = makePlayer(rng, `mk${day.replace(/-/g, '')}s${this.data.league.season}n${i}`, roles[i % roles.length], tot - 8 + Math.floor(rng.f() * 15), null, 2);
+      p.age = 19 + Math.floor(rng.f() * 15); return p;
+    }).filter((p) => !bought.has(p.id));
+    this.data.market = { day, season: this.data.league.season, list, bought: [...bought] };
+    return list;
+  }
+  /** Signing fee for a contract of `years` seasons. */
+  signingFee(p, years) { return Math.round(marketValue(p) * (CONTRACT_MULT[years] || 1)); }
+  buyPlayer(id, years = 2) {
+    const list = this.market(), p = list.find((x) => x.id === id);
+    if (!p || this.squad.length >= 18 || !this.spend({ coins: this.signingFee(p, years) })) return null;
+    const used = new Set(this.squad.map((x) => x.number)); let num = 2; while (used.has(num)) num++;
+    const np = { ...p, number: num, contract: years }; delete np.age;
+    this.squad.push(np); this.data.market.list = list.filter((x) => x !== p); this.data.market.bought.push(p.id);
+    this.save(); return np;
+  }
+  canSell(id) { return this.canTrade(id); }   // not a starter, squad of 9 kept
+  sellPlayer(id) {
+    if (!this.canSell(id)) return 0;
+    const p = this.player(id), coins = Math.round(marketValue(p) * 0.6);
+    this.data.squad = this.squad.filter((x) => x.id !== id); this.grant({ coins }); this.save(); return coins;
+  }
+  /** Contract extension: +1 season for 25 % of the player's value. */
+  renewCost(p) { return Math.round(marketValue(p) * 0.25); }
+  renew(id) {
+    const p = this.player(id); if (!p || p.contract >= 4 || !this.spend({ coins: this.renewCost(p) })) return false;
+    p.contract++; this.save(); return true;
+  }
+  /** End of season: one season less on every contract; expired players leave (the squad keeps at least 9:
+   *  the best expiring players then stay one more season). */
+  seasonContracts() {
+    const left = [], kept = [];
+    for (const p of this.squad) p.contract = (p.contract ?? 1) - 1;
+    const exp = this.squad.filter((p) => p.contract <= 0).sort((a, b) => overall(b) - overall(a));
+    let room = this.squad.length - 9;
+    for (const p of exp.reverse()) {
+      if (room > 0) { left.push(`${p.firstName[0]}. ${p.lastName}`); this.data.squad = this.squad.filter((x) => x !== p); room--; }
+      else { p.contract = 1; kept.push(`${p.firstName[0]}. ${p.lastName}`); }
+    }
+    if (left.length) this.autoLineup(false);
+    return { left, kept };
+  }
+
   // ------------------------------------------------ currencies
   canAfford(price) { const c = this.data.currencies; return (price.coins || 0) <= c.coins && (price.gems || 0) <= c.gems; }
   spend(price) {
@@ -753,6 +844,7 @@ export class GameState {
 
   // ------------------------------------------------ teams for the match engine
   clubInfo(id) {
+    if (id === 'user' && this._free) return this.freeClub();
     if (id === 'user') { const c = this.data.club; return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, country: c.country, city: c.city, competition: this.data.league.name, total: this.teamTotal().total }; }
     const c = clubById(id);
     return { ...c, total: this.opponentTotal(id) };
@@ -896,16 +988,16 @@ export class GameState {
     const pr = this.data.profile, win = res.hs > res.as, draw = res.hs === res.as;
     pr.matches++; if (win) pr.wins++; else if (draw) pr.draws++; else pr.losses++;
     pr.goalsFor += res.hs; pr.goalsAgainst += res.as;
-    const mult = ctx.mode === 'quick' ? 0.5 : 1;
+    const free = ctx.mode === 'free', mult = ctx.mode === 'quick' || free ? 0.5 : 1;
     const coins = Math.round(((win ? 150 : draw ? 80 : 50) + res.hs * 10) * mult);
     const xp = Math.round(((win ? 120 : draw ? 70 : 40) + res.hs * 5) * mult);
-    const tp = Math.round((win ? 120 : draw ? 80 : 50) * mult), medkits = win && ctx.mode !== 'quick' ? 1 : 0;
+    const tp = Math.round((win ? 120 : draw ? 80 : 50) * mult), medkits = win && mult === 1 ? 1 : 0;
     this.grant({ coins, tp, medkits });
     const levelUps = this.addXp(xp);
     const out = { coins, xp, tp, medkits, levelUps, objectives: [], event: null, league: null };
     // Players: career stats, form (starters tire, the bench recovers), PHYSIQUE boost used.
-    const L = this.lineup, played = new Set([L.gk, ...L.slots]);
-    for (const p of this.squad) {
+    const L = this.lineup, played = new Set(free ? [] : [L.gk, ...L.slots]);   // free championship: another club played
+    if (!free) for (const p of this.squad) {
       if (played.has(p.id)) {
         const c = p.career, st = (res.players || {})[p.id];
         c.matches++; if (win) c.wins++; else if (draw) c.draws++;
@@ -934,16 +1026,26 @@ export class GameState {
       out.league = { position: pos, finished: lg.round >= lg.rounds.length };
       if (out.league.finished) {
         lg.champion = this.standings()[0].id; out.league.champion = lg.champion === 'user' && lg.division === 1;
-        out.league.playoff = this.startSeasonEnd(rng);   // 2nd v 3rd (the user plays it if involved), then moves
-        if (!out.league.playoff) { out.season = this.data.seasonEnd.summary; out.league.canMove = true; }
+        out.season = this.startSeasonEnd(rng); out.league.canMove = true;
       }
     }
-    // Playoff (2nd v 3rd): promotion (divisions 2-5) or continental place (division 1)
-    if (ctx.mode === 'playoff' && this.data.seasonEnd && this.data.seasonEnd.stage === 'playoff') {
-      const p = this.data.seasonEnd.playoff, userA = p.a === 'user', rng = new Rng((Date.now() & 0xffffff) ^ 0x5eed);
-      const pens = res.hs === res.as ? (rng.f() < 0.5 ? 'user' : 'opp') : null, won = res.hs > res.as || pens === 'user';
-      p.as = userA ? res.hs : res.as; p.bs = userA ? res.as : res.hs; p.pens = !!pens; p.winner = won ? 'user' : userA ? p.b : p.a;
-      out.playoff = { ...p, won }; this.finalizeSeason(rng); out.season = this.data.seasonEnd.summary; out.league = { canMove: true };
+    // CHAMPIONNATS (free league with any club): table, champion trophy, nothing changes in the career
+    if (free && this.data.free && !this.data.free.done) {
+      const F = this.data.free;
+      this.freeRun(() => {
+        const lg = this.data.league, round = lg.rounds[lg.round], rng = new Rng((Date.now() & 0xffffff) + lg.round * 7);
+        const fx = round.find((f) => f.home === 'user' || f.away === 'user');
+        if (fx.home === 'user') { fx.hs = res.hs; fx.as = res.as; } else { fx.hs = res.as; fx.as = res.hs; }
+        this.recordLeague(fx.hs, fx.as, fx.home, fx.away);
+        for (const f of round) if (f !== fx) this.simulateFixture(f, rng);
+        lg.round++; this.skipRestRounds();
+        const pos = this.standings().findIndex((r) => r.id === 'user') + 1, finished = lg.round >= lg.rounds.length;
+        out.free = { position: pos, finished, champion: finished && pos === 1 };
+        if (finished) {
+          F.done = true; F.position = pos;
+          if (pos === 1) { pr.trophies.push({ name: 'free-' + F.country, club: F.clubId, season: lg.season, date: Date.now() }); out.free.reward = { coins: 600, gems: 6 }; this.grant(out.free.reward); }
+        }
+      });
     }
     // Tournament
     if (ctx.mode === 'tournament') {

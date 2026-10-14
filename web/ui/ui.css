@@ -614,3 +614,32 @@ body.sheet-open .app { visibility: hidden; }
 .pkc .pkc-back { transition: opacity 0s .22s; } .pkc.flip .pkc-back { opacity: 0; }
 .pk-cards { flex-wrap: nowrap; }
 .pkc { cursor: pointer; } .pkc-player .pcard { position: relative; }
+
+/* ---------- game modes on the home (club career, championships, cups, challenges) ---------- */
+.h3-tiles.modes { grid-template-rows: repeat(3, 1fr); grid-template-columns: 1.15fr 1fr; }
+.h3-tiles.modes .gt-club { grid-row: 1 / 4; }
+.h3-tiles.modes .gt:not(.gt-club) { flex-direction: row; justify-content: flex-end; padding-right: .7rem; }
+.h3-tiles.modes .gt:not(.gt-club) > .ico, .h3-tiles.modes .gt-art { opacity: .55; margin: 0; }
+.h3-tiles.modes .gt:not(.gt-club) > b { top: 50%; transform: translateY(-50%); right: 3.6rem; font-size: .88rem; }
+.gt-free { background: linear-gradient(135deg, #2a6cf0, #1a44b8 60%, #0f2c80); } .gt-ch { background: linear-gradient(135deg, #ff8a1a, #d4500a 60%, #9a3606); }
+.gt-market { background: linear-gradient(135deg, #8a4dff, #5a22c9 60%, #3a1290); } .gt-market > small { font-weight: 800; font-size: .7rem; }
+.cp-career { margin: .2rem 0 .4rem; font-size: .72rem; font-weight: 700; color: #ffe08a; line-height: 1.25; display: flex; gap: .3rem; align-items: flex-start; }
+/* ---------- MERCATO ---------- */
+.market .mk-body { flex: 1; min-height: 0; display: flex; gap: .6rem; }
+.market .trade-grid, .market .mk-table { flex: 1; min-height: 0; }
+.mk-table { overflow-y: auto; } .mk-table td .btn { padding: .15rem .5rem; font-size: .7rem; }
+.mk-item { display: flex; flex-direction: column; align-items: center; gap: .15rem; }
+.mk-item .pcard { position: relative; } .mk-item.on .pcard { outline: 3px solid #ffd21a; }
+.mk-price { font-size: .78rem; font-weight: 900; color: #ffd21a; display: flex; align-items: center; gap: .15rem; }
+.mk-side { width: 15rem; flex: none; display: flex; flex-direction: column; gap: .45rem; padding: .6rem; background: #0a1322cc; border: 2px solid var(--edge); overflow-y: auto; }
+.mk-side h3 { margin: 0; font-size: 1rem; } .mk-side label { font-size: .7rem; font-weight: 900; opacity: .8; }
+.mk-years { display: flex; gap: .3rem; } .mk-years button { flex: 1; display: flex; flex-direction: column; align-items: center; padding: .3rem .2rem; border-radius: .3rem; border: 2px solid #ffffff33; background: #ffffff10; color: #fff; }
+.mk-years button.on { border-color: #ffd21a; background: #ffd21a22; } .mk-years b { font-size: .72rem; } .mk-years small { font-size: .66rem; display: flex; align-items: center; gap: .1rem; }
+/* ---------- CHAMPIONNATS ---------- */
+.free .fr-body { flex: 1; min-height: 0; display: flex; gap: .5rem; } .free .fr-body .club-grid { flex: 1; min-height: 0; }
+.free .cp-countries { max-height: none; }
+.fr-run { flex: 1; min-height: 0; display: flex; gap: .7rem; } .fr-left { width: 22rem; display: flex; flex-direction: column; gap: .5rem; } .fr-left .gt-match { min-height: 11rem; }
+.fr-table { flex: 1; min-height: 0; overflow-y: auto; }
+.fr-done { display: flex; flex-direction: column; gap: .6rem; align-items: center; padding: 1rem; border: 2px solid #ffffff44; background: #0a1322cc; text-align: center; }
+.fr-done.win { border-color: #ffd21a; box-shadow: 0 0 1rem #ffd21a66; }
+@media (max-height: 380px) { .mk-side { width: 12.5rem; } .fr-left { width: 18rem; } .h3-tiles.modes .gt:not(.gt-club) > b { font-size: .78rem; } }

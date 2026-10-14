@@ -64,29 +64,47 @@ Chaque effet est réel (appliqué dans le match) et testé (`tools/web-tests/sta
   flèche de forme, éclair si PHYSIQUE actif, nom, pays, numéro.
 * **Paramètres en onglets** : MATCH, CONTRÔLES, AUDIO, GRAPHISMES, AUTRES.
 
-## Monde de la carrière : 5 divisions × 9 clubs par pays — IMPLÉMENTÉ
+## Modes de jeu (structure inspirée des jeux de football mobiles, sport : water-polo) — IMPLÉMENTÉ
 
-* **200 pays** (`web/data/world.js`, regroupés par continent), chacun avec **5 divisions de 9 clubs**, plus le club du
+| Mode | Ce qui progresse |
+|---|---|
+| **Carrière de club** | ton club, son effectif et ses résultats sur plusieurs saisons (divisions, mercato, contrats) |
+| **Championnats** | une saison de Division 1 de n'importe quel pays avec le club de ton choix (son propre effectif), hors carrière ; trophée au champion, récompenses réduites |
+| **Coupes & tournois** | coupes nationales, régionales, continentales, mondiales (élimination, groupes, ligue) |
+| **Défis & événements** | tutoriel, penalty, coup franc, supériorité ; événements à durée limitée ; objectifs du jour |
+
+La **carrière de joueur** (incarner un seul joueur) n'est pas encore faite : elle n'apparaît nulle part dans les menus.
+Clubs sans licence : noms adaptés, logos et maillots originaux (voir plus bas). Les **joueurs restent fictifs** :
+aucun nom de vrai joueur, même déformé.
+
+## Monde de la carrière : 3 divisions × 9 clubs par pays — IMPLÉMENTÉ
+
+* **200 pays** (`web/data/world.js`, regroupés par continent), chacun avec **3 divisions de 9 clubs**, plus le club du
   joueur comme 10e équipe de sa division. C'est une **structure de jeu standardisée** : elle n'est pas présentée
   comme la structure officielle des championnats du pays. Noms de divisions adaptés quand ils sont connus
-  (France : Élite France, Nationale 1, Nationale 2, Nationale 3, Régionale ; Espagne : Liga de Honor, Primera,
-  Segunda…), sinon « Division 1…5 ».
+  (France : Élite France, Nationale 1, Nationale 2 ; Espagne : Liga de Honor, Primera, Segunda…), sinon « Division 1…3 ».
+* **Départ de carrière** : **toujours en Division 3**, même avec un grand club. Seuls les **3 meilleurs joueurs** de
+  l'effectif du club sont gardés (⭐ dans les contrats), les autres places sont des joueurs fictifs du niveau de la
+  Division 3 ; contrats de 2 ou 3 saisons. Option « créer mon effectif » : effectif plus jeune + budget.
 * **Clubs** : les clubs réels vérifiés (sources conservées) sont placés en premier, les plus forts en
   Division 1. Toutes les autres places sont des **clubs créés par le jeu** (`gameCreated: true`,
   `verified: false`, aucune source) : nom original bâti sur une vraie ville du pays + un surnom générique,
   logo et maillots originaux, badge « CLUB DU JEU » dans l'interface. Ils ne sont jamais présentés comme
-  des clubs réels. Les sites des fédérations étant bloqués depuis l'environnement de développement, les
-  divisions inférieures réelles (N1, N2…) restent à compléter quand des sources lisibles seront disponibles.
+  des clubs réels.
 * **Saison** : aller-retour (18 journées à 10 équipes), classement automatique (J, V, N, D, BP, BC, diff., pts).
 * **Fin de saison** (`finalizeSeason`, `applyMoves` dans `web/world.js`), pour toutes les divisions du pays :
-  * Divisions 2 à 5 : le **1er monte** ; le **2e et le 3e jouent un match**, le vainqueur monte aussi ;
-  * pour garder 9 clubs par division, autant de clubs IA descendent de la division du dessus (les derniers
-    classés) — **le club du joueur ne descend jamais** ;
-  * Division 1 : le 1er est **champion national** et obtient la meilleure place continentale ; le match
-    2e contre 3e donne la place suivante (puis le perdant, puis 4e, 5e… selon le nombre de places du pays).
-  * Si le joueur est 2e ou 3e, il **joue lui-même ce match** (carte « PLAYOFF » sur l'accueil).
-  * Page **FIN DE SAISON** : classement final, playoff, promus / champion, places continentales, descentes,
-    autres divisions, échelle des 5 divisions, puis animation vers la nouvelle saison. Historique conservé.
+  * Divisions 2 et 3 : les **4 premiers montent** (pas de playoff) ;
+  * pour garder 9 clubs par division, les 4 derniers clubs IA de la division du dessus descendent —
+    **le club du joueur ne descend jamais** ;
+  * Division 1 : le 1er est **champion national** ; les places continentales suivent le classement final.
+  * **Contrats** : chaque contrat perd une saison ; à 0 le joueur part (un effectif de 9 est toujours gardé).
+  * Page **FIN DE SAISON** : classement final, promus / champion, places continentales, descentes, contrats
+    terminés, autres divisions, échelle des 3 divisions. Historique conservé.
+* **Mercato** (Jouer un club → MERCATO, ou Équipe) : **ACHETER** — liste des transferts de 12 joueurs renouvelée
+  chaque jour, autour du TOTAL du club ; prime de signature selon la note, le niveau, la qualité et la durée du
+  contrat (1, 2 ou 3 saisons : ×0,8 / ×1 / ×1,25) ; effectif maximum 18. **VENDRE** — remplaçants seulement
+  (titulaires et effectif minimum de 9 protégés), 60 % de la valeur. **CONTRATS** — saisons restantes,
+  prolongation +1 saison pour 25 % de la valeur.
 * **Places continentales** configurables par pays (`continentalQualificationSlots` selon le niveau du pays) ;
   Europe : Euro Champions Aqua, Euro Challenge Cup, Euro Conference Aqua, Euro Challenger Aqua, Euro Super Aqua
   (noms adaptés ; référence : système de clubs d'European Aquatics), une coupe par autre continent, puis

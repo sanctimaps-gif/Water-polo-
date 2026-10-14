@@ -1,6 +1,6 @@
-// WATER POLO 26 — career world: every country has 5 divisions of 9 clubs (+ the user's club as a 10th
-// team in its division). This 5 × 9 pyramid is a STANDARDISED GAMEPLAY STRUCTURE, not the official
-// structure of the countries' championships.
+// WATER POLO 26 — career world: every country has 3 divisions of 9 clubs (+ the user's club as a 10th
+// team in its division). This 3 × 9 pyramid is a STANDARDISED GAMEPLAY STRUCTURE, not the official
+// structure of the countries' championships. A club career always starts in Division 3; the first 4 go up.
 //  - REAL clubs (web/data/clubs.json: reference data + sources, adapted game identity) are placed first,
 //    strongest at the top.
 //  - Every other place is a club CREATED BY THE GAME (gameCreated: true, verified: false, no source):
@@ -8,7 +8,7 @@
 import CLUB_DB from './data/clubs.js';
 import { COUNTRY_LIST, DIVISION_NAMES, CONTINENTS, SLOTS_BY_LEVEL } from './data/world.js';
 
-export const DIVS = 5, PER_DIV = 9;
+export const DIVS = 3, PER_DIV = 9, PROMOTED = 4;
 const hash = (s) => [...String(s)].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 7);
 const emoji = (iso2) => (/^[A-Z]{2}$/.test(iso2) && iso2 !== 'XK' ? String.fromCodePoint(...[...iso2].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : '🏳️');
 
@@ -19,7 +19,7 @@ export const WORLD_COUNTRIES = COUNTRY_LIST.map(([code, iso2, fr, en, continent,
   const slots = (SLOTS_BY_LEVEL[continent] || {})[level] || (level >= 3 ? [CONTINENTS[continent].competitions[0], CONTINENTS[continent].competitions[0]] : [CONTINENTS[continent].competitions[0]]);
   return { code, iso2, fr, en, continent, level, cities, flag: emoji(iso2),
     continentalCompetition: CONTINENTS[continent].competitions[0], continentalQualificationSlots: slots,
-    continentalQualificationRules: 'D1 : 1er → place 1 ; vainqueur du match 2e contre 3e → place 2 ; perdant → place 3 ; puis 4e, 5e… selon le nombre de places' };
+    continentalQualificationRules: 'D1 : places continentales dans l’ordre du classement final (1er → place 1, 2e → place 2…)' };
 });
 const BY_CODE = new Map(WORLD_COUNTRIES.map((c) => [c.code, c]));
 export const countryOf = (code) => BY_CODE.get(code) || null;
@@ -45,7 +45,7 @@ export const REAL_CLUBS = CLUB_DB.clubs.map((c) => ({
   ref: { officialReferenceName: c.officialReferenceName, competition: c.competition, season: c.season, source: c.source, lastUpdated: c.lastUpdated },
 }));
 
-const TOP = { 5: 82, 4: 77, 3: 72, 2: 67, 1: 62 };
+const TOP = { 5: 82, 4: 77, 3: 72, 2: 67, 1: 62 };   // division 1 level by country level; -5 per division below
 /** Club created by the game for country `code`, slot n (deterministic). */
 function gameClub(code, n, division, rank) {
   const ct = countryOf(code), id = `g-${code}-${n}`, h = hash(id);
@@ -73,7 +73,7 @@ const COUNTRY_CACHE = new Map(), CLUB_CACHE = new Map(REAL_CLUBS.map((c) => [c.i
 /** The 45 clubs of a country at the start of a career (division 1 = the strongest), + reserve clubs. */
 export function countryClubs(code) {
   if (COUNTRY_CACHE.has(code)) return COUNTRY_CACHE.get(code);
-  const real = REAL_CLUBS.filter((c) => c.country === code).sort((a, b) => b.rating - a.rating);
+  const real = REAL_CLUBS.filter((c) => c.country === code).sort((a, b) => b.rating - a.rating).slice(0, DIVS * PER_DIV);
   const divisions = Array.from({ length: DIVS }, () => []), used = new Set(real.map((c) => c.short)); let n = 0;
   real.forEach((c, i) => divisions[Math.min(DIVS - 1, Math.floor(i / PER_DIV))].push(c.id));
   for (let d = 0; d < DIVS; d++) while (divisions[d].length < PER_DIV) { const g = uniqueShort(gameClub(code, n++, d + 1, divisions[d].length), used); CLUB_CACHE.set(g.id, g); divisions[d].push(g.id); }
@@ -95,16 +95,16 @@ export function clubById(id) {
 // ---------------------------------------------------------------- end of season (pure)
 /**
  * Moves between divisions from the final rankings (index 0 = division 1).
- *  - promoted from division d ≥ 2: the 1st + the winner of 2nd v 3rd;
+ *  - promoted from division d ≥ 2: the first 4 (PROMOTED);
  *  - the same number of AI clubs (lowest ranked, never the user's club) go down from division d-1,
  *    so that every division keeps its 9 AI clubs.
  * Returns the new divisions, the user's new division and the lists of promoted / relegated clubs.
  */
-export function applyMoves(divisions, rankings, playoffs, userDivision) {
+export function applyMoves(divisions, rankings, userDivision) {
   const next = divisions.map((d) => d.slice()), promoted = {}, relegated = {};
   let userTo = userDivision;
   for (let d = DIVS; d >= 2; d--) {
-    const r = rankings[d - 1], up = [r[0], playoffs[d - 1].winner];
+    const up = rankings[d - 1].slice(0, PROMOTED);
     promoted[d] = up; const aiUp = up.filter((id) => id !== 'user');
     if (up.includes('user')) userTo = d - 1;
     const above = rankings[d - 2].filter((id) => id !== 'user'), down = above.slice(above.length - aiUp.length);
@@ -114,9 +114,7 @@ export function applyMoves(divisions, rankings, playoffs, userDivision) {
   }
   return { divisions: next, userTo, promoted, relegated };
 }
-/** Continental places of the D1 clubs: 1st → place 1, winner of 2nd v 3rd → place 2, loser → 3, then 4th… */
-export function continentalPlaces(code, ranking, playoff) {
-  const slots = countryOf(code).continentalQualificationSlots, loser = playoff.winner === playoff.a ? playoff.b : playoff.a;
-  const order = [ranking[0], playoff.winner, loser, ...ranking.slice(3)];
-  return slots.map((competition, i) => ({ id: order[i], competition, seed: i + 1 }));
+/** Continental places of the D1 clubs, in the order of the final ranking (1st → place 1, 2nd → place 2...). */
+export function continentalPlaces(code, ranking) {
+  return countryOf(code).continentalQualificationSlots.map((competition, i) => ({ id: ranking[i], competition, seed: i + 1 }));
 }

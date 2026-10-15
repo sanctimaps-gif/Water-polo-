@@ -546,6 +546,33 @@ function numberTexture(n, fg = '#ffffff') {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+/** Simple flag patterns (national colours) for the cap patch, suit side stripes and back badge.
+ *  v = vertical bands, h = horizontal bands; unknown countries use the team colours. */
+const FLAG_BANDS = { FRA: ['v', '#0055a4', '#ffffff', '#ef4135'], ITA: ['v', '#009246', '#ffffff', '#ce2b37'], ESP: ['h', '#aa151b', '#f1bf00', '#aa151b'], HUN: ['h', '#ce2939', '#ffffff', '#477050'],
+  SRB: ['h', '#c6363c', '#0c4076', '#ffffff'], CRO: ['h', '#ff0000', '#ffffff', '#171796'], GER: ['h', '#000000', '#dd0000', '#ffce00'], GRE: ['h', '#0d5eaf', '#ffffff', '#0d5eaf'],
+  NED: ['h', '#ae1c28', '#ffffff', '#21468b'], ROU: ['v', '#002b7f', '#fcd116', '#ce1126'], BEL: ['v', '#000000', '#fdda24', '#ef3340'], RUS: ['h', '#ffffff', '#0039a6', '#d52b1e'],
+  MNE: ['h', '#c40308', '#d3ae3b', '#c40308'], USA: ['h', '#b22234', '#ffffff', '#3c3b6e'], AUS: ['h', '#012169', '#012169', '#ffffff'], JPN: ['h', '#ffffff', '#bc002d', '#ffffff'],
+  CAN: ['v', '#d80621', '#ffffff', '#d80621'], BRA: ['h', '#009739', '#fedd00', '#009739'], ARG: ['h', '#74acdf', '#ffffff', '#74acdf'], IRL: ['v', '#169b62', '#ffffff', '#ff883e'],
+  GBR: ['h', '#012169', '#c8102e', '#012169'], TUR: ['h', '#e30a17', '#ffffff', '#e30a17'], SVK: ['h', '#ffffff', '#0b4ea2', '#ee1c25'], SLO: ['h', '#ffffff', '#005da4', '#ed1c24'],
+  MLT: ['v', '#ffffff', '#ffffff', '#cf142b'], GEO: ['h', '#ffffff', '#ff0000', '#ffffff'], KAZ: ['h', '#00afca', '#fec50c', '#00afca'], CHN: ['h', '#de2910', '#de2910', '#ffde00'] };
+const hexCss = (c) => '#' + C(c).getHexString();
+function flagBands(code, c1, c2) { return FLAG_BANDS[code] || ['v', hexCss(c1), hexCss(c2), hexCss(c1)]; }
+function bandsTexture(b, w = 48, h = 32, forceVertical = false) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), v = forceVertical || b[0] === 'v';
+  for (let i = 0; i < 3; i++) { g.fillStyle = b[i + 1]; if (v) g.fillRect((w / 3) * i, 0, w / 3 + 1, h); else g.fillRect(0, (h / 3) * i, w, h / 3 + 1); }
+  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/** Back of the swimsuit: team name + small flag (like national team suits). */
+function backTexture(text, b, fg) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 96; const g = c.getContext('2d');
+  g.font = '800 46px "Barlow Condensed", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = fg;
+  g.fillText(String(text).toUpperCase().slice(0, 12), 128, 34, 240);
+  const fw = 42, fh = 28, x0 = 128 - fw / 2, y0 = 60;
+  for (let i = 0; i < 3; i++) { g.fillStyle = b[i + 1]; if (b[0] === 'v') g.fillRect(x0 + (fw / 3) * i, y0, fw / 3 + 1, fh); else g.fillRect(x0, y0 + (fh / 3) * i, fw, fh / 3 + 1); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 // ---------------------------------------------------------------- athlete
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), IDQ = new THREE.Quaternion();
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
@@ -732,6 +759,26 @@ export class Athlete {
         const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
         if (mhb) { sn.position.set(-0.1, -0.415, 0.098); sn.rotation.set(-0.15, -0.5, 0); } else { sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); }
         this.torso.add(sn);   // suit number: on the pelvis
+        // Team identity on the kit (reference sheet of a national team player): flag patch on both sides of the
+        // cap, flag-coloured stripes on the sides of the swimsuit, team name + flag on the back of the suit.
+        const bands = flagBands(o.flagCode, o.teamColor, o.suit2 ?? 0xffffff), deco = { transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 };
+        const flagMat = new THREE.MeshBasicMaterial({ map: bandsTexture(bands), ...deco });
+        const fGeos = [];
+        for (const a of [Math.PI * 0.8, -Math.PI * 0.8]) {
+          const { p, n } = CAPB.surface(a, 0.075, 0.002), g = new THREE.PlaneGeometry(0.034, 0.022);
+          g.applyMatrix4(new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), new THREE.Vector3(1, 1, 1)));
+          fGeos.push(g);
+        }
+        this.head.add(new THREE.Mesh(concatPlanes(fGeos), flagMat));
+        if (mhb) {
+          const stripeMat = new THREE.MeshBasicMaterial({ map: bandsTexture(bands, 24, 64, true), ...deco, side: THREE.DoubleSide });
+          for (const sx of [1, -1]) { const st = new THREE.Mesh(new THREE.PlaneGeometry(0.024, 0.075), stripeMat); st.position.set(sx * 0.186, -0.415, 0.11); st.rotation.set(0, sx * Math.PI / 2, sx * 0.08); this.torso.add(st); }
+          if (o.backText) {   // curved badge following the back of the suit
+            const L = 1.25, bk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 12, 1, true, Math.PI - L / 2, L),
+              new THREE.MeshBasicMaterial({ map: backTexture(o.backText, bands, team.getHSL({}).l > 0.6 ? '#173a8c' : '#ffffff'), ...deco }));
+            bk.position.set(0, -0.392, 0.056); this.torso.add(bk);
+          }
+        }
       }
     }
 

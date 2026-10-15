@@ -159,6 +159,8 @@ function kitOptions(kit, gk, isGK, user) {
   return { teamColor: kit.suit, suit2: kit.suit2, suitPattern: kit.pattern, trimColor: trim, capColor: cap,
     capTrim: isGK ? gk.capTrim : kit.capTrim, numberColor: isGK ? gk.number : kit.number, guardColor: isGK ? gk.guard : kit.guard };   // guard: ear guards (kit editor; auto if unset)
 }
+/** Team identity on the kit: flag (cap sides, suit stripes) and the name on the back of the suit. */
+const kitId = (d) => (d ? { flagCode: d.country, backText: d.national ? (d.nameEn || d.name) : ([...(d.name || '')].length <= 12 ? d.name : d.short) } : {});
 function matchKits(defA, defB, prefA = 'home') {
   const fall = (d) => d.kits || { home: { suit: d.color, suit2: 0xffffff, pattern: 'plain', cap: d.color, capTrim: 0xffffff, number: 0xffffff }, away: { suit: 0xffffff, suit2: d.color, pattern: 'plain', cap: 0xf4f6f8, capTrim: d.color, number: d.color }, goalkeeper: { cap: 0xd81a1f, capTrim: 0xffffff, number: 0xffffff } };
   const A = fall(defA), B = fall(defB);
@@ -176,8 +178,8 @@ function buildHero() {
   const kit = view === 'away' ? c.kits.away : c.kits.home;
   if (pl) {   // player sheet: the real 3D model of the player (same seed as in matches)
     const look = lookOf(pl);
-    hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, true), number: pl.number, role: pl.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset });
-  } else hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, !heroPreview), number: gk ? 1 : 7, role: gk ? 'GOALKEEPER' : 'CENTER', isGK: gk, seed: 7, preset });
+    hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, true), ...kitId(c), number: pl.number, role: pl.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset });
+  } else hero = new Athlete({ ...kitOptions(kit, c.kits.goalkeeper, gk, !heroPreview), ...kitId(c), number: gk ? 1 : 7, role: gk ? 'GOALKEEPER' : 'CENTER', isGK: gk, seed: 7, preset });
   scene.add(hero.root);
   setBall(c.ball || 'classic');
 }
@@ -356,7 +358,7 @@ function buildPrematch(oppId, pref = 'home', side = '') {
   const best = (sq) => sq.filter((p) => p.role !== 'GOALKEEPER').sort((a, b) => overall(b) - overall(a))[0];
   const ath = [best(sc ? state.sideSquad(sc) : state.squad), best(state.opponentSquad(oppId))].map((p, i) => {
     const look = lookOf(p), K = kits[i];
-    const a = new Athlete({ ...kitOptions(K.kit, K.gk, false, i === 0), number: p.number, role: p.role, bodyRole: look.role, isGK: false, seed: look.seed, preset });
+    const a = new Athlete({ ...kitOptions(K.kit, K.gk, false, i === 0), ...kitId(i ? opp : me), number: p.number, role: p.role, bodyRole: look.role, isGK: false, seed: look.seed, preset });
     scene.add(a.root); return a;
   });
   // presentation lights (front key, cool rim from the stands)
@@ -382,7 +384,7 @@ let athletes = [];
 /** 3D athlete of a match player: appearance tied to the squad player (same face / body in the cards and every match); kit of the club. */
 function makeAthlete(m, p) {
   const K = m.kits[p.team];
-  const a = new Athlete({ ...kitOptions(K.kit, K.gk, p.isGK, p.team === 0 && m.teams[0].def.id === 'user'), number: p.number,
+  const a = new Athlete({ ...kitOptions(K.kit, K.gk, p.isGK, p.team === 0 && m.teams[0].def.id === 'user'), ...kitId(m.teams[p.team].def), number: p.number,
     role: p.role, bodyRole: p.look ? p.look.role : p.role, isGK: p.isGK, seed: p.look ? p.look.seed : p.id * 31 + p.team * 977 + 5, preset });
   a.onStroke = (x, z, power) => { vfx.stroke(x, z, power); };
   a.onDrip = (x, y, z) => { vfx.drip(x, y, z); };
@@ -1366,7 +1368,7 @@ function portraitFor(p, kits) {
     portraitRig = { sc, rt, cam: new THREE.PerspectiveCamera(24, 160 / 200, 0.05, 10), cv, buf: new Uint8Array(160 * 200 * 4) };
   }
   const R = portraitRig, look = lookOf(p), gk = p.role === 'GOALKEEPER';
-  const a = new Athlete({ ...kitOptions(K.home, K.goalkeeper, gk, own), number: p.number,
+  const a = new Athlete({ ...kitOptions(K.home, K.goalkeeper, gk, own), ...(own ? kitId(state.data.club) : {}), number: p.number,
     role: p.role, bodyRole: look.role, isGK: gk, seed: look.seed, preset: { ...PRESETS.ULTRA } });
   a.root.position.y = 0.25; R.sc.add(a.root);
   const st = { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0, hasBall: false, charging: false, charge: 0, block: 0, stamina: 1, ball: new THREE.Vector3(0, 0.6, 3), receive: false };
@@ -1469,7 +1471,7 @@ function buildShowcase() {
   window.__showcase = () => showcase;
   showcase = states.map((st, i) => {
     const a = new Athlete({ teamColor: i % 2 ? 0xd8321e : 0x1e5bd8, capColor: st === 'gk' ? 0xd81a1f : i % 2 ? 0xf2f4f7 : 0x1e5bd8, trimColor: 0xffffff,
-      number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });
+      flagCode: i % 2 ? 'ITA' : 'FRA', backText: i % 2 ? 'ITALY' : 'FRANCE', number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });
     const x = (i - 2.5) * 0.85;
     a.showcaseState = (t) => {
       if (st === 'celebrate' && a.celebrateT <= 0) a.playCelebrate('arms');

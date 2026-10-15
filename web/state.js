@@ -832,7 +832,7 @@ export class GameState {
   sideTeamDef(ctx) {
     const sq = this.sideSquad(ctx), c = this.sideClub(ctx); if (!sq) return this.userTeamDef();
     const gk = sq.find((p) => p.role === 'GOALKEEPER'), field = sq.filter((p) => p !== gk).slice(0, 6);
-    return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: 'BALANCED', formation: 'arc',
+    return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, country: c.country, national: !!c.national, nameEn: c.nameEn, tactic: 'BALANCED', formation: 'arc',
       players: [this.playerDef(gk, -1), ...field.map((p, i) => this.playerDef(p, i))] };
   }
 
@@ -992,12 +992,12 @@ export class GameState {
   userTeamDef() {
     const L = this.lineup, c = this.data.club;
     const toDef = (p, slot) => this.playerDef(p, slot);
-    return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: c.tactic, formation: c.formation,
+    return { id: 'user', name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, country: c.country, tactic: c.tactic, formation: c.formation,
       players: [toDef(this.player(L.gk), -1), ...L.slots.map((id, i) => toDef(this.player(id), i))] };
   }
   opponentTeamDef(id, rating) {
     const c = clubById(id), sq = this.opponentSquad(id, rating).slice(0, 7);
-    return { id, name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, tactic: TACTICS[[...id].length % TACTICS.length],
+    return { id, name: c.name, short: c.short, color: c.color, color2: c.color2, color3: c.color3, logo: c.logo, kits: c.kits, country: c.country, national: !!c.national, nameEn: c.nameEn, tactic: TACTICS[[...id].length % TACTICS.length],
       players: sq.map((p) => ({ name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot: p.slot ?? -1, look: lookOf(p) })) };
   }
 

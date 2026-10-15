@@ -31,5 +31,7 @@ jobs:
         run: node tools/web-tests/challenges.mjs
       - name: Web build — rolling substitutions (re-entry area)
         run: node tools/web-tests/subs.mjs
+      - name: Web build — one-touch deflection near the goal
+        run: node tools/web-tests/deflect.mjs
       - name: Offline cache (sw.js) up to date
         run: node tools/build-sw.mjs --check

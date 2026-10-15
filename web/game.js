@@ -305,7 +305,9 @@ function pollInput(m) {
   input.D.release = false;
   currentMove = cmd.move;
   const A = input.A, B = input.B;
-  if (A.press) { A.press = false; aCtx = hasBall; if (!hasBall) cmd.defend = true; }
+  // A pass of the team coming to me near the goal: SHOOT = one-touch deflection (quick tap, no control of the ball).
+  const incoming = !hasBall && m.ball.state === 'PASSED' && m.ball.possTeam === me.team && m.canDeflect(me);
+  if (A.press) { A.press = false; aCtx = hasBall; if (incoming) { cmd.shootReleased = true; cmd.quickShot = true; } else if (!hasBall) cmd.defend = true; }
   if (aCtx && hasBall) cmd.shootHeld = A.held;
   if (!hasBall && !aCtx && A.held) cmd.defendHeld = true;   // DÉFENSE held: automatic pressing
   if (A.release) {
@@ -548,7 +550,8 @@ function react(e) {
       break;
     }
     case Ev.SHOT:
-      if (a) a.playThrow(e.lob ? 'lob' : e.power ? 'power' : 'shot'); vfx.burst(e.pos.x, e.pos.z, 0.9); audio.ballHit(1.2);
+      if (a) a.playThrow(e.deflect ? 'pass' : e.lob ? 'lob' : e.power ? 'power' : 'shot'); vfx.burst(e.pos.x, e.pos.z, e.deflect ? 0.6 : 0.9); audio.ballHit(e.deflect ? 0.8 : 1.2);
+      if (e.deflect && !replay) toast(L('hud.deflect'), 1.2);
       if (e.gk >= 0 && athletes[e.gk]) setTimeout(() => athletes[e.gk] && athletes[e.gk].playDive(e.diveDir), 160);
       arena.cheer(e.pos.x < -7 ? 0 : e.pos.x > 7 ? 2 : 1, 0.35);
       break;
@@ -1313,10 +1316,10 @@ function updateHud(dt) {
     $('charge').style.width = me.charge * 100 + '%';
     $('zone').style.display = m.cfg.timing ? 'block' : 'none';
   }
-  const withBall = me && m.ball.owner === me;
+  const withBall = me && m.ball.owner === me, deflect = me && !withBall && m.ball.state === 'PASSED' && m.ball.possTeam === me.team && m.canDeflect(me);
   const A = $('btnA'), B = $('btnB');
   setBtn('btnS', 'sprint', L('btn.sprint'));
-  setBtn('btnA', withBall ? 'shoot' : 'defend', L(withBall ? 'btn.shoot' : 'btn.defend'));
+  setBtn('btnA', withBall || deflect ? 'shoot' : 'defend', L(withBall ? 'btn.shoot' : deflect ? 'btn.deflect' : 'btn.defend'));
   setBtn('btnB', withBall ? 'pass' : 'switch', L(withBall ? 'btn.pass' : 'btn.switch'));
   setBtn('btnD', 'dodge', L('btn.dodge')); $('btnD').classList.toggle('off', !withBall || (match.human && match.human.dodgeCd > 0));
   $('btnS').classList.toggle('off', !!(me && me.sprintLocked));

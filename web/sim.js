@@ -12,6 +12,7 @@ const len = (a) => Math.sqrt(dot(a, a));
 const flat = (a) => V(a.x, 0, a.z);
 const norm = (a) => { const m = len(a); return m > 1e-6 ? mul(a, 1 / m) : V(); };
 const fdist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const DEFLECT_RANGE = 7;   // one-touch deflection allowed within 7 m of the opponent goal (centre at 2 m, point, wings close in)
 const dist = (a, b) => len(sub(a, b));
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const clamp01 = (v) => clamp(v, 0, 1);
@@ -143,7 +144,7 @@ export class Match {
           id: this.players.length, team: ti, number: pd.number, name: pd.name, role: pd.role, look: pd.look || null, pid: pd.playerId || null, isGK: pd.role === Role.GK,
           prof: PERSONALITY[pd.personality], stats: pd.stats, slot: pd.role === Role.GK ? -1 : pd.slot,
           pos: V(), vel: V(), facing: V(1, 0, 0), stamina: 1, sprinting: false, sprintLocked: false, human: false, cmd: {},
-          excluded: 0, dodgeT: 0, dodgeCd: 0, offT: 0, charge: 0, charging: false, heldAtMax: 0, actionCd: 0, stealCd: 0, stun: 0, block: 0, possTime: 0, nextDecision: 0, wantSprint: false, aiCharge: -1,
+          excluded: 0, dodgeT: 0, dodgeCd: 0, deflectT: 0, offT: 0, charge: 0, charging: false, heldAtMax: 0, actionCd: 0, stealCd: 0, stun: 0, block: 0, possTime: 0, nextDecision: 0, wantSprint: false, aiCharge: -1,
         };
         this.players.push(p); team.players.push(p);
         if (p.isGK) team.gk = p; else team.field.push(p);
@@ -610,6 +611,7 @@ export class Match {
     } else if (!(cmd.shootHeld || cmd.shootReleased)) p.noShotWarned = false;
     if (hasBall && p.stun <= 0 && cmd.dodge && p.dodgeCd <= 0) this.dodge(p);
     if (p.dodgeCd > 0) p.dodgeCd -= dt;
+    if (p.deflectT > 0) p.deflectT -= dt;
     if (hasBall && p.stun <= 0) {
       const tap = cmd.shootReleased && !cmd.shootHeld && !p.charging;
       if ((cmd.quickShot || tap) && p.actionCd <= 0) { this.takeShot(p, 0.45, 'NONE', cmd); hasBall = false; }
@@ -620,6 +622,10 @@ export class Match {
         this.takeShot(p, Math.max(0.2, p.charge), q, cmd); hasBall = false;
       } else if (cmd.pass && p.actionCd <= 0) { this.doPass(p, cmd); hasBall = false; }
     } else if (!hasBall) {
+      // One-touch deflection: a quick tap on SHOOT (no charge) while a team-mate's pass is coming to him near the
+      // goal (centre-forward at 2 m, point...) arms a short window: the ball is redirected to goal without control.
+      const b = this.ball;
+      if ((cmd.shootReleased || cmd.quickShot) && !p.charging && b.state === 'PASSED' && b.possTeam === p.team && this.canDeflect(p)) p.deflectT = 0.5;
       p.charging = false; p.charge = 0; p.heldAtMax = 0;
       if (cmd.defend && p.stun <= 0) this.doDefend(p);
     }
@@ -851,6 +857,23 @@ export class Match {
     this.emit(Ev.SHOT, p.team, p.id, -1, p.pos, len(vel)); Object.assign(this.events[this.events.length - 1], { timing, lob: !!cmd.lobShot, power: charge > 0.85 });
   }
 
+  /** May this player deflect a team-mate's pass to goal now (near the opponent goal)? */
+  canDeflect(p) { return !p.isGK && fdist(p.pos, this.targetGoal(p.team)) < DEFLECT_RANGE; }
+  /** One-touch deflection of a pass to goal: no control of the ball; the redirect keeps part of the pass speed,
+   *  aimed away from the keeper (or at the aimed corner), less accurate than a set shot (technique, reaction). */
+  deflect(m, inSpeed) {
+    const b = this.ball, c = this.cfg, goal = this.targetGoal(m.team), half = c.goalW / 2, gk = this.teams[1 - m.team].gk, cmd = m.cmd || {};
+    m.deflectT = 0; this.stats.teams[m.team].passesOk++; this.assistCand[m.team] = b.passer; this.emit(Ev.PASS_OK, m.team, b.passer.id, m.id, b.pos);
+    const tz = cmd.hasAim ? goal.z - this.sign(m.team) * clamp(cmd.aimX, -1.2, 1.2) * half : goal.z + (gk.pos.z > goal.z ? -1 : 1) * (half - 0.35);
+    const skill = 0.5 * N(m.stats.technique) + 0.3 * N(m.stats.reaction) + 0.2 * N(m.stats.accuracy), spread = (0.5 + (1 - skill) * 1.4) * (1 + this.pressure(m) * 0.4);
+    const target = V(goal.x, clamp(0.35 + this.rng.bell() * spread * 0.5, 0.05, c.goalH + 0.2), tz + this.rng.bell() * spread);
+    const speed = clamp(inSpeed * 0.45 + 6 + 3 * this.effPower(m), 8, 14);
+    b.lastTouch = m; b.shooter = m; b.receiver = null; b.quick = true; b.pos = { ...b.pos, y: Math.max(b.pos.y, 0.3) };
+    this.release('SHOT', ballistic(b.pos, add(target, V(this.sign(m.team) * 0.4, 0, 0)), speed)); m.actionCd = 0.5;
+    this.stats.teams[m.team].shots++;
+    this.emit(Ev.SHOT, m.team, m.id, -1, m.pos, speed); Object.assign(this.events[this.events.length - 1], { timing: 'NONE', deflect: true });
+  }
+
   // =============================================================== ball
   setBall(s) { const b = this.ball; b.state = s; b.stateTime = 0; b.tried.clear(); if (s !== 'SHOT') b.saveDone = false; }
   release(state, vel) { const b = this.ball; if (b.owner) { b.lastTouch = b.owner; b.owner.possTime = 0; } b.owner = null; b.vel = vel; this.setBall(state); }
@@ -984,6 +1007,7 @@ export class Match {
       b.lastTouch = m; b.vel = V(b.vel.x * 0.2, 0.5, b.vel.z * 0.2); this.setBall('FREE'); return true;
     }
     const passer = b.passer;
+    if (m.deflectT > 0 && passer && passer.team === m.team && fdist(m.pos, this.targetGoal(m.team)) < DEFLECT_RANGE) { this.deflect(m, speed); return true; }
     if (passer && passer.team === m.team) {
       this.stats.teams[m.team].passesOk++; this.assistCand[m.team] = passer; m.caughtAt = this.time; m.passShift = Math.abs(passer.pos.z - m.pos.z);
       this.emit(Ev.PASS_OK, m.team, passer.id, m.id, b.pos);

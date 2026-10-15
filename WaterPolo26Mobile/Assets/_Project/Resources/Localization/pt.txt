@@ -108,3 +108,5 @@ cam.under = DEBAIXO D'ÁGUA
 menu.autosubs = Substituições automáticas
 hud.sub = SUBSTITUIÇÃO
 hud.sub_call = {0} está exausto: sai pela zona de reentrada
+btn.deflect = DESVIAR
+hud.deflect = DESVIO!

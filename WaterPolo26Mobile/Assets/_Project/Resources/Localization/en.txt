@@ -108,3 +108,5 @@ cam.under = UNDERWATER
 menu.autosubs = Automatic substitutions
 hud.sub = SUBSTITUTION
 hud.sub_call = {0} is exhausted: leaving through the re-entry area
+btn.deflect = DEFLECT
+hud.deflect = DEFLECTION!

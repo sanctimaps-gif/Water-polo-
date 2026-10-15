@@ -42,7 +42,7 @@ Les gestes, le sprint au bord, le double tap et les vibrations sont des options 
 * Accélération : 1,6 → 3,6 m/s² (ACCELERATION), ×1,2 en sprint, ×0,75 pour inverser la direction ;
   sans commande, la traînée de l'eau freine à 2,2 m/s² (glisse puis arrêt). **Aucun déplacement instantané.**
 * Rotation : 200 → 420 °/s (TECHNIQUE).
-* Endurance : sprint −0,085 → −0,045 /s (STAMINA) soit ≈ 12 à 22 s de sprint continu ; récupération
+* Endurance : sprint −0,08 → −0,042 /s (STAMINA) soit ≈ 12 à 24 s de sprint continu (30 % plus lent qu’avant) ; récupération
   0,03 → 0,065 /s (×0,35 en nageant à fond). À 3 % le sprint se bloque jusqu'à 20 % (hystérésis).
 * Fatigue (endurance basse) : vitesse ×0,75, précision/passes/défense ×0,8, puissance ×0,85,
   temps de réaction +25 %. Visible via la barre d'endurance (rouge quand le sprint est bloqué).

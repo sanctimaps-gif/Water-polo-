@@ -1120,7 +1120,11 @@ function frame(now) {
     const ang = time * 0.25, focus = new URLSearchParams(location.search).get('focus');
     if (focus !== null) {   // ?showcase&focus=i : face close-up of athlete i
       const fx = (+focus - 2.5) * 0.85, fa = Math.sin(time * 0.5) * 0.7, fy = showcase[+focus].morph.height;
-      if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.55, 0.6); camera.lookAt(fx, 0.35, 0); setFov(40, fdt, 10); }   // ?side: profile view
+      if (new URLSearchParams(location.search).has('face')) {   // ?face: portrait close-up in front of the head (&a= yaw around it)
+        const Q = new URLSearchParams(location.search), A = showcase[+focus], h = A.head.getWorldPosition(new THREE.Vector3()), q = A.head.getWorldQuaternion(new THREE.Quaternion());
+        const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(q).setY(0).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), Q.has('a') ? +Q.get('a') : 0);
+        camera.position.copy(h).addScaledVector(fw, Q.has('d') ? +Q.get('d') : 0.55).add(new THREE.Vector3(0, 0.02, 0)); camera.lookAt(h.x, h.y + 0.02, h.z); setFov(30, fdt, 10);
+      } else if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.55, 0.6); camera.lookAt(fx, 0.35, 0); setFov(40, fdt, 10); }   // ?side: profile view
       else {   // ?ly= look height, &d= distance, &a= fixed angle (debug close-ups: chest, back)
         const Q = new URLSearchParams(location.search), ly = Q.has('ly') ? +Q.get('ly') : 0.33 * fy, dd = Q.has('d') ? +Q.get('d') : 0.9, aa = Q.has('a') ? +Q.get('a') : fa;
         camera.position.set(fx + Math.sin(aa) * dd, ly + 0.17 * fy, -Math.cos(aa) * dd); camera.lookAt(fx, ly, 0); setFov(40, fdt, 10);

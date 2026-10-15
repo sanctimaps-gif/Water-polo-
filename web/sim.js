@@ -562,7 +562,7 @@ export class Match {
     if (p.sprintLocked && p.stamina >= 0.2) p.sprintLocked = false;
     p.sprinting = wantSprint && amt > 0.2 && !p.sprintLocked && p.stamina > 0.03;
     if (p.sprinting) {
-      p.stamina -= lerp(0.11, 0.06, N(p.stats.stamina)) * dt;
+      p.stamina -= lerp(0.08, 0.042, N(p.stats.stamina)) * dt;   // ~30 % slower drain than before
       if (p.stamina <= 0.03) { p.stamina = Math.max(0, p.stamina); p.sprintLocked = true; p.sprinting = false; }
     } else p.stamina = Math.min(1, p.stamina + lerp(0.03, 0.065, N(p.stats.stamina)) * lerp(1, 0.35, amt) * dt);
     let max = this.maxSpeed(p, hasBall); if (p.stun > 0) max *= 0.35;
@@ -667,7 +667,7 @@ export class Match {
     const fwd = norm(flat(sub(goal, p.pos)));
     let side = V(-fwd.z, 0, fwd.x);
     if (d && dot(flat(sub(d.pos, p.pos)), side) > 0) side = mul(side, -1);   // go round on the side away from him
-    p.vel = add(mul(fwd, 1.6), mul(side, 1.4)); p.dodgeT = 0.55; p.dodgeCd = 3; p.stamina = Math.max(0, p.stamina - 0.12);
+    p.vel = add(mul(fwd, 1.6), mul(side, 1.4)); p.dodgeT = 0.55; p.dodgeCd = 3; p.stamina = Math.max(0, p.stamina - 0.09);
     p.facing = norm(flat(p.vel));
     if (d && dist < 2.2) {
       const pBeat = clamp(0.35 + 0.35 * (N(p.stats.speed) + N(p.stats.technique)) / 2 - 0.3 * (N(d.stats.defense) + N(d.stats.reaction)) / 2 + 0.1 * p.stamina, 0.1, 0.8);

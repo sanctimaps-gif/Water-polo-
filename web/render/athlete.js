@@ -279,6 +279,10 @@ function scanHeadGeometry(P, skin, hair) {
     const dn = (P.nose - 0.16) * 3, dc = (P.chin - 0.055) * 5, db = (P.brow - 0.052) * 5, dl = (P.lips - 0.032) * 2;
     Z += f * (dn * gs(X, 0.4) * gs(Y - 1.0, 0.5) + dc * gs(Y + 0.45, 0.4) * gs(X, 0.9) + db * gs(Y - 2.0, 0.25) * gs(X, 1.2) + dl * gs(Y - 0.35, 0.2) * gs(X, 0.6));
     Y -= dc * 2 * sstep(0.2, -0.6, Y) * f;                                                         // longer / shorter chin
+    // athlete's face (reference sheet): heavier brow ridge over deep-set eyes, high cheekbones, hollow
+    // cheeks under them, firm jaw line
+    Z += f * (0.07 * gs(Y - 1.98, 0.2) * gs(X, 1.15) + 0.05 * gs(Y - 1.3, 0.22) * gs(ax - 1.15, 0.3) - 0.07 * gs(Y - 0.5, 0.32) * gs(ax - 1.05, 0.28));
+    X += Math.sign(X) * f * 0.05 * gs(Y + 0.15, 0.3) * sstep(0.6, 1.1, ax);
     if (aw > 0.5) eyeAcc[X < 0 ? 0 : 1].push([X, Y, Z]);
     Z -= aw * 0.22;
     // back to head space, pitched forward a little (the scan looks slightly up)
@@ -287,7 +291,10 @@ function scanHeadGeometry(P, skin, hair) {
     // colour multiplier: skin tone; beard / moustache / goatee darken toward the hair colour
     const beard = f * sstep(0.75, -0.1, Y) * (1 - gs(Y - 0.35, 0.16) * gs(X, 0.55)) * sstep(2.0, 1.2, ax);
     const must = f * gs(Y - 0.62, 0.13) * gs(X, 0.6), goat = f * gs(Y + 0.25, 0.35) * gs(X, 0.45);
-    c.copy(tint).lerp(hairT, Math.min(1, beard * P.beard * 0.6 + must * P.moustache + goat * P.goatee)).multiplyScalar(1 - 0.88 * aw);
+    // eyebrows (the scan's are faint): thick inner end thinning outward, along the brow ridge
+    const brow = f * gs(Y - 1.98 + 0.12 * sstep(0.3, 1.3, ax), 0.1) * sstep(0.18, 0.32, ax) * sstep(1.4, 1.05, ax);
+    c.copy(tint).lerp(hairT, Math.min(1, beard * Math.max(P.beard, 0.1) * 0.6 + must * P.moustache + goat * P.goatee + brow * 0.75))
+      .multiplyScalar((1 - 0.7 * aw) * (1 - 0.18 * f * gs(Y - 1.62, 0.2) * gs(ax - 0.75, 0.45)));   // eye socket shade
     col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
   }
   const g = new THREE.BufferGeometry();
@@ -682,19 +689,22 @@ export class Athlete {
     const hs = 1 + (r() - 0.5) * 0.08, R = 0.112;
     const bk = this.look.beard;
     const FP = { jawW: 0.8 + r() * 0.16, faceW: 0.92 + r() * 0.1, nose: 0.12 + r() * 0.08, noseW: 0.08 + r() * 0.05, brow: 0.035 + r() * 0.035, chin: 0.03 + r() * 0.05,
-      lips: 0.02 + r() * 0.025, seed: o.seed % 97, beard: bk === 'beard' ? 0.85 : bk === 'stubble' ? 0.14 : 0, moustache: bk === 'moustache' || bk === 'goatee' ? 0.85 : 0,
+      lips: 0.02 + r() * 0.025, seed: o.seed % 97, beard: bk === 'beard' ? 0.85 : bk === 'stubble' ? 0.3 : 0, moustache: bk === 'moustache' || bk === 'goatee' ? 0.85 : 0,
       goatee: bk === 'goatee' ? 0.85 : 0, eyeX: 0.034 + r() * 0.007, eyeS: 0.9 + r() * 0.2 };
     const sculpt = sculptHead(face ? seg * 4 + 8 : 14, face ? seg * 3 + 6 : 10, FP, skin, hair);
     sculpt.geo.applyMatrix4(new THREE.Matrix4().compose(V3(0, 0.1, 0), new THREE.Quaternion(), V3(0.92 * hs * R, 1.08 * R, 1.02 * R)));
     const scanGeo = scan ? scanHeadGeometry(FP, skin, hair) : null;
     const headParts = scan ? [] : [{ geo: sculpt.geo, colors: sculpt.colors, color: skin, rough: S }];
     if (scanGeo) {
-      const iris = C(r() < 0.3 ? 0x3d6b8f : r() < 0.5 ? 0x5a7a3a : 0x3b2414);
+      const ir = r(), iris = C(ir < 0.2 ? 0x3d6b8f : ir < 0.35 ? 0x56603a : ir < 0.6 ? 0x4a3020 : 0x2e1c10);
       for (const [ex, ey, ez] of scanGeo.userData.eyes) {
-        const wc = ez - 0.0125, R = 0.0118;   // eyeball centre behind the lids, iris and pupil on its front
-        headParts.push({ geo: new THREE.SphereGeometry(R, 14, 10), color: C(0xcfc6b8), rough: 0.08, pos: V3(ex, ey, wc) });
-        headParts.push({ geo: new THREE.SphereGeometry(0.0066, 12, 8), color: iris, rough: 0.05, pos: V3(ex, ey - 0.0003, wc + R * 0.92), scale: V3(1, 1, 0.45) });
-        headParts.push({ geo: new THREE.SphereGeometry(0.003, 8, 6), color: C(0x030303), rough: 0.02, pos: V3(ex, ey - 0.0003, wc + R * 0.98), scale: V3(1, 1, 0.4) });
+        const wc = ez - 0.0145, R = 0.0118;   // eyeball centre set back behind the lids (deep-set eyes), iris and pupil on its front
+        const ball = new THREE.SphereGeometry(R, 14, 10);   // sclera: off-white, shaded under the upper lid and toward the corners
+        headParts.push({ geo: ball, colors: paint(ball, (v, c) => c.set(0xcdc3b4).multiplyScalar(1 - 0.5 * sstep(0.0, R * 0.8, v.y) - 0.25 * sstep(R * 0.4, R, Math.abs(v.x)))), color: C(0xcdc3b4), rough: 0.08, pos: V3(ex, ey, wc) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.0071, 12, 8), color: iris, rough: 0.05, pos: V3(ex, ey - 0.0008, wc + R * 0.9), scale: V3(1, 1, 0.45) });
+        headParts.push({ geo: new THREE.SphereGeometry(0.0031, 8, 6), color: C(0x030303), rough: 0.02, pos: V3(ex, ey - 0.0008, wc + R * 0.97), scale: V3(1, 1, 0.4) });
+        // upper lid over the top of the iris (relaxed, focused look like the reference, not a wide stare)
+        headParts.push({ geo: new THREE.SphereGeometry(R * 1.1, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.34), color: bodySkin.clone().multiplyScalar(0.7), rough: S, pos: V3(ex, ey, wc + 0.0015), quat: Q(0.55, 0, 0) });
       }
     }
     if (face && !scan) {

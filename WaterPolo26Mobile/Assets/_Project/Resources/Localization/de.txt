@@ -105,3 +105,6 @@ pos.4 = Linker Flügel
 pos.5 = Center
 cam.eyes = SPIELERAUGEN
 cam.under = UNTER WASSER
+menu.autosubs = Automatische Wechsel
+hud.sub = WECHSEL
+hud.sub_call = {0} ist erschöpft: Er verlässt das Wasser über den Wiedereintrittsraum

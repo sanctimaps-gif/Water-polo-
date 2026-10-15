@@ -122,7 +122,7 @@ export const Ev = {
   PERIOD_START: 'PeriodStart', SWIM_OFF: 'SwimOff', POSSESSION: 'PossessionWon', PASS: 'PassMade', PASS_OK: 'PassCompleted',
   INTERCEPT: 'PassIntercepted', SHOT: 'ShotTaken', SAVE: 'ShotSaved', BLOCK: 'ShotBlocked', OFF: 'ShotOffFrame', FRAME: 'ShotHitFrame',
   GOAL: 'Goal', STEAL: 'Steal', FOUL: 'Foul', OUT: 'BallOut', SHOT_CLOCK: 'ShotClockViolation', RESTART: 'Restart',
-  PERIOD_END: 'PeriodEnd', END: 'MatchEnd', SWITCH: 'HumanPlayerSwitched', EXCLUSION: 'Exclusion', REENTRY: 'ReEntry', DRILL: 'DrillResult', OFFSIDE: 'Offside2m', NO_SHOT_5M: 'NoDirectShot5m', DODGE: 'Dodge', DODGE_FAIL: 'DodgeFail',
+  PERIOD_END: 'PeriodEnd', END: 'MatchEnd', SWITCH: 'HumanPlayerSwitched', EXCLUSION: 'Exclusion', REENTRY: 'ReEntry', DRILL: 'DrillResult', OFFSIDE: 'Offside2m', NO_SHOT_5M: 'NoDirectShot5m', DODGE: 'Dodge', DODGE_FAIL: 'DodgeFail', SUB_OUT: 'SubstitutionCalled', SUB: 'Substitution',
 };
 
 // ---------------------------------------------------------------- simulation
@@ -234,7 +234,7 @@ export class Match {
     if (this.ball.owner && this.ball.owner.team === team.index) { if (!this.ball.owner.isGK) this.setHuman(this.ball.owner, true); return; }
     let best = null, bs = 1e9; const og = this.ownGoal(team.index);
     for (const p of team.field) {
-      if (p.excluded > 0) continue;
+      if (p.excluded > 0 || p.subOut) continue;
       if (p === this.human) continue;
       const s = fdist(p.pos, this.ball.pos) + (fdist(p.pos, og) < fdist(this.ball.pos, og) ? 0 : 1.5);
       if (s < bs) { bs = s; best = p; }
@@ -256,15 +256,28 @@ export class Match {
     const target = !b.owner && b.state === 'PASSED' && b.receiver ? b.receiver.pos : b.pos, og = this.ownGoal(h.team);
     const score = (p) => fdist(p.pos, target) + (fdist(p.pos, og) <= fdist(target, og) + 0.5 ? 0 : 2);
     let best = null, bs = 1e9;
-    for (const p of team.field) { if (p.excluded > 0) continue; const s = score(p); if (s < bs) { bs = s; best = p; } }
+    for (const p of team.field) { if (p.excluded > 0 || p.subOut) continue; const s = score(p); if (s < bs) { bs = s; best = p; } }
     if (best && best !== h && bs < score(h) - 1.5) { this.setHuman(best, true); this.lastSwitch = this.time; }
   }
   setTactic(team, style) { this.teams[team].tactic = style; this.teams[team].tp = tacticParams(style); }
   /** Rolling substitution (water polo): the player `p` is replaced in the water by the player definition `pd`. */
-  substitute(p, pd) {
-    Object.assign(p, { name: pd.name, number: pd.number, stats: pd.stats, prof: PERSONALITY[pd.personality] || p.prof, pid: pd.playerId || null, look: pd.look || p.look, stamina: 1, sprintLocked: false });
-    this.resetAction(p); this.emit(Ev.SWITCH, p.team, p.id);
+  substitute(p, pd, stamina = 1) {
+    Object.assign(p, { name: pd.name, number: pd.number, stats: pd.stats, prof: PERSONALITY[pd.personality] || p.prof, pid: pd.playerId || null, look: pd.look || p.look, stamina, sprintLocked: false, subOut: false });
+    this.resetAction(p); this.emit(Ev.SUB, p.team, p.id, -1, p.pos); this.emit(Ev.SWITCH, p.team, p.id);
   }
+  /**
+   * Rolling substitution (water polo rules): during play a field player leaves through his team's re-entry
+   * area (corner at his own goal line) and the substitute enters from there once he has reached it; after a
+   * goal, between periods and during time-outs the change is immediate. This flags the player: he stops
+   * playing and swims to the re-entry area (subReady), then the caller swaps him (substitute).
+   */
+  requestSub(p) {
+    if (p.isGK || p.excluded > 0 || p.subOut || this.ball.owner === p || this.teams[p.team].field.some((q) => q.subOut)) return false;
+    p.subOut = true; this.resetAction(p);
+    if (p.human) { const q = this.teams[p.team].field.filter((x) => x !== p && x.excluded <= 0).sort((a, b) => fdist(a.pos, this.ball.pos) - fdist(b.pos, this.ball.pos))[0]; if (q) this.setHuman(q, true); }
+    this.emit(Ev.SUB_OUT, p.team, p.id, -1, p.pos); return true;
+  }
+  subReady(p) { return !!p.subOut && fdist(p.pos, this.reentrySpot(p)) < 1.2; }
   setFormation(team, f) { if (FORMATIONS[f]) this.teams[team].formation = f; }
 
   // --- formation
@@ -701,7 +714,7 @@ export class Match {
 
   // =============================================================== passes
   evaluate(passer, t, pref, assist, risk, centerBonus) {
-    if (t === passer || t.team !== passer.team || t.excluded > 0) return -Infinity;
+    if (t === passer || t.team !== passer.team || t.excluded > 0 || t.subOut) return -Infinity;
     const to = flat(sub(t.pos, passer.pos)), d = len(to);
     if (d < 1.5) return -Infinity;
     const s = this.sign(passer.team), goal = this.targetGoal(passer.team);
@@ -1024,6 +1037,9 @@ export class Match {
   // 4 left wing, 5 centre-forward (2 m). In defence each player marks the opponent in the same slot;
   // the slot-5 defender is the 2 m defender. The slot sets WHERE a player plays, his role HOW.
   thinkField(p) {
+    if (p.subOut) {   // leaving the water: swim to the re-entry area, out of the play
+      if (this.ball.owner === p) p.subOut = false; else { p.cmd = { move: this.steer(p, this.reentrySpot(p), 0) }; return; }
+    }
     const cmd = {}, b = this.ball, tp = this.teams[p.team].tp;
     const intel = N(p.stats.intelligence) * this.skill(p.team);
     const decide = this.time >= p.nextDecision;

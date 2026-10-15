@@ -105,3 +105,6 @@ pos.4 = Ailier gauche
 pos.5 = Pivot
 cam.eyes = YEUX DU JOUEUR
 cam.under = SOUS L'EAU
+menu.autosubs = Changements automatiques
+hud.sub = CHANGEMENT
+hud.sub_call = {0} est épuisé : il sort par la zone de rentrée

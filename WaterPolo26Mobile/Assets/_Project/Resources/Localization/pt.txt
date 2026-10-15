@@ -105,3 +105,6 @@ pos.4 = Ponta esquerda
 pos.5 = Pivô
 cam.eyes = OLHOS DO JOGADOR
 cam.under = DEBAIXO D'ÁGUA
+menu.autosubs = Substituições automáticas
+hud.sub = SUBSTITUIÇÃO
+hud.sub_call = {0} está exausto: sai pela zona de reentrada

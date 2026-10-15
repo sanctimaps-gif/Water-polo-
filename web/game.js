@@ -3,7 +3,7 @@
 import * as THREE from './vendor/three.module.min.js';
 import { Match, Ev, TACTICS, FORMATIONS, DRILLS } from './sim.js';
 import { logoSvg } from './ui/art.js';
-import { GameState, lookOf, POOLS, BALL_DESIGNS, overall, ROLE_ABBR, countryOf } from './state.js';
+import { GameState, lookOf, POOLS, BALL_DESIGNS, overall, ROLE_ABBR, countryOf, SLOT_ROLES as SLOT_ROLES_G } from './state.js';
 import { App } from './ui/app.js';
 import { UI } from './ui/i18n.js';
 import { PRESETS, TIERS, detectTier, FpsGovernor } from './render/quality.js';
@@ -40,7 +40,7 @@ const L = (k, ...a) => {
 };
 
 // ------------------------------------------------------------------ options (persisted per device)
-const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, zoom: 5, radar: true, intro: true, graphics: 'AUTO', camera: 'ATTACK', replays: true, ambience: 'EVENT', sound: true };
+const DEFAULT_OPTS = { difficulty: 1, assist: 'STANDARD', minutes: 2, timing: true, autoSwitch: true, zoom: 5, radar: true, intro: true, autoSubs: true, graphics: 'AUTO', camera: 'ATTACK', replays: true, ambience: 'EVENT', sound: true };
 let opts = { ...DEFAULT_OPTS };
 try { Object.assign(opts, JSON.parse(localStorage.getItem('wp26.opts') || '{}')); } catch { /* private mode */ }
 if (!opts.camV2) { opts.camera = 'ATTACK'; opts.camV2 = true; }   // new default camera (end-on, toward the attacked goal)
@@ -446,6 +446,7 @@ function startMatch(ctx) {
   arena.setAmbience(ctx.away || !pool ? opts.ambience : pool.ambience);
   tacticIdx = Math.max(0, TACTICS.indexOf(free ? 'BALANCED' : state.data.club.tactic));
   if (ctx.mode === 'challenge') match.startDrill(ctx.drill); else match.start();
+  initSubs(ctx);
   drillKey = '';
   tape.length = 0; record(match, []); record(match, []);
   buildActors(match);
@@ -536,6 +537,7 @@ const hex = (c) => '#' + c.toString(16).padStart(6, '0');
 // ------------------------------------------------------------------ event reactions
 /** Visual + audio reactions shared by live play and replays. */
 function react(e) {
+  if (!replay && (e.type === Ev.GOAL || e.type === Ev.PERIOD_END)) stopSubs = true;
   const a = e.player >= 0 ? athletes[e.player] : null;
   switch (e.type) {
     case Ev.PASS: {
@@ -906,6 +908,66 @@ function statsHtml() {
     + row(L('pz.fouls'), a.fouls, b.fouls, `${a.fouls}(${a.exclusions})`, `${b.fouls}(${b.exclusions})`)
     + row(L('pz.manup'), a.ppChances, b.ppChances, `${a.ppChances}(${a.ppGoals})`, `${b.ppChances}(${b.ppGoals})`);
 }
+// ------------------------------------------------------------------ automatic substitutions (water polo rules)
+// Rolling substitutions: a tired field player (energy < 30 %) leaves through his team's re-entry area (corner
+// at his own goal line) when his team has the ball, and the freshest substitute enters from there; after a
+// goal and between periods every tired player (< 50 %) is changed at once. Both teams; the bench recovers.
+// Option in the settings (AUTOMATIC SUBSTITUTIONS); manual changes stay in the pause menu.
+let subBench = [[], []], stopSubs = false;
+function initSubs(ctx) {
+  const side = state.sideSquad(ctx), used = new Set(match.teams[0].players.map((mp) => mp.pid));
+  const mine = (side || state.squad).filter((p) => !used.has(p.id) && p.role !== 'GOALKEEPER').map((p) => ({ p, stamina: 1 }));
+  const opp = state.opponentSquad(match.teams[1].def.id, ctx.rating).slice(7).filter((p) => p.role !== 'GOALKEEPER').map((p) => ({ p, stamina: 1 }));
+  subBench = [mine, opp]; stopSubs = false;
+  for (const mp of match.teams[1].players) if (!mp.pid) mp.src = state.opponentSquad(match.teams[1].def.id, ctx.rating).find((q) => q.number === mp.number) || null;
+}
+const srcOf = (mp) => (mp.team === 0 ? (mp.pid ? sqOf(mp.pid) : null) : mp.src);
+/** Player definition of a substitute for the slot he takes. */
+function subDef(team, p, slot) {
+  if (team === 0) return state.playerDef(p, slot);
+  return { name: `${p.firstName[0]}. ${p.lastName}`, number: p.number, role: p.role, personality: p.personality, stats: p.stats, slot, look: lookOf(p) };
+}
+/** Swaps a player in the water for the best fresh substitute of the bench (role first, then energy and level). */
+function doSub(mp, instant) {
+  const bench = subBench[mp.team], want = SLOT_ROLES_G[mp.slot];
+  const pick = bench.filter((b) => b.stamina >= 0.7).sort((a, b) => (b.p.role === want) - (a.p.role === want) || b.stamina - a.stamina || overall(b.p) - overall(a.p))[0];
+  if (!pick) { mp.subOut = false; return false; }
+  const out = srcOf(mp), outName = mp.name, outSt = mp.stamina;
+  bench.splice(bench.indexOf(pick), 1); if (out) bench.push({ p: out, stamina: outSt });
+  match.substitute(mp, subDef(mp.team, pick.p, mp.slot), pick.stamina);
+  if (mp.team === 1) mp.src = pick.p;
+  if (mp.team === 0 && out && !state.sideSquad(matchCtx) && state.player(out.id) && state.player(pick.p.id)) state.swap(out.id, pick.p.id);   // line-up follows (career)
+  scene.remove(athletes[mp.id].root); athletes[mp.id] = makeAthlete(match, mp); athletes[mp.id].root.position.set(mp.pos.x, 0, mp.pos.z);
+  if (!instant) { vfx.burst(mp.pos.x, mp.pos.z, 0.9); audio.splash(0.5); }
+  subCard(mp.team, outName, outSt, mp.name, pick.p);
+  return true;
+}
+function subsTick(dt) {
+  for (const b of subBench) for (const x of b) x.stamina = Math.min(1, x.stamina + 0.035 * dt);   // the bench recovers
+  if (match.phase !== 'LIVE') {   // after a goal / between periods: immediate changes of every tired player
+    if (stopSubs) { stopSubs = false; for (const t of [0, 1]) for (const mp of match.teams[t].field) if (mp.excluded <= 0 && mp.stamina < 0.5 && (t === 1 || opts.autoSubs !== false)) doSub(mp, true); }
+    return;
+  }
+  for (const t of [0, 1]) {
+    if (t === 0 && opts.autoSubs === false) continue;
+    const team = match.teams[t], going = team.field.find((q) => q.subOut);
+    if (going) { if (match.subReady(going)) doSub(going, false); continue; }
+    const b = match.ball, attacking = b.possTeam === t;
+    if (!attacking || !subBench[t].some((x) => x.stamina >= 0.7)) continue;
+    const tired = team.field.filter((q) => q.excluded <= 0 && q.stamina < 0.3 && b.owner !== q).sort((a, c) => a.stamina - c.stamina)[0];
+    if (tired && match.requestSub(tired)) subCallCard(t, tired);
+  }
+}
+let subCardT = 0;
+/** Small animation: the team's substitution board (out: name + energy left, in: the substitute). */
+function subCard(team, outName, outSt, inName, p) {
+  const def = match.teams[team].def, el = $('subcard');
+  el.innerHTML = `<div class="sc-head" style="--tc:${hexCss(def.color)}">${crest(def, 22)}<b>${L('hud.sub')}</b></div>
+    <div class="sc-row out"><i>▼</i><span>${outName}</span><u><s style="width:${Math.round(outSt * 100)}%"></s></u></div>
+    <div class="sc-row in"><i>▲</i><span>${inName}</span><u><s style="width:100%"></s></u></div>`;
+  el.className = 'show t' + team; subCardT = 2.8;
+}
+function subCallCard(team, mp) { if (team === 0) toast(L('hud.sub_call', mp.name), 1.6); }
 /** Substitutions (rolling, as in water polo): tap a player in the water, then a substitute. */
 /** Squad player of the user's side by id (the career squad, or the club of a free championship). */
 const sqOf = (id) => { const side = matchCtx && state.sideSquad(matchCtx); return side ? side.find((p) => p.id === id) : state.player(id); };
@@ -1025,6 +1087,7 @@ function frame(now) {
         pollInput(match);
         if (pendingReplay) { pendingReplay.at -= fdt; if (pendingReplay.at <= 0) { pendingReplay = null; startReplay(); } }
         if (!replay) {
+          if (!match.drill) subsTick(fdt);
           acc += fdt; let steps = 0;
           while (acc >= match.cfg.dt && steps < 5) {
             match.step(); const evs = match.drain(); for (const e of evs) onEvent(e); record(match, evs);
@@ -1193,6 +1256,7 @@ function endLineups() {
 }
 function updatePresentation(dt) {
   if (lineup) { lineup.t -= dt; if (lineup.t <= 0) { if (lineup.team === 0) { lineup.team = 1; renderLineup(); } else endLineups(); } }
+  if (subCardT > 0) { subCardT -= dt; if (subCardT <= 0) $('subcard').className = ''; }
   if (goalCardT > 0) { goalCardT -= dt; if (goalCardT <= 0) { $('goalcard').className = ''; if (!lineup && !replay) $('skipBtn').classList.add('hidden'); } }
   if (!lineup && !replay && goalCardT <= 0) $('skipBtn').classList.add('hidden'); else if (replay) $('skipBtn').classList.remove('hidden');
 }
@@ -1333,6 +1397,7 @@ const settingsDef = () => [
   ['menu.radar', onOff(opts.radar !== false), 'radar', 'match', 'toggle'],
   ['menu.replays', onOff(opts.replays), 'replays', 'match', 'toggle'],
   ['menu.intro', onOff(opts.intro !== false), 'intro', 'match', 'toggle'],
+  ['menu.autosubs', onOff(opts.autoSubs !== false), 'autoSubs', 'match', 'toggle'],
   ['menu.lineups', onOff(opts.lineups !== false), 'lineups', 'match', 'toggle'],
   ['menu.assist', L('assist.' + opts.assist.toLowerCase()), 'assist', 'controls', 'list', ASSISTS.indexOf(opts.assist), ASSISTS.length],
   ['menu.timing', onOff(opts.timing), 'timing', 'controls', 'toggle'],
@@ -1352,6 +1417,7 @@ async function changeSetting(key, dir = 1, value) {
     case 'zoom': opts.zoom = Math.max(1, Math.min(10, value ?? (opts.zoom ?? 5) + dir)); break;
     case 'radar': opts.radar = opts.radar === false; break;
     case 'intro': opts.intro = opts.intro === false; break;
+    case 'autoSubs': opts.autoSubs = opts.autoSubs === false; break;
     case 'lineups': opts.lineups = opts.lineups === false; break;
     case 'haptics': opts.haptics = opts.haptics === false; break;
     case 'ambience': opts.ambience = step(AMBIENCES, opts.ambience, dir); arena.setAmbience(opts.ambience); break;

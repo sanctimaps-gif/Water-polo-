@@ -259,6 +259,22 @@ en dernier), faute ordinaire (coup franc, défenseur écarté 0,6 s), match nul 
 NON IMPLÉMENTÉ (phase 2 suite) : exclusions de 20 s, penalty à 5 m, hors-jeu des 2 m, temps morts,
 remplacements, arrêt du chrono sur chaque coup de sifflet, séance de tirs au but.
 
+### Changements de joueurs (version web, `requestSub` / `subReady` / `substitute`, jeu : `subsTick`)
+
+Règles du water-polo : changements **« roulants »** pendant le jeu, par la **zone de rentrée** de l'équipe (coin de
+la piscine sur sa propre ligne de but) — le joueur qui sort doit l'atteindre avant que le remplaçant entre ; après
+un but, entre les périodes et pendant les temps morts, le changement est immédiat. Un gardien n'est remplacé que par
+un gardien (changement manuel dans la pause).
+* **Automatique** (réglage « Changements automatiques », activé par défaut ; l'IA adverse change toujours) : quand
+  son équipe a le ballon, un joueur de champ à moins de 30 % d'énergie arrête de jouer, nage vers la zone de rentrée
+  (on ne lui passe plus, le contrôle passe à un coéquipier), puis le remplaçant le plus frais (poste d'abord) entre
+  de là avec une éclaboussure ; un seul changement à la fois par équipe. Après un but ou entre deux périodes, tous
+  les joueurs sous 50 % sont changés d'un coup.
+* Le banc récupère (+3,5 % d'énergie par seconde) ; le joueur sorti y garde son énergie et peut revenir plus tard.
+* **Animation** : panneau « CHANGEMENT » aux couleurs du club (sortant ▼ avec son énergie restante, entrant ▲),
+  message quand ton joueur est appelé ; la composition de carrière suit le changement.
+* Test : `tools/web-tests/subs.mjs` (appel, nage jusqu'à la zone de rentrée, entrée du remplaçant).
+
 ## 9. Effet de chaque statistique (couvert par `StatImpactTests`)
 
 | Stat | Effet |

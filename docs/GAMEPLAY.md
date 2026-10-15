@@ -259,6 +259,13 @@ en dernier), faute ordinaire (coup franc, défenseur écarté 0,6 s), match nul 
 NON IMPLÉMENTÉ (phase 2 suite) : exclusions de 20 s, penalty à 5 m, hors-jeu des 2 m, temps morts,
 remplacements, arrêt du chrono sur chaque coup de sifflet, séance de tirs au but.
 
+### Déviation en une touche (version web, `deflect`)
+
+Une passe d'un coéquipier arrive vers ton joueur à moins de 7 m du but adverse (pointe à 2 m, joueur proche du but) :
+le bouton TIR devient **DÉVIER** ; un appui rapide (sans charge) dévie la balle vers le but **sans la contrôler** :
+une partie de la vitesse de la passe est gardée, la balle part à l'opposé du gardien (ou vers le coin visé par un
+glissé), précision selon technique et réaction, gardien surpris (tir « rapide »). Test : `tools/web-tests/deflect.mjs`.
+
 ### Changements de joueurs (version web, `requestSub` / `subReady` / `substitute`, jeu : `subsTick`)
 
 Règles du water-polo : changements **« roulants »** pendant le jeu, par la **zone de rentrée** de l'équipe (coin de

@@ -8,6 +8,8 @@ import { WORLD_COUNTRIES, REAL_CLUBS, LEAGUES as W_LEAGUES, CONTINENT_INFO, club
 export { WORLD_COUNTRIES, CONTINENT_INFO, clubById, countryOf, countryClubs, divisionName, DIVS, PROMOTED };
 
 const SAVE_KEY = 'wp26.save', SAVE_VERSION = 1;
+/** Fields of the save that belong to one club career (one LOADER slot each). */
+const CAREER_KEYS = ['club', 'clubChosen', 'clubMode', 'squadMode', 'squad', 'lineup', 'league', 'career', 'world', 'careerHistory', 'seasonEnd', 'continental', 'market', 'lastSeason', 'recruits'];
 const DATA_SOURCE = { source: 'WP26 original fictional data', lastUpdated: '2026-10-04', licensed: false };
 
 // ---------------------------------------------------------------- reference data
@@ -291,6 +293,7 @@ function defaultState() {
     gift: { lastDay: '', streak: 0 },
     packs: { slots: [], fresh: null, seq: 0, opened: 0 },
     free: null, nation: null,
+    slots: [null, null, null, null], slot: -1,   // club career saves (LOADER): 4 slots, the active one lives in the fields above
   };
 }
 
@@ -318,6 +321,7 @@ export class GameState {
         // Saves made before the 5-division world: career in division 1 of the club's country.
         raw.career ??= { country: countryOf(cl.country) ? cl.country : 'FRA', division: 1 }; raw.world ??= {}; raw.careerHistory ??= []; raw.seasonEnd ??= null; raw.continental ??= null;
         raw.packs ??= { slots: [], fresh: null, seq: 0, opened: 0 }; raw.free ??= null; raw.nation ??= null;
+        if (!raw.slots) { raw.slots = [null, null, null, null]; raw.slot = raw.clubChosen ? 0 : -1; }   // saves made before the career slots: the career goes to slot 1
         // Saves made before the 3-division career: the club restarts its pyramid in Division 3 (or keeps a lower number).
         if (Object.values(raw.world).some((w) => w.divisions.length !== DIVS) || raw.career.division > DIVS) {
           raw.world = {}; raw.career.division = Math.min(raw.career.division, DIVS); raw.league = null; raw.seasonEnd = null; raw.continental = null;
@@ -332,6 +336,42 @@ export class GameState {
   save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.data)); } catch { /* private mode */ } this.listeners.forEach((f) => f()); }
   onChange(f) { this.listeners.add(f); return () => this.listeners.delete(f); }
   reset() { this.data = defaultState(); this.autoLineup(false); this.refreshDaily(); this.save(); }
+
+  // ------------------------------------------------ club career saves (LOADER): no team is given at the start
+  hasCareer() { return !!this.data.clubChosen && this.data.slot >= 0; }
+  /** Summary shown on a slot card. */
+  careerSummary() {
+    const c = this.data.club, lg = this.data.league;
+    return { name: c.name, short: c.short, logo: c.logo, color: c.color, color2: c.color2, color3: c.color3, country: c.country, division: lg.division, league: lg.name, season: lg.season, round: lg.round, total: this.teamTotal().total, savedAt: Date.now() };
+  }
+  /** The 4 slots: the active career is summarised from the live fields. */
+  slotCards() { return this.data.slots.map((sl, i) => (i === this.data.slot && this.data.clubChosen ? this.careerSummary() : sl ? sl.summary : null)); }
+  /** Stores the active career in its slot (before switching). */
+  stashCareer() {
+    const i = this.data.slot; if (i < 0 || !this.data.clubChosen) return;
+    const snap = {}; for (const k of CAREER_KEYS) snap[k] = JSON.parse(JSON.stringify(this.data[k] ?? null));
+    snap.tournaments = Object.fromEntries(Object.entries(this.data.tournaments).filter(([id]) => !id.startsWith('nat-')));
+    this.data.slots[i] = { snap, summary: this.careerSummary() };
+  }
+  /** Clears the career fields (no club): the global progress (level, currencies, trophies, packs, nations) stays. */
+  clearCareer() {
+    const d = defaultState(); for (const k of CAREER_KEYS) this.data[k] = d[k];
+    this.data.tournaments = Object.fromEntries(Object.entries(this.data.tournaments).filter(([id]) => id.startsWith('nat-')));
+    this.data.clubChosen = false; this._fsq = null; this.autoLineup(false);
+  }
+  /** Opens a slot: an existing career is loaded; an empty slot starts a new career (league, then club). */
+  openSlot(i) {
+    if (i === this.data.slot && this.data.clubChosen) return 'loaded';
+    this.stashCareer();
+    const sl = this.data.slots[i];
+    this.clearCareer(); this.data.slot = i;
+    if (sl) { for (const k of CAREER_KEYS) if (k in sl.snap) this.data[k] = sl.snap[k]; Object.assign(this.data.tournaments, sl.snap.tournaments || {}); this.data.clubChosen = true; }
+    this.save(); return sl ? 'loaded' : 'new';
+  }
+  deleteSlot(i) {
+    if (i === this.data.slot) { this.clearCareer(); this.data.slot = -1; }
+    this.data.slots[i] = null; this.save();
+  }
 
   // ------------------------------------------------ club choice (real club base -> own version)
   /** Real club of the database (game identity). */
@@ -381,7 +421,9 @@ export class GameState {
     this.autoLineup(false);
     club.country = country; this.data.career = { country, division: div }; this.data.world = {}; this.data.seasonEnd = null; this.data.continental = null;
     this.data.league = this.makeLeague((this.data.league && this.data.league.season) || 1, country, div);
-    this.data.tournaments = {}; this.data.clubChosen = true; this.data.clubMode = mode; this.data.squadMode = squad;
+    this.data.tournaments = Object.fromEntries(Object.entries(this.data.tournaments).filter(([id]) => id.startsWith('nat-')));
+    this.data.clubChosen = true; this.data.clubMode = mode; this.data.squadMode = squad;
+    if (this.data.slot < 0) { const free = this.data.slots.findIndex((x) => !x); this.data.slot = free >= 0 ? free : 0; }
     this.data.market = null;
     this.save();
   }
@@ -519,7 +561,7 @@ export class GameState {
     const myBase = this.data.club.baseClubId, W = WORLD_COUNTRIES;
     let ids;
     if (def.scope === 'nations') {   // national teams: by continent (or the strongest nations), the user's nation first
-      const me = this.data.nation && this.data.nation.code;
+      const me = this._nat || (this.data.nation && this.data.nation.code);
       const pool = W.filter((c) => c.code !== me && (!def.continent || c.continent === def.continent)).map((c) => clubById('nat-' + c.code)).sort((a, b) => b.rating - a.rating);
       ids = ['user', ...pool.slice(0, def.size - 1).map((c) => c.id)];
       if (def.format === 'ko') ids = ids.slice(0, 2 ** Math.floor(Math.log2(ids.length)));
@@ -548,7 +590,8 @@ export class GameState {
   /** Why a competition is locked (null = open): continental qualification, trophy, level, other country. */
   tournamentLock(def) {
     const pr = this.data.profile, q = this.data.continental, season = this.data.league.season;
-    if (def.scope === 'nations') return this.data.nation ? null : { why: 'nation' };
+    if (def.scope === 'nations') return null;   // the national team is chosen for each competition
+    if (!this.data.clubChosen) return { why: 'career' };
     if (def.scope === 'interseason') return this.canChangeCountry() || (this.tournamentState(def) && this.tournamentState(def).stage !== 'done') ? null : { why: 'interseason' };
     if (def.scope === 'national' && def.country !== this.data.career.country) return { why: 'country', country: def.country };
     if (def.scope === 'regional' && !def.countries.includes(this.data.career.country)) return { why: 'region' };
@@ -762,18 +805,30 @@ export class GameState {
   }
 
   // ------------------------------------------------ SÉLECTIONS: the user coaches a national team (outside the career)
-  chooseNation(code) {
-    if (!countryOf(code)) return false;
-    if (this.data.nation && this.data.nation.code !== code) for (const d of NATION_CUPS) delete this.data.tournaments[d.id];   // new nation: new competitions
-    this.data.nation = { code }; this.save(); return true;
+  /** Last national team used (events "with my national team"). */
+  chooseNation(code) { if (!countryOf(code)) return false; this.data.nation = { code }; this.save(); return true; }
+  /** National team competition: the nation is chosen for this competition, then the draw is made. */
+  startNationCup(def, code) {
+    if (!countryOf(code)) return null; this.chooseNation(code);
+    const t = this.natRun(() => this.startTournament(def), code); t.nation = code; this.save(); return t;
   }
-  /** Runs `fn` with the user's national team as 'user'. */
-  natRun(fn) { const k = this._nat; this._nat = this.data.nation && this.data.nation.code; try { return fn(); } finally { this._nat = k; } }
-  natSquad() { const n = this.data.nation; if (!n) return []; if (!this._nsq || this._nsq.id !== n.code) this._nsq = { id: n.code, sq: this.opponentSquad('nat-' + n.code) }; return this._nsq.sq; }
-  natClub() { const n = this.data.nation, c = n && clubById('nat-' + n.code); return c ? { ...c, id: 'user', baseId: c.id, total: this.opponentTotal(c.id) } : null; }
+  /** Nation of a national team competition (its own choice), else the last used one. */
+  cupNation(def) { const t = this.tournamentState(def); return (t && t.nation) || (this.data.nation && this.data.nation.code) || null; }
+  /** Runs `fn` with a national team as 'user' (default: the last used one). */
+  natRun(fn, code) { const k = this._nat; this._nat = code || (this.data.nation && this.data.nation.code); try { return fn(); } finally { this._nat = k; } }
+  natCode() { return this._nat || (this.data.nation && this.data.nation.code); }
+  natSquad(code = this.natCode()) { if (!code) return []; if (!this._nsq || this._nsq.id !== code) this._nsq = { id: code, sq: this.opponentSquad('nat-' + code) }; return this._nsq.sq; }
+  natClub(code = this.natCode()) { const c = code && clubById('nat-' + code); return c ? { ...c, id: 'user', baseId: c.id, total: this.opponentTotal(c.id) } : null; }
+  /** New draw of a competition that has not started (no match played): same teams, new groups / bracket. */
+  canRedraw(def) { const t = this.tournamentState(def); return !!t && t.stage !== 'done' && t.round === 0 && t.ko.length <= 1 && !t.groups.some((g) => Object.values(g.table).some((r) => r.p > 0)) && !(t.ko[0] || []).some((m) => m.winner); }
+  redraw(def) {
+    if (!this.canRedraw(def)) return null; const t = this.tournamentState(def);
+    const nation = t.nation; delete this.data.tournaments[def.id];
+    return nation ? this.startNationCup(def, nation) : this.startTournament(def);
+  }
   /** The team the user plays with in a match context: national team, free championship club, or the career club. */
-  sideSquad(ctx) { return ctx && ctx.nation ? this.natSquad() : ctx && ctx.mode === 'free' ? this.freeSquad() : null; }
-  sideClub(ctx) { return ctx && ctx.nation ? this.natClub() : ctx && ctx.mode === 'free' ? this.freeClub() : null; }
+  sideSquad(ctx) { return ctx && ctx.nation ? this.natSquad(typeof ctx.nation === 'string' ? ctx.nation : undefined) : ctx && ctx.mode === 'free' ? this.freeSquad() : null; }
+  sideClub(ctx) { return ctx && ctx.nation ? this.natClub(typeof ctx.nation === 'string' ? ctx.nation : undefined) : ctx && ctx.mode === 'free' ? this.freeClub() : null; }
   sideTeamDef(ctx) {
     const sq = this.sideSquad(ctx), c = this.sideClub(ctx); if (!sq) return this.userTeamDef();
     const gk = sq.find((p) => p.role === 'GOALKEEPER'), field = sq.filter((p) => p !== gk).slice(0, 6);
@@ -883,7 +938,7 @@ export class GameState {
     if (T.token !== undefined) cards.push({ kind: 'token', q: T.token, n: 1 });
     if (T.player) {   // every pack has a player, more or less strong depending on the pack level
       const p = this.packPlayer(rng, pack.id, T.player, pack.tier);
-      if (this.squad.length < 18) { this.squad.push(p); cards.push({ kind: 'player', id: p.id }); }
+      if (this.data.clubChosen && this.squad.length < 18) { this.squad.push(p); cards.push({ kind: 'player', id: p.id }); }
       else cards.push({ kind: 'converted', n: tradeValue(p), ovr: overall(p) });   // full squad (18): released for training points
     }
     const merged = [];   // same resource twice -> one card
@@ -1129,7 +1184,7 @@ export class GameState {
     // Tournament
     if (ctx.mode === 'tournament') {
       const def = this.tournamentDef(ctx.tournamentId);
-      out.tournament = ctx.nation ? this.natRun(() => this.playTournamentRound(def, res.hs, res.as)) : this.playTournamentRound(def, res.hs, res.as);
+      out.tournament = ctx.nation ? this.natRun(() => this.playTournamentRound(def, res.hs, res.as), typeof ctx.nation === 'string' ? ctx.nation : undefined) : this.playTournamentRound(def, res.hs, res.as);
     }
     // Event
     if (ctx.mode === 'event') {

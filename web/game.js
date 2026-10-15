@@ -1499,7 +1499,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.ser
   addEventListener('pointerdown', () => { lockLandscape(); audio.start(); }, { once: true });
   $('pause-resume').onclick = closePause;
   $('skipBtn').onclick = () => skipPresentation();   // line-ups (match paused) / goal card: tap or click
-  if (state.data.clubChosen) app.home(); else app.show('clubs', { first: true }, false);   // first launch: CHOISIS TON CLUB
+  app.home();   // no team is given: the club career starts from the LOADER (Carrière de club)
   $('tactic').onclick = (e) => { if (e.detail !== 0 || e.pointerType) return; openTactics(false); };
   if (new URLSearchParams(location.search).has('showcase')) buildShowcase();
   requestAnimationFrame(frame);

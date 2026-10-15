@@ -62,9 +62,10 @@ export class App {
   hide() { this.root.classList.add('hidden'); this.api.setHero(false); }
   render() {
     this.st.refreshDaily();
+    if (!this.st.hasCareer() && ['clubhub', 'team', 'market', 'ranking', 'myclub', 'squad', 'seasonend', 'leaguemove', 'progress'].includes(this.current.name)) this.current = { name: 'loader', params: {} };   // career screens need a career
     const { name, params } = this.current;
     const nat = name === 'tournament' && String(params.id).startsWith('nat-');   // national team competitions: 'user' = the user's nation
-    const body = nat ? this.st.natRun(() => this['scr_' + name](params)) : this['scr_' + name](params);
+    const body = nat ? this.st.natRun(() => this['scr_' + name](params), this.st.cupNation(this.st.tournamentDef(params.id))) : this['scr_' + name](params);
     this.root.classList.remove('hidden');
     this.root.className = `app scr-${name}`;
     const same = this.lastScreen === name; this.lastScreen = name;   // re-render of the same screen: no slide-in (editor, filters)
@@ -91,8 +92,9 @@ export class App {
     return `<header class="topbar">
       <button class="icon-btn" data-act="nav" data-arg="settings" aria-label="settings">${icon('gear', 26)}</button>
       <button class="brand" data-act="home" aria-label="Water Polo 26 Mobile"><img src="web/assets/icon-192.png" alt="" width="44" height="44"></button>
-      <button class="club-chip" data-act="nav" data-arg="profile">${logoSvg(d.club.logo, d.club.color, d.club.color2, 38)}
-        <span><b>${esc(d.club.name)}</b><small>${this.L('ui.total')} <em id="hdr-total">${t}</em></small></span></button>
+      ${this.st.hasCareer() ? `<button class="club-chip" data-act="nav" data-arg="profile">${logoSvg(d.club.logo, d.club.color, d.club.color2, 38)}
+        <span><b>${esc(d.club.name)}</b><small>${this.L('ui.total')} <em id="hdr-total">${t}</em></small></span></button>`
+        : `<button class="club-chip" data-act="nav" data-arg="loader">${icon('plus', 30)}<span><b>${this.L('ld.no_club')}</b><small>${this.L('ld.start')}</small></span></button>`}
       <div class="lvl"><span>${this.L('ui.level')} <b>${pr.level}</b></span><i><u style="width:${Math.round((pr.xp / need) * 100)}%"></u></i></div>
       <div class="spacer"></div>
       <button class="cur mini" data-act="cur" data-arg="tp">${icon('dumbbell', 20)}<b id="hdr-tp">${d.currencies.tp.toLocaleString('fr-FR')}</b></button>
@@ -164,8 +166,9 @@ export class App {
       </nav>
       <div class="hero-space" data-act="edit-club"></div>
       <section class="h3-tiles modes">
-        <button class="gt gt-club" data-act="nav" data-arg="clubhub"><b>${this.L('mode.career')}<small>D${lg.division} · ${esc(lg.name)} · ${this.L('ui.season', lg.season)}</small></b>
-          <span class="gt-logo">${logoSvg(me.logo, me.color, me.color2, 104, me.color3)}</span><i class="gt-tot">${this.L('ui.total')} ${me.total}</i>${st.pendingFinal4() ? `<i class="gt-flag">${this.L('f4.title')}</i>` : ''}</button>
+        ${st.hasCareer() ? `<button class="gt gt-club" data-act="nav" data-arg="loader"><b>${this.L('mode.career')}<small>D${lg.division} · ${esc(lg.name)} · ${this.L('ui.season', lg.season)}</small></b>
+          <span class="gt-logo">${logoSvg(me.logo, me.color, me.color2, 104, me.color3)}</span><i class="gt-tot">${this.L('ui.total')} ${me.total}</i>` : `<button class="gt gt-club" data-act="nav" data-arg="loader"><b>${this.L('mode.career')}<small>${this.L('ld.how')}</small></b>
+          <span class="gt-logo ld-plus">${icon('plus', 90)}</span><i class="gt-tot">${this.L('ld.new')}</i>`}${st.pendingFinal4() ? `<i class="gt-flag">${this.L('f4.title')}</i>` : ''}</button>
         <button class="gt gt-free" data-act="nav" data-arg="free"><b>${this.L('mode.free')}<small>${fc ? `${esc(fc.name)} · ${flag(F.country)}` : this.L('mode.free_d')}</small></b>${icon('chart', 30)}</button>
         <button class="gt gt-nat" data-act="nav" data-arg="nations"><b>${this.L('mode.nations')}<small>${st.data.nation ? `${flag(st.data.nation.code)} ${esc(this.cn(st.data.nation.code))}` : this.L('mode.nations_d')}</small></b>${icon('star', 30)}</button>
         <button class="gt gt-tour" data-act="nav" data-arg="tournaments"><b>${this.L('mode.cups')}<small>${this.L('mode.cups_d')}</small></b><span class="gt-art">${trophyArt('bigear', 40)}</span>${this.badge(tours)}</button>
@@ -173,6 +176,32 @@ export class App {
       </section>
       <aside class="h3-packs">${this.packSlots()}</aside>
     </div>`;
+  }
+  /** LOADER: the 4 club career saves. A filled slot opens its career (club hub); an empty one starts a new
+   *  career: league (country), then club. No team is given at the start. */
+  scr_loader() {
+    const st = this.st, cards = st.slotCards();
+    return `<div class="panel-screen loader"><h1>${this.L('ld.title')} <small>${this.L('ld.how')}</small></h1>
+      <div class="ld-grid">${cards.map((c, i) => c ? `<div class="ld-slot full ${i === st.data.slot ? 'on' : ''}" data-act="ld-open" data-arg="${i}">
+          <button class="ld-del" data-act="ld-del" data-arg="${i}" aria-label="delete">${icon('close', 16) || '✕'}</button>
+          ${logoSvg(c.logo, c.color, c.color2, 84, c.color3)}<b>${esc(c.name)}</b><span class="ovr-b">${c.total}<small>OVR</small></span>
+          <small>${flag(c.country)} D${c.division} · ${esc(c.league)}</small><small>${this.L('ui.season', c.season)} · ${this.L('ld.round', c.round + 1)}</small>
+          <i>${new Date(c.savedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</i></div>`
+        : `<button class="ld-slot empty" data-act="ld-open" data-arg="${i}">${icon('plus', 64)}<span>${this.L('ld.new')}</span></button>`).join('')}</div>
+      <footer class="bar"><button class="btn back" data-act="home">${icon('home', 18) || ''} ${this.L('ui.back')}</button></footer></div>`;
+  }
+  /** SELECT LEAGUE: country of the new career, with its 3 divisions (teams, promotion, relegation). */
+  scr_league() {
+    const cont = this.lgCont || 'EUR', countries = WORLD_COUNTRIES.filter((c) => c.continent === cont), sel = countries.find((c) => c.code === this.lgCountry) || countries[0];
+    this.lgCountry = sel.code;
+    const divs = Array.from({ length: DIVS }, (_, i) => i + 1).map((d) => `<div class="lg-div d${d}"><b>${esc(divisionName(sel.code, d))}</b>
+      <small>${this.L('lg.teams', 10)}</small><small>${d > 1 ? this.L('lg.promo', PROMOTED) : this.L('lg.title_f4')}</small><small>${d < DIVS ? this.L('lg.releg', PROMOTED) : this.L('lg.start_here')}</small>
+      <span>${countryClubs(sel.code).divisions[d - 1].slice(0, 6).map((id) => { const c = clubById(id); return logoSvg(c.logo, c.color, c.color2, 18, c.color3); }).join('')}</span></div>`).join('');
+    return `<div class="panel-screen league"><h1>${this.L('lg.title')} <small>${this.L('lg.how')}</small></h1>
+      <div class="tabs small">${Object.keys(CONTINENT_INFO).map((c) => `<button class="${c === cont ? 'on' : ''}" data-act="lg-cont" data-arg="${c}">${this.L('cont.' + c)}</button>`).join('')}</div>
+      <div class="lg-body"><div class="lg-grid">${countries.map((c) => `<button class="lg-card ${c === sel ? 'on' : ''}" data-act="lg-pick" data-arg="${c.code}">${bigFlag(c.code, 40)}<b>${esc(divisionName(c.code, 1))}</b><small>${esc(this.cn(c.code))}</small></button>`).join('')}</div>
+        <aside class="lg-side">${divs}</aside></div>
+      <footer class="bar">${this.backBtn()}<div class="spacer"></div><button class="btn play" data-act="lg-next">${this.L('lg.next')} ${icon('play', 16)}</button></footer></div>`;
   }
   /** The 4 pack slots (home + club hub): a won pack opens with a tap, an empty slot says what fills it. */
   packSlots() {
@@ -218,25 +247,24 @@ export class App {
   /** SÉLECTIONS: the user coaches a national team (fictional players) in the national team competitions
    *  (world, continental, 4 nations), outside the career. */
   scr_nations() {
-    const st = this.st, N = st.data.nation;
-    if (!N || this.natChange) {
-      const cont = this.natCont || 'EUR', list = WORLD_COUNTRIES.filter((c) => c.continent === cont).map((c) => clubById('nat-' + c.code)).sort((a, b) => b.rating - a.rating);
-      const sel = this.natPick;
-      return `<div class="panel-screen nations"><h1>${this.L('mode.nations')} <small>${this.L('nat.pick')}</small></h1>
-        <div class="tabs small">${Object.keys(CONTINENT_INFO).map((c) => `<button class="${c === cont ? 'on' : ''}" data-act="nat-cont" data-arg="${c}">${this.L('cont.' + c)}</button>`).join('')}</div>
+    const st = this.st, pick = this.natCup && st.tournamentDef(this.natCup);
+    if (pick) {   // team choice for this competition (continent of the competition), then the draw
+      const cont = pick.continent || this.natCont || 'EUR', list = WORLD_COUNTRIES.filter((c) => c.continent === cont).map((c) => clubById('nat-' + c.code)).sort((a, b) => b.rating - a.rating);
+      const sel = this.natPick && list.some((t) => t.nation === this.natPick) ? this.natPick : null;
+      return `<div class="panel-screen nations"><h1>${esc(pick.name)} <small>${this.L('nat.pick')}</small></h1>
+        ${pick.continent ? '' : `<div class="tabs small">${Object.keys(CONTINENT_INFO).map((c) => `<button class="${c === cont ? 'on' : ''}" data-act="nat-cont" data-arg="${c}">${this.L('cont.' + c)}</button>`).join('')}</div>`}
         <div class="nat-grid">${list.map((t) => `<button class="nat-card ${sel === t.nation ? 'on' : ''}" data-act="nat-pick" data-arg="${t.nation}">${bigFlag(t.nation, 46)}<b>${esc(this.cn(t.nation))}</b><span class="ovr-b">${st.opponentTotal(t.id)}<small>OVR</small></span></button>`).join('')}</div>
-        <footer class="bar">${N ? `<button class="btn back" data-act="nat-cancel">${icon('back', 18)} ${this.L('ui.back')}</button>` : this.backBtn()}<span class="sub">${this.L('nat.note')}</span><div class="spacer"></div>
-          <button class="btn ${sel ? 'play' : 'off'}" data-act="nat-choose">${icon('play', 18)} ${this.L('nat.choose')}</button></footer></div>`;
+        <footer class="bar"><button class="btn back" data-act="nat-cancel">${icon('back', 18)} ${this.L('ui.back')}</button><span class="sub">${this.L('nat.note')}</span><div class="spacer"></div>
+          <button class="btn ${sel ? 'play' : 'off'}" data-act="nat-start">${this.L('nat.draw')} ${icon('play', 16)}</button></footer></div>`;
     }
-    const nc = st.natClub(), tile = (def) => {
-      const s = st.tournamentStatus(def), t = st.tournamentState(def), [c1, c2] = def.bg;
+    const tile = (def) => {
+      const s = st.tournamentStatus(def), t = st.tournamentState(def), [c1, c2] = def.bg, code = t && t.nation;
       const line = s === 'WON' ? `${icon('trophy', 14)} ${this.L('tour.won')}` : s === 'OUT' ? this.L('tour.out') : s === 'ACTIVE' && t ? `${icon('play', 12)} ${this.tStage(def, t)}` : this.reward(def.reward);
-      return `<button class="tt ${s === 'ACTIVE' ? 'active' : ''}" style="--c1:${c1};--c2:${c2}" data-act="tour-open" data-arg="${def.id}">${trophyArt(def.art, 64)}<b>${esc(def.name)}</b><small class="tt-f">${this.tFormat(def)}</small><small class="tt-s">${line}</small></button>`;
+      return `<button class="tt ${s === 'ACTIVE' ? 'active' : ''}" style="--c1:${c1};--c2:${c2}" data-act="nat-cup" data-arg="${def.id}">${code ? `<span class="tt-flag">${bigFlag(code, 30)}</span>` : ''}${trophyArt(def.art, 64)}<b>${esc(def.name)}</b><small class="tt-f">${this.tFormat(def)}</small><small class="tt-s">${line}</small></button>`;
     };
-    const mine = (countryOf(N.code) || { continent: 'EUR' }).continent, cups = NATION_CUPS.filter((d) => !d.continent || d.continent === mine);
-    return `<div class="panel-screen nations"><h1>${this.L('mode.nations')} <small>${bigFlag(N.code, 28)} ${esc(this.cn(N.code))} · ${nc.total} OVR</small></h1>
-      <div class="tt-grid">${cups.map(tile).join('')}</div>
-      <footer class="bar">${this.backBtn()}<span class="sub">${this.L('nat.note')}</span><div class="spacer"></div><button class="btn" data-act="nat-change">${this.L('nat.change')}</button></footer></div>`;
+    return `<div class="panel-screen nations"><h1>${this.L('mode.nations')} <small>${this.L('nat.how')}</small></h1>
+      <div class="tt-grid">${NATION_CUPS.map(tile).join('')}</div>
+      <footer class="bar">${this.backBtn()}<span class="sub">${this.L('nat.note')}</span></footer></div>`;
   }
   /** CHAMPIONNATS: one season of a Division 1 with any club of the world (its own squad), outside the career:
    *  choose a country and a club, then table + next match; the champion wins the trophy of the championship. */
@@ -391,7 +419,7 @@ export class App {
       else if (s.status === 'UPCOMING') action = `<span class="ev-lock">${this.timer(Date.now() + s.remaining, 'ui.starts_in')}</span>`;
       else if (s.status === 'CLAIMABLE') action = `<button class="btn gold" data-act="claim-event" data-arg="${e.id}">${this.L('ui.claim')} ${this.reward(e.reward)}</button>`;
       else if (s.status === 'COMPLETED') action = `<span class="ev-lock">✔ ${this.L('ui.completed')}</span>`;
-      else action = `<button class="btn play" data-act="prematch-event" data-arg="${e.id}">${icon('team', 16)} ${this.L('ev.with_club')}</button>${this.st.data.nation ? `<button class="btn cyan small" data-act="prematch-event-nat" data-arg="${e.id}">${flag(this.st.data.nation.code)} ${this.L('ev.with_nation')}</button>` : ''}`;
+      else action = `${this.st.hasCareer() ? `<button class="btn play" data-act="prematch-event" data-arg="${e.id}">${icon('team', 16)} ${this.L('ev.with_club')}</button>` : ''}${!this.st.hasCareer() && !this.st.data.nation ? `<button class="btn play" data-act="nav" data-arg="nations">${this.L('ev.pick_team')}</button>` : ''}${this.st.data.nation ? `<button class="btn cyan small" data-act="prematch-event-nat" data-arg="${e.id}">${flag(this.st.data.nation.code)} ${this.L('ev.with_nation')}</button>` : ''}`;
       // reward path: one step per win (unlocked at once), the final reward at the end
       const path = `<div class="ev-path">${Array.from({ length: e.matches }, (_, i) => { const r = eventStepReward(e, i); return `<span class="${i < s.progress ? 'on' : ''}"><b>${i + 1}</b>${icon('coin', 12)}${r.coins}</span>`; }).join('')}<span class="fin ${s.status === 'COMPLETED' ? 'on' : ''}">${icon('trophy', 14)}</span></div>`;
       return `<article class="ev-card ${s.status === 'LOCKED' ? 'locked' : ''}" style="--c1:${c1};--c2:${c2}">
@@ -535,7 +563,9 @@ export class App {
     const cont = (countryOf(my) || { continent: 'EUR' }).continent, all = st.tournamentList();
     const byScope = (...sc) => all.filter((d) => sc.includes(d.scope));
     let list, featured = '';
-    if (tab === 'club') {
+    if (tab === 'club' && !st.hasCareer()) {   // club competitions need a club career
+      list = []; featured = `<button class="tt feat" style="--c1:#3b2fd8;--c2:#120a52" data-act="nav" data-arg="loader"><i class="feat-title">${this.L('mode.career')}</i>${icon('plus', 90)}<b>${this.L('ld.new')}</b><small class="tt-s">${this.L('tour.need_career')}</small></button>`;
+    } else if (tab === 'club') {
       list = [...(st.tournamentLock(INTERSEASON) ? [] : [INTERSEASON]), ...byScope('national').sort((a, b) => (b.country === my) - (a.country === my))];
       featured = `<button class="tt feat" style="--c1:#3b2fd8;--c2:#120a52" data-act="${nm ? 'prematch-league' : 'nav'}" data-arg="ranking"><span class="tt-flag">${flagSvg(my, 40)}</span>
         <i class="feat-title">${this.L('hub.league')}</i>${trophyArt('bigear', 130)}<b>${esc(lg.name)}</b>
@@ -595,6 +625,7 @@ export class App {
     const bracket = t && t.ko.length ? `<div class="bracket">${t.ko.map((r) => `<div class="b-col"><h4>${this.L('tour.' + st.koRoundName(r.length * 2))}</h4>
       ${r.map((m) => `<div class="b-m ${m.a === 'user' || m.b === 'user' ? 'me' : ''}">${[['a', 'as'], ['b', 'bs']].map(([k, sk]) => `<div class="b-t ${m.winner === m[k] ? 'w' : m.winner ? 'l' : ''}">${team(m[k], 16)}<b>${m[sk] ?? ''}${m.pens && m.winner === m[k] ? '*' : ''}</b></div>`).join('')}</div>`).join('')}</div>`).join('')}${later.map((n) => `<div class="b-col"><h4>${this.L('tour.' + st.koRoundName(n * 2))}</h4>${'<div class="b-m tbd"><div class="b-t"><span>?</span></div><div class="b-t"><span>?</span></div></div>'.repeat(n)}</div>`).join('')}</div>
       ${t.ko.some((r) => r.some((m) => m.pens)) ? `<small class="sub">* ${this.L('tour.pens')}</small>` : ''}` : '';
+    if (st.canRedraw(def)) left += `<button class="btn cyan t-redraw" data-act="tour-redraw" data-arg="${id}">${icon('swap', 16)} ${this.L('tour.redraw')}</button>`;   // draw: shuffle again before the first match
     return `<div class="tour"><div class="tour-left"><h1>${esc(def.name)}</h1><p class="sub">${def.countries ? def.countries.map((c) => flag(c)).join(' ') : '🌍'} · ${this.tFormat(def)} · ${this.reward(def.reward)}</p>${left}</div>
       <div class="tour-right">${tables}${bracket}</div><footer class="bar">${this.backBtn()}</footer></div>`;
   }
@@ -606,8 +637,8 @@ export class App {
    *  clubs created by the game (marked CLUB DU JEU) fill the 3 × 9 places of every country. Whatever the
    *  club, the career starts in Division 3 with 3 of its players. */
   scr_clubs(p = {}) {
-    const st = this.st, conts = Object.keys(CONTINENT_INFO), cont = this.pickCont || 'EUR';
-    const countries = WORLD_COUNTRIES.filter((c) => c.continent === cont), ctry = countries.some((c) => c.code === this.clubCountry) ? this.clubCountry : countries[0].code;
+    const st = this.st, conts = Object.keys(CONTINENT_INFO), lockC = p.country && countryOf(p.country), cont = lockC ? lockC.continent : this.pickCont || 'EUR';
+    const countries = lockC ? [lockC] : WORLD_COUNTRIES.filter((c) => c.continent === cont), ctry = lockC ? p.country : countries.some((c) => c.code === this.clubCountry) ? this.clubCountry : countries[0].code;
     this.clubCountry = ctry; const div = this.pickDiv || 1;
     const list = (countryClubs(ctry).divisions[div - 1] || []).map(clubById).sort((a, b) => b.rating - a.rating);
     const sel = this.pickId ? clubById(this.pickId) : null;
@@ -630,9 +661,9 @@ export class App {
         <button class="btn cyan" data-act="club-version">${icon('cap', 18)} ${this.L('club.my_version')}</button></div>
       ${sel.gameCreated ? `<small class="sub">${this.L('club.gc_note')}</small>` : `<button class="ref-btn" data-act="club-ref">ⓘ ${this.L('club.ref_title')}</button>${ref}`}</aside>`
       : `<aside class="club-panel empty"><p class="sub">${this.L('club.pick_hint')}</p><p class="sub">${this.L('club.world_note')}</p></aside>`;
-    return `<div class="clubs"><header class="cp-bar"><b>${this.L('club.choose')}</b><span class="cp-tabs"><button class="on">${icon('trophy', 16)} ${this.L('club.real')}</button>
-        <button data-act="club-new">${icon('plus', 16)} ${this.L('club.create')}</button></span><span class="cont-tabs">${contTabs}</span>${p.first ? '' : this.backBtn()}</header>
-      ${cols}<div class="clubs-main">${divTabs}<div class="club-grid">${cards}</div></div>${panel}</div>`;
+    return `<div class="clubs ${lockC ? 'locked' : ''}"><header class="cp-bar"><b>${this.L('club.choose')}</b><span class="cp-tabs"><button class="on">${icon('trophy', 16)} ${this.L('club.real')}</button>
+        <button data-act="club-new">${icon('plus', 16)} ${this.L('club.create')}</button></span>${lockC ? `<span class="sub">${flag(ctry)} ${esc(this.cn(ctry))}</span>` : `<span class="cont-tabs">${contTabs}</span>`}${p.first ? '' : this.backBtn()}</header>
+      ${lockC ? '' : cols}<div class="clubs-main">${divTabs}<div class="club-grid">${cards}</div></div>${panel}</div>`;
   }
   /** FINAL FOUR of the season: semi-finals (1st v 4th, 2nd v 3rd), final, title. */
   final4Block(S) {
@@ -752,7 +783,8 @@ export class App {
     const r = await this.modal(this.L('club.squad'), `<p>${this.L('club.squad_desc')}</p>`, [[this.L('club.squad_start'), () => 'start'], [this.L('club.squad_own'), () => 'own']]);
     if (!r) return;
     this.st.chooseClub(JSON.parse(JSON.stringify(identity)), { mode, squad: r });
-    this.api.preview(null); this.api.haptic([20, 40, 20]); this.api.rewardSound(); this.pickId = null; this.home();
+    this.api.preview(null); this.api.haptic([20, 40, 20]); this.api.rewardSound(); this.pickId = null; this.api.refreshHero && this.api.refreshHero();
+    this.stack = [{ name: 'home', params: {} }]; this.show('clubhub', {}, false);
     this.toast(this.L('club.welcome', identity.name));
   }
 
@@ -921,7 +953,7 @@ export class App {
       case 'set-dir': case 'set-tog': await this.settingsAct(a, arg); this.render(); break;
       case 'reset': if (await this.confirm(this.L('ui.reset_warn'))) { st.reset(); this.api.refreshHero(); this.home(); } break;
       case 'prematch-league': { const nm = st.nextLeagueMatch(); if (nm) this.show('prematch', { mode: 'league', opponent: nm.opponent, away: !nm.home, title: `${st.data.league.name} · ${this.L('ui.match_n', nm.round, nm.rounds)}` }); break; }
-      case 'prematch-event': case 'prematch-event-nat': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, nation: a === 'prematch-event-nat' || undefined, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }
+      case 'prematch-event': case 'prematch-event-nat': { const ev = EVENTS.find((e) => e.id === arg), o = st.eventOpponent(ev); this.show('prematch', { mode: 'event', eventId: ev.id, nation: a === 'prematch-event-nat' ? st.data.nation.code : undefined, opponent: o.club, rating: o.rating, title: `${this.L(ev.name)} · ${o.index + 1}/${ev.matches}` }); break; }
       case 'quick': { const c = CLUBS[Math.floor(Math.random() * CLUBS.length)]; this.show('prematch', { mode: 'quick', opponent: c.id, title: this.L('ui.quick') }); break; }
       case 'go': this.hide(); this.api.startMatch(this.current.params); break;
       case 'hub': this.show('hub', { id: arg }); break;
@@ -935,6 +967,16 @@ export class App {
       case 'fr-new': st.stopFree(); this.frClub = null; this.render(); break;
       case 'fr-quit': if (await this.confirm(this.L('fr.quit_confirm'))) { st.stopFree(); this.frClub = null; this.render(); } break;
       case 'prematch-free': { const nx = st.freeNext(); if (nx) this.show('prematch', { mode: 'free', opponent: nx.opponent, away: !nx.home, title: `${divisionName(st.data.free.country, 1)} · ${this.L('ui.match_n', nx.round, nx.rounds)}` }); break; }
+      case 'ld-open': {
+        if (el && el.closest && el.closest('.ld-del')) break;
+        const r = st.openSlot(+arg); this.api.refreshHero && this.api.refreshHero();
+        if (r === 'loaded') { this.stack = [{ name: 'home', params: {} }]; this.show('clubhub', {}, false); } else { this.lgCountry = null; this.show('league'); }
+        break;
+      }
+      case 'ld-del': if (await this.confirm(this.L('ld.del_confirm'))) { st.deleteSlot(+arg); this.api.refreshHero && this.api.refreshHero(); this.render(); } break;
+      case 'lg-cont': this.lgCont = arg; this.lgCountry = null; this.render(); break;
+      case 'lg-pick': this.lgCountry = arg; this.render(); break;
+      case 'lg-next': this.clubCountry = this.lgCountry; this.pickDiv = 1; this.pickId = null; this.show('clubs', { country: this.lgCountry }); break;
       case 'mk-tab': this.mkTab = arg; this.mkSel = null; this.render(); break;
       case 'mk-sel': this.mkSel = arg; this.render(); break;
       case 'mk-years': this.mkYears = +arg; this.render(); break;
@@ -967,7 +1009,7 @@ export class App {
       }
       case 'team-tab-go': this.teamTab = arg; this.show('team'); break;
       case 'sheet': this.playerSheet(st.player(arg)); break;
-      case 'change-club': if (await this.confirm(this.L('mc.change_warn'))) { this.pickId = null; this.show('clubs'); } break;
+      case 'change-club': this.show('loader'); break;
       case 'lm-pick': this.moveTo = arg; this.render(); break;
       case 'lm-go': {
         const o = st.leagueOptions().find((x) => x.country === this.moveTo);
@@ -998,20 +1040,20 @@ export class App {
         this.hide(); this.api.startMatch({ mode: 'challenge', drill: arg, opponent: opp }); break;
       }
       case 'tour-open': { const def = st.tournamentDef(arg); if (!st.tournamentState(def)) st.startTournament(def); this.show('tournament', { id: arg }); break; }
-      case 'tour-play': { const def = st.tournamentDef(arg), nat = def.scope === 'nations', nm = nat ? st.natRun(() => st.nextTournamentMatch(def)) : st.nextTournamentMatch(def);
+      case 'tour-play': { const def = st.tournamentDef(arg), nat = def.scope === 'nations' ? st.cupNation(def) : null, nm = nat ? st.natRun(() => st.nextTournamentMatch(def), nat) : st.nextTournamentMatch(def);
         if (nm && nm.opponent) this.show('prematch', { mode: 'tournament', tournamentId: arg, nation: nat || undefined, opponent: nm.opponent, title: `${def.name} · ${this.tStage(def, st.tournamentState(def))}` }); break; }
       case 'tour-back': this.stack = [{ name: 'home', params: {} }, { name: 'tournaments', params: {} }]; this.show('tournament', { id: arg }, false); break;
-      case 'tour-bye': { const def = st.tournamentDef(arg); if (def.scope === 'nations') st.natRun(() => st.playTournamentRound(def, 0, 0)); else st.playTournamentRound(def, 0, 0); st.save(); this.render(); break; }
-      case 'nat-cancel': this.natChange = false; this.natPick = null; this.render(); break;
+      case 'tour-bye': { const def = st.tournamentDef(arg); if (def.scope === 'nations') st.natRun(() => st.playTournamentRound(def, 0, 0), st.cupNation(def)); else st.playTournamentRound(def, 0, 0); st.save(); this.render(); break; }
+      case 'nat-cancel': this.natCup = null; this.natPick = null; this.render(); break;
+      case 'tour-redraw': { const def = st.tournamentDef(arg); if (st.redraw(def)) { this.api.haptic(15); this.render(); } break; }
       case 'nat-cont': this.natCont = arg; this.render(); break;
       case 'nat-pick': this.natPick = arg; this.render(); break;
-      case 'nat-choose': {
-        const code = this.natPick; if (!code) return;
-        const active = NATION_CUPS.some((d) => { const t = st.tournamentState(d); return t && t.stage !== 'done'; });
-        if (st.data.nation && st.data.nation.code !== code && active && !(await this.confirm(this.L('nat.change_confirm')))) return;
-        st.chooseNation(code); this.natPick = null; this.natChange = false; this.render(); break;
+      case 'nat-cup': {   // a competition: open it if it runs, else choose the national team first
+        const def = st.tournamentDef(arg), t = st.tournamentState(def);
+        if (t && t.stage !== 'done') this.show('tournament', { id: arg }); else { if (t) delete st.data.tournaments[arg]; this.natCup = arg; this.natPick = null; this.render(); }
+        break;
       }
-      case 'nat-change': this.natChange = true; this.natPick = st.data.nation && st.data.nation.code; this.render(); break;
+      case 'nat-start': { const def = st.tournamentDef(this.natCup); if (!def || !this.natPick) return; st.startNationCup(def, this.natPick); this.natCup = null; this.show('tournament', { id: def.id }); break; }
       case 'club-tab': this.clubTab = arg; this.render(); break;
       case 'club-country': this.clubCountry = arg; this.pickId = null; this.render(); break;
       case 'club-pick': this.pickId = arg; this.showRef = false; this.api.haptic(10); this.render(); break;

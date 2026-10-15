@@ -169,14 +169,17 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
     let n = 0, out; while (s.freeNext() && n++ < 30) out = s.applyResult({ mode: 'free', opponent: s.freeNext().opponent }, { hs: 9, as: 1, stats: R0 });
     ok(out.free.finished && out.free.champion && s.data.free.done && s.data.profile.trophies.some((t) => t.name === 'free-ITA'), 'all matches won: champion, trophy of the championship');
     ok(JSON.stringify(s.data.league) === career && JSON.stringify(s.squad.slice(0, JSON.parse(sq).length).map((p) => [p.id, p.form, p.career])) === sq, 'the career league and the career players (form, stats) are not changed'); }
-  // SÉLECTIONS: the user coaches a national team; national competitions; career untouched
+  // SÉLECTIONS: a national team chosen for each competition, draw that can be made again, career untouched
   { const s = new GameState(); s.chooseClub(s.draftFrom('marseille'), { mode: 'with' }); const career = JSON.stringify(s.data.league);
-    ok(s.chooseNation('HUN') && s.natClub().name === 'Hongrie' && s.sideTeamDef({ nation: true }).players.length === 7, 'national team chosen (Hungary), its own 7 players');
-    let okAll = true;
-    for (const def of NATION_CUPS) { s.startTournament(def); let n = 0, out; while (n++ < 30) { const nm = s.natRun(() => s.nextTournamentMatch(def)); if (!nm) break; if (nm.bye) { s.natRun(() => s.playTournamentRound(def, 0, 0)); continue; } out = s.applyResult({ mode: 'tournament', tournamentId: def.id, nation: true, opponent: nm.opponent }, { hs: 9, as: 2, stats: R0 }); }
-      const t = s.tournamentState(def); okAll = okAll && t.stage === 'done' && t.champion === 'user' && s.tournamentTeams(def).slice(1).every((id) => id.startsWith('nat-')); }
-    ok(okAll && s.data.profile.trophies.some((t) => t.name === 'nat-world'), `${NATION_CUPS.length} national team competitions won with Hungary (world, continental, 4 nations)`);
+    let okAll = true; const codes = { 'nat-world': 'HUN', 'nat-four': 'ITA', 'nat-eur': 'SRB', 'nat-ame': 'USA', 'nat-asi': 'JPN', 'nat-afr': 'RSA', 'nat-oce': 'AUS' };
+    for (const def of NATION_CUPS) { const code = codes[def.id]; const t0 = s.startNationCup(def, code);
+      if (def.id === 'nat-world') { const g0 = JSON.stringify(t0.groups.map((g) => g.ids)); ok(s.canRedraw(def) && s.redraw(def) && s.tournamentState(def).nation === 'HUN', 'World Cup: Hungary chosen, new draw before the first match'); void g0; }
+      let n = 0; while (n++ < 30) { const nm = s.natRun(() => s.nextTournamentMatch(def), code); if (!nm) break; if (nm.bye) { s.natRun(() => s.playTournamentRound(def, 0, 0), code); continue; } s.applyResult({ mode: 'tournament', tournamentId: def.id, nation: code, opponent: nm.opponent }, { hs: 9, as: 2, stats: R0 }); }
+      const t = s.tournamentState(def); okAll = okAll && t.stage === 'done' && t.champion === 'user' && t.nation === code && s.tournamentTeams(def).slice(1).every((id) => id.startsWith('nat-') && id !== 'nat-' + code); }
+    ok(okAll && s.data.profile.trophies.some((t) => t.name === 'nat-world'), `${NATION_CUPS.length} national team competitions won, each with its own nation`);
+    ok(!s.canRedraw(NATION_CUPS[0]), 'no new draw once the competition has started');
     ok(JSON.stringify(s.data.league) === career, 'the career league is not changed by national team matches'); }
+  { const s = new GameState(); ok(!s.hasCareer() && s.tournamentStatus(NATION_CUPS[0]) === 'AVAILABLE', 'World Cup playable without any club career'); }
   // Inter-season tournament: only between two seasons, against clubs of other continents
   { const s = new GameState(); s.chooseClub(s.draftFrom('marseille'), { mode: 'with' });
     ok(s.tournamentStatus(INTERSEASON) === 'LOCKED', 'inter-season tournament locked during the first season');
@@ -194,7 +197,7 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
 // Reward packs: 4 levels from the result, every card is a real resource granted on opening.
 { ok(packTier('league', 1, 3) === 0 && packTier('league', 4, 4) === 1 && packTier('league', 5, 4) === 2 && packTier('league', 8, 5) === 3 && packTier('tournament', 6, 5) === 3 && packTier('quick', 9, 1) === 1,
     'pack level: loss bronze, draw silver, win gold, +3 goals elite, tournament win +1, quick max silver');
-  const s = new GameState(), Z = { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 };
+  const s = new GameState(), Z = { passesOk: 0, steals: 0, interceptions: 0, saves: 0, shots: 0 }; s.chooseClub(s.draftFrom('marseille'), { mode: 'with' });
   const nm = s.nextLeagueMatch(), out = s.applyResult({ mode: 'league', opponent: nm.opponent }, { hs: 3, as: 2, stats: Z });
   ok(out.pack && out.pack.tier === 2 && s.data.packs.slots.length === 1, 'every match gives a pack (win = gold), stored in a slot');
   const c0 = { ...s.data.currencies, tokens: [...s.data.currencies.tokens] }, r = s.openPack(out.pack.id), g = (k) => r.cards.filter((c) => c.kind === k).reduce((a, c) => a + c.n, 0);
@@ -205,12 +208,22 @@ ok(st.eventState(EVENTS[3]).status === 'LOCKED' || st.data.profile.trophies.leng
   const n0 = s.squad.length, e = s.addPack(3), re = s.openPack(e.id), pc = re.cards.find((c) => c.kind === 'player');
   ok(pc && s.squad.length === n0 + 1 && s.player(pc.id) && re.cards.length >= 6, 'ELITE pack: a new player joins the squad');
   // every pack has a player, stronger with the pack level; a full squad trades him for training points
-  const avg = [0, 1, 2, 3].map((t) => { const x = new GameState(); let sum = 0; for (let i = 0; i < 12; i++) { const pk = x.addPack(t), o = x.openPack(pk.id), c = o.cards.find((k) => k.kind === 'player');
+  const avg = [0, 1, 2, 3].map((t) => { const x = new GameState(); x.chooseClub(x.draftFrom('marseille'), { mode: 'with' }); let sum = 0; for (let i = 0; i < 12; i++) { const pk = x.addPack(t), o = x.openPack(pk.id), c = o.cards.find((k) => k.kind === 'player');
     sum += overall(x.player(c.id)); x.data.squad = x.squad.filter((q) => q.id !== c.id); } return sum / 12; });
   ok(avg[0] < avg[1] && avg[1] < avg[2] && avg[2] < avg[3], `pack players: average rating ${avg.map((v) => v.toFixed(1)).join(' < ')} (bronze → elite)`);
-  { const x = new GameState(); while (x.squad.length < 18) x.squad.push({ ...x.squad[1], id: 'f' + x.squad.length });
+  { const x = new GameState(); x.chooseClub(x.draftFrom('marseille'), { mode: 'with' }); while (x.squad.length < 18) x.squad.push({ ...x.squad[1], id: 'f' + x.squad.length });
     const tp0 = x.data.currencies.tp, o = x.openPack(x.addPack(1).id), cv = o.cards.find((k) => k.kind === 'converted');
     ok(cv && x.squad.length === 18 && x.data.currencies.tp === tp0 + o.cards.filter((k) => k.kind === 'tp').reduce((a, k) => a + k.n, 0) + cv.n, `full squad: pack player traded for ${cv && cv.n} training points`); }
   for (let i = 0; i < PACK_SLOTS + 1; i++) s.addPack(i % 4);
   ok(s.data.packs.slots.length === PACK_SLOTS && s.data.packs.fresh && s.findPack(s.data.packs.fresh.id), '4 slots: a 5th pack must be opened now'); }
+// Career saves (LOADER): no team at the start, 4 slots, switching keeps each career; the global progress stays
+{ const s = new GameState();
+  ok(!s.hasCareer() && s.slotCards().every((c) => !c) && s.tournamentStatus(s.tournamentList()[0]) === 'LOCKED', 'no team at the start: 4 empty career slots, club competitions locked');
+  ok(s.openSlot(1) === 'new' && !s.hasCareer(), 'empty slot 2 opened: new career (league, then club)');
+  s.chooseClub(s.draftFrom('marseille'), { mode: 'with' }); ok(s.hasCareer() && s.data.slot === 1 && s.slotCards()[1].name === s.data.club.name, 'club chosen: career saved in slot 2');
+  const sq1 = s.squad.map((p) => p.id).join(), coins = s.data.currencies.coins;
+  ok(s.openSlot(3) === 'new' && !s.hasCareer() && s.slotCards()[1] && s.slotCards()[1].name, 'slot 4: new career, slot 2 kept');
+  s.chooseClub(s.draftFrom('recco'), { mode: 'with' }); s.data.currencies.coins += 100;
+  ok(s.openSlot(1) === 'loaded' && s.squad.map((p) => p.id).join() === sq1 && s.data.club.baseClubId === 'marseille' && s.data.currencies.coins === coins + 100, 'back to slot 2: its club and squad, currencies shared');
+  s.deleteSlot(3); ok(!s.slotCards()[3] && s.slotCards()[1], 'slot deleted'); }
 console.log(fail ? `${fail} FAILED` : 'ALL PASSED'); process.exit(fail ? 1 : 0);

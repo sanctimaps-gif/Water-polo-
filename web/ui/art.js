@@ -56,6 +56,8 @@ const I = {
   team: '<circle cx="8" cy="8" r="3" fill="currentColor"/><circle cx="16" cy="8" r="3" fill="currentColor"/><path d="M2 19a6 6 0 0 1 12 0Zm8 0a6 6 0 0 1 12 0Z" fill="currentColor"/>',
   calendar: '<path d="M4 6h16v14H4Zm2 4v8h12v-8ZM7 3h2v4H7Zm8 0h2v4h-2Z" fill="currentColor"/>',
   pool: '<path d="M2 13q5-6 10-6t10 6v5H2Z" fill="currentColor" opacity=".35"/><path d="M2 13q5-6 10-6t10 6M5 15h14M7 18h10" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M4 11V8m4 1V6m8 3V6m4 5V8" stroke="currentColor" stroke-width="1.4"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>',
+  home: '<path d="M3 11l9-7 9 7v9h-6v-6H9v6H3Z" fill="currentColor"/>',
   bag: '<path d="M5 8h14l-1 13H6Zm3 0a4 4 0 0 1 8 0h-2a2 2 0 0 0-4 0Z" fill="currentColor"/>',
   coin: '<circle cx="12" cy="12" r="9" fill="#f5c21b" stroke="#a87700" stroke-width="2"/><path d="M12 7v10M9.5 9.5h4a1.7 1.7 0 0 1 0 3.4h-3a1.7 1.7 0 0 0 0 3.4h4" fill="none" stroke="#7a5300" stroke-width="1.8"/>',
   gem: '<path d="M6 4h12l4 5-10 12L2 9Z" fill="#33d6ff" stroke="#0a8fb8" stroke-width="1.5"/><path d="M2 9h20M8 4l4 17 4-17" fill="none" stroke="#0a8fb8" stroke-width="1"/>',

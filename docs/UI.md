@@ -66,6 +66,17 @@ Chaque effet est réel (appliqué dans le match) et testé (`tools/web-tests/sta
 
 ## Modes de jeu (structure inspirée des jeux de football mobiles, sport : water-polo) — IMPLÉMENTÉ
 
+**Aucune équipe n'est attribuée au départ** : l'accueil s'ouvre directement, chaque mode choisit son équipe.
+* **Carrière de club → LOADER** : 4 sauvegardes de carrière (écusson, division, saison, journée, date ; ✕ pour
+  supprimer). Un emplacement vide → **CHOISIS TA LIGUE** (pays par continent, ses 3 divisions : équipes, montée,
+  descente, Final Four) → **CHOISIS TON CLUB** dans ce pays (ou créer le sien) → départ en Division 3. Changer
+  d'emplacement range la carrière active ; niveau, monnaies, trophées, paquets et sélections sont communs.
+* Sans carrière : les compétitions de clubs et le hub « Jouer un club » demandent une carrière ; les paquets
+  échangent le joueur contre des points d'entraînement ; les événements se jouent avec une sélection.
+* **Sélections** : on choisit la compétition, puis l'équipe nationale **pour cette compétition** (chaque compétition
+  a la sienne), puis le **tirage au sort** des groupes / du tableau — « REFAIRE LE TIRAGE » tant qu'aucun match
+  n'est joué. On peut ne jouer que des coupes du monde.
+
 | Mode | Ce qui progresse |
 |---|---|
 | **Carrière de club** | ton club, son effectif et ses résultats sur plusieurs saisons (divisions, mercato, contrats) |

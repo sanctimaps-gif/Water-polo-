@@ -654,3 +654,24 @@ body.sheet-open .app { visibility: hidden; }
 .ev-path { display: flex; gap: .2rem; align-items: center; justify-content: center; flex-wrap: wrap; margin: .2rem 0; }
 .ev-path span { display: flex; align-items: center; gap: .1rem; font-size: .62rem; font-weight: 800; padding: .1rem .3rem; border-radius: .6rem; background: #0006; border: 1px solid #ffffff33; opacity: .7; }
 .ev-path span b { font-size: .62rem; margin-right: .1rem; } .ev-path span.on { background: #2fbf71; border-color: #b6ffd0; opacity: 1; } .ev-path span.fin.on { background: #e8b52a; }
+/* ---------- LOADER (career saves) and SELECT LEAGUE ---------- */
+.ld-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; padding: .4rem 0; }
+.ld-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; padding: .6rem; border-radius: .3rem; color: #fff; text-align: center;
+  background: linear-gradient(160deg, #6a2fd0, #3a1290); border: 2px solid #ffffff33; box-shadow: 0 .3rem 1rem #0007; cursor: pointer; animation: pop .3s backwards; }
+.ld-slot.full { background: linear-gradient(160deg, #7a3df0, #4a14b8); } .ld-slot.on { border-color: #ffd21a; box-shadow: 0 0 1rem #ffd21a66; }
+.ld-slot b { font-size: 1rem; text-transform: uppercase; } .ld-slot small { font-size: .68rem; font-weight: 700; opacity: .9; } .ld-slot i { font-style: normal; font-size: .62rem; opacity: .7; }
+.ld-slot .ovr-b { position: absolute; top: .4rem; left: .4rem; } .ld-slot.empty { background: #2a1a5aaa; } .ld-slot.empty .ico { opacity: .85; } .ld-slot.empty span { font-weight: 900; font-size: .8rem; }
+.ld-del { position: absolute; top: .3rem; right: .3rem; background: #0006; border-radius: 50%; width: 1.8rem; height: 1.8rem; display: grid; place-items: center; color: #fff; }
+.gt-logo.ld-plus { color: #fff; opacity: .9; }
+.lg-body { flex: 1; min-height: 0; display: flex; gap: .6rem; }
+.lg-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: .4rem; align-content: start; }
+.lg-card { display: flex; flex-direction: column; align-items: center; gap: .15rem; padding: .4rem .3rem; border-radius: .3rem; background: #f4f0ff; color: #1b1240; border: 2px solid transparent; }
+.lg-card.on { background: #ff2d55; color: #fff; } .lg-card b { font-size: .66rem; line-height: 1.05; text-align: center; } .lg-card small { font-size: .6rem; opacity: .75; }
+.lg-side { width: 15rem; display: flex; flex-direction: column; gap: .35rem; }
+.lg-div { display: flex; flex-direction: column; gap: .05rem; padding: .4rem .55rem; border-radius: .25rem; color: #fff; }
+.lg-div.d1 { background: linear-gradient(135deg, #ffd21a, #e8a20a); color: #2a1a00; } .lg-div.d2 { background: linear-gradient(135deg, #7a3df0, #4a14b8); } .lg-div.d3 { background: linear-gradient(135deg, #3a4bd0, #1a2480); }
+.lg-div b { font-size: .85rem; } .lg-div small { font-size: .64rem; font-weight: 700; } .lg-div span { display: flex; gap: .15rem; margin-top: .15rem; }
+.t-redraw { margin-top: .4rem; }
+@media (max-height: 380px) { .ld-slot .logo { width: 60px; height: 60px; } .lg-side { width: 12.5rem; } }
+.clubs.locked { grid-template-columns: 1fr 18.5rem; }
+.clubs.locked .club-panel { grid-column: 2; } .clubs.locked .clubs-main { grid-column: 1; grid-row: 2; }

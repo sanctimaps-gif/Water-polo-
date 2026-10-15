@@ -71,11 +71,15 @@ Chaque effet est réel (appliqué dans le match) et testé (`tools/web-tests/sta
 | **Carrière de club** | ton club, son effectif et ses résultats sur plusieurs saisons (divisions, mercato, contrats) |
 | **Championnats** | une saison de Division 1 de n'importe quel pays avec le club de ton choix (son propre effectif), hors carrière ; trophée au champion, récompenses réduites |
 | **Coupes & tournois** | coupes nationales, régionales, continentales, mondiales (élimination, groupes, ligue) |
-| **Défis & événements** | tutoriel, penalty, coup franc, supériorité ; événements à durée limitée ; objectifs du jour |
+| **Sélections** | tu entraînes une équipe nationale (200 pays, joueurs fictifs) : Coupe du Monde des Nations (16, groupes + phase finale), championnat continental des nations, Tournoi des 4 Nations ; hors carrière, trophées gardés |
+| **Défis & événements** | tutoriel, penalty, coup franc, supériorité ; événements à durée limitée (avec ton club ou ta sélection, parcours de récompenses : chaque victoire débloque son étape, récompense finale à réclamer ; pas d'énergie, jouables sans limite) ; objectifs du jour |
 
 La **carrière de joueur** (incarner un seul joueur) n'est pas encore faite : elle n'apparaît nulle part dans les menus.
 Clubs sans licence : noms adaptés, logos et maillots originaux (voir plus bas). Les **joueurs restent fictifs** :
 aucun nom de vrai joueur, même déformé.
+
+Personnalisation (esthétique seulement, aucun effet sur la force) : éditeur de club avec couleurs du maillot de bain,
+motif, bonnet, liseré, numéro et **protège-oreilles** (domicile / extérieur), logo, ballon, piscine.
 
 ## Monde de la carrière : 3 divisions × 9 clubs par pays — IMPLÉMENTÉ
 
@@ -93,10 +97,14 @@ aucun nom de vrai joueur, même déformé.
   des clubs réels.
 * **Saison** : aller-retour (18 journées à 10 équipes), classement automatique (J, V, N, D, BP, BC, diff., pts).
 * **Fin de saison** (`finalizeSeason`, `applyMoves` dans `web/world.js`), pour toutes les divisions du pays :
-  * Divisions 2 et 3 : les **4 premiers montent** (pas de playoff) ;
+  * Divisions 2 et 3 : les **4 premiers montent** directement ;
+  * **FINAL FOUR** pour le titre de chaque division : demi-finales 1er c. 4e et 2e c. 3e, puis finale (tirs au but en cas
+    d'égalité) ; le club du joueur joue ses matchs (carte dorée dans « Jouer un club »), les autres sont simulés.
+    En Division 1, le vainqueur est **champion national** ; les places continentales suivent le classement ;
   * pour garder 9 clubs par division, les 4 derniers clubs IA de la division du dessus descendent —
     **le club du joueur ne descend jamais** ;
-  * Division 1 : le 1er est **champion national** ; les places continentales suivent le classement final.
+  * **Tournoi d'intersaison** : entre deux saisons (avant le 1er match), 8 clubs dont 7 de Division 1 d'autres
+    continents, à élimination directe (bouton sur la page de fin de saison, onglet club des compétitions).
   * **Contrats** : chaque contrat perd une saison ; à 0 le joueur part (un effectif de 9 est toujours gardé).
   * Page **FIN DE SAISON** : classement final, promus / champion, places continentales, descentes, contrats
     terminés, autres divisions, échelle des 3 divisions. Historique conservé.

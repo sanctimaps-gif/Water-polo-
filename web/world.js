@@ -84,9 +84,29 @@ export function countryClubs(code) {
 export function reserveClub(code, division, k) {
   const g = uniqueShort(gameClub(code, 100 + k, division, 4), countryClubs(code).used); g.id = `g-${code}-r${k}`; CLUB_CACHE.set(g.id, g); return g.id;
 }
-/** Any club of the world by id (real or game-created). */
+// ---------------------------------------------------------------- national teams (SÉLECTIONS mode)
+// Team colours of the main water polo nations (flag colours); the others take colours from their code.
+const NATION_COLORS = { FRA: [0x1e3fa0, 0xffffff], ITA: [0x1a62c9, 0xffffff], ESP: [0xc8102e, 0xf6c800], HUN: [0xce2939, 0x2f7d4f], GRE: [0x0d5eaf, 0xffffff],
+  CRO: [0xd8102b, 0xffffff], SRB: [0xc6363c, 0x0c4076], MNE: [0xc40308, 0xd3ae3b], GER: [0x16181d, 0xdd0000], NED: [0xf28c1a, 0x1e3fa0], USA: [0x0b2348, 0xc8102e],
+  AUS: [0x00843d, 0xffcd00], JPN: [0xffffff, 0xbc002d], BRA: [0xf6c800, 0x009739], CAN: [0xd8321e, 0xffffff], CHN: [0xde2910, 0xffde00], KAZ: [0x00afca, 0xfec50c],
+  GBR: [0x012169, 0xc8102e], RSA: [0x007a4d, 0xffb612], EGY: [0xce1126, 0x16181d], NZL: [0x16181d, 0xffffff], ARG: [0x74acdf, 0xffffff], MEX: [0x006847, 0xce1126],
+  TUR: [0xe30a17, 0xffffff], ROU: [0x002b7f, 0xfcd116], GEO: [0xffffff, 0xff0000], SVK: [0x0b4ea2, 0xee1c25], MLT: [0xcf142b, 0xffffff], ISR: [0x0038b8, 0xffffff] };
+const NAT_CACHE = new Map();
+/** National team of a country (id 'nat-XXX'): fictional squad, level from the country's water polo level. */
+export function nationTeam(code) {
+  if (NAT_CACHE.has(code)) return NAT_CACHE.get(code);
+  const ct = countryOf(code); if (!ct) return null;
+  const h = hash('nat' + code), [c1, c2] = NATION_COLORS[code] || [COLORS[h % COLORS.length], 0xffffff];
+  const rating = Math.min(92, TOP[ct.level] + 4 + ((h >>> 3) % 5) - 2);
+  const t = { id: 'nat-' + code, nation: code, name: ct.fr, nameEn: ct.en, short: code, color: c1, color2: c2 === c1 ? 0x16181d : c2, color3: 0xffffff, rating, ...derived(rating, h),
+    logo: { shape: 'shield', symbol: 'star', letters: code, pattern: 'halves', border: 'double' }, kits: kitsFor([c1, c2 === c1 ? 0x16181d : c2], h), country: code, city: '', competition: null,
+    gameCreated: true, verified: false, ref: null, national: true };
+  NAT_CACHE.set(code, t); return t;
+}
+/** Any club of the world by id (real or game-created), or a national team ('nat-XXX'). */
 export function clubById(id) {
   if (CLUB_CACHE.has(id)) return CLUB_CACHE.get(id);
+  if (typeof id === 'string' && id.startsWith('nat-')) return nationTeam(id.slice(4));
   const m = /^g-([A-Z]{3})-(r?)(\d+)$/.exec(id || ''); if (!m || !countryOf(m[1])) return null;
   if (m[2]) { reserveClub(m[1], 3, +m[3]); return CLUB_CACHE.get(id); }
   countryClubs(m[1]); return CLUB_CACHE.get(id) || null;

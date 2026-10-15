@@ -157,7 +157,7 @@ function kitOptions(kit, gk, isGK, user) {
   const shop = (k) => (user ? state.equippedColor(k) : null);   // shop cap / trim only on the user's club
   const cap = isGK ? gk.cap : shop('cap') ?? kit.cap, trim = shop('trim') ?? kit.suit2;
   return { teamColor: kit.suit, suit2: kit.suit2, suitPattern: kit.pattern, trimColor: trim, capColor: cap,
-    capTrim: isGK ? gk.capTrim : kit.capTrim, numberColor: isGK ? gk.number : kit.number };
+    capTrim: isGK ? gk.capTrim : kit.capTrim, numberColor: isGK ? gk.number : kit.number, guardColor: isGK ? gk.guard : kit.guard };   // guard: ear guards (kit editor; auto if unset)
 }
 function matchKits(defA, defB, prefA = 'home') {
   const fall = (d) => d.kits || { home: { suit: d.color, suit2: 0xffffff, pattern: 'plain', cap: d.color, capTrim: 0xffffff, number: 0xffffff }, away: { suit: 0xffffff, suit2: d.color, pattern: 'plain', cap: 0xf4f6f8, capTrim: d.color, number: d.color }, goalkeeper: { cap: 0xd81a1f, capTrim: 0xffffff, number: 0xffffff } };
@@ -347,11 +347,12 @@ let currentMove = { x: 0, y: 0, z: 0 };
 // Pre-match screen: the best player of each team standing on the deck, full body, either side of the card.
 let pmView = null;
 function clearPrematch() { if (pmView) { for (const a of pmView.ath) scene.remove(a.root); for (const l of pmView.lights) scene.remove(l, l.target); pmView = null; } }
-function buildPrematch(oppId, pref = 'home', free = false) {
+function buildPrematch(oppId, pref = 'home', side = '') {
   clearPrematch();
-  const me = free ? state.freeClub() : { ...state.clubInfo('user'), kits: state.data.club.kits }, opp = state.clubInfo(oppId), kits = matchKits(me, opp, pref);
+  const sc = side === 'nat' ? { nation: true } : side === 'free' ? { mode: 'free' } : null;   // national team / free championship club
+  const me = sc ? state.sideClub(sc) : { ...state.clubInfo('user'), kits: state.data.club.kits }, opp = state.clubInfo(oppId), kits = matchKits(me, opp, pref);
   const best = (sq) => sq.filter((p) => p.role !== 'GOALKEEPER').sort((a, b) => overall(b) - overall(a))[0];
-  const ath = [best(free ? state.freeSquad() : state.squad), best(state.opponentSquad(oppId))].map((p, i) => {
+  const ath = [best(sc ? state.sideSquad(sc) : state.squad), best(state.opponentSquad(oppId))].map((p, i) => {
     const look = lookOf(p), K = kits[i];
     const a = new Athlete({ ...kitOptions(K.kit, K.gk, false, i === 0), number: p.number, role: p.role, bodyRole: look.role, isGK: false, seed: look.seed, preset });
     scene.add(a.root); return a;
@@ -360,7 +361,7 @@ function buildPrematch(oppId, pref = 'home', free = false) {
   const key = new THREE.DirectionalLight(0xfff3e4, 2.4), rim = new THREE.DirectionalLight(0x9fd4ff, 1.6);
   key.position.set(1.5, 3.6, -5); key.target.position.set(0, 1.2, -11.6); rim.position.set(-1, 3, -15); rim.target.position.set(0, 1, -11.6);
   const lights = [key, rim]; for (const l of lights) scene.add(l, l.target);
-  pmView = { ath, lights, key: oppId + '|' + pref + '|' + free };
+  pmView = { ath, lights, key: oppId + '|' + pref + '|' + side };
   setBall(state.data.club.ball || 'classic');
 }
 function updatePrematchView(dt) {
@@ -438,8 +439,8 @@ let matchCtx = null, paused = false;
 function startMatch(ctx) {
   matchCtx = ctx; paused = false;
   const cfg = { seed: (Math.random() * 1e9) | 0, humanTeam: 0, cpu: DIFF[opts.difficulty], assist: opts.assist, periodDuration: opts.minutes * 60, timing: opts.timing, autoSwitch: opts.autoSwitch !== false };
-  const free = ctx.mode === 'free';   // CHAMPIONNATS: another club (its own squad), outside the career
-  match = new Match(cfg, free ? state.freeTeamDef() : state.userTeamDef(), state.opponentTeamDef(ctx.opponent, ctx.rating));
+  const free = !!state.sideSquad(ctx);   // CHAMPIONNATS club or SÉLECTION (its own squad), outside the career
+  match = new Match(cfg, state.sideTeamDef(ctx), state.opponentTeamDef(ctx.opponent, ctx.rating));
   heroPreview = null; setBall(free ? 'classic' : state.data.club.ball || 'classic');
   const pool = free ? null : POOLS.find((x) => x.id === state.data.club.pool);   // the club's home pool sets the arena ambience
   arena.setAmbience(ctx.away || !pool ? opts.ambience : pool.ambience);
@@ -907,10 +908,10 @@ function statsHtml() {
 }
 /** Substitutions (rolling, as in water polo): tap a player in the water, then a substitute. */
 /** Squad player of the user's side by id (the career squad, or the club of a free championship). */
-const sqOf = (id) => state.player(id) || (matchCtx && matchCtx.mode === 'free' ? state.freeSquad().find((p) => p.id === id) : null);
+const sqOf = (id) => { const side = matchCtx && state.sideSquad(matchCtx); return side ? side.find((p) => p.id === id) : state.player(id); };
 function subsBench() {
-  if (matchCtx.mode !== 'free') return state.bench();
-  const used = new Set(match.teams[0].players.map((mp) => mp.pid)); return state.freeSquad().filter((p) => !used.has(p.id));
+  const side = state.sideSquad(matchCtx); if (!side) return state.bench();
+  const used = new Set(match.teams[0].players.map((mp) => mp.pid)); return side.filter((p) => !used.has(p.id));
 }
 function teamHtml() {
   const inWater = [...match.teams[0].field, match.teams[0].gk], bench = subsBench().sort((x, y) => (x.role === 'GOALKEEPER') - (y.role === 'GOALKEEPER'));
@@ -924,7 +925,7 @@ function substitute(mpId, benchId) {
   const mp = match.players[mpId], sq = sqOf(benchId); if (!mp || !sq || mp.excluded > 0) return false;
   if (mp.isGK !== (sq.role === 'GOALKEEPER')) { toast(L(mp.isGK ? 'pz.need_gk' : 'pz.no_gk'), 1.5); return false; }
   const old = mp.pid; match.substitute(mp, state.playerDef(sq, mp.isGK ? -1 : mp.slot));
-  if (old && matchCtx.mode !== 'free') state.swap(old, benchId);   // the line-up follows (career stats, next match)
+  if (old && !state.sideSquad(matchCtx)) state.swap(old, benchId);   // the line-up follows (career stats, next match)
   scene.remove(athletes[mpId].root); athletes[mpId] = makeAthlete(match, mp); athletes[mpId].root.position.set(mp.pos.x, 0, mp.pos.z);
   lastWho = null; haptic([20, 30, 20]); return true;
 }
@@ -1166,10 +1167,10 @@ let lineup = null;
 const LINE_POS = { 4: [8, 6], 5: [41, 2], 0: [74, 6], 3: [16, 36], 2: [41, 36], 1: [66, 36], '-1': [41, 68] };
 function lineupHtml(t) {
   const m = match, def = m.teams[t].def;
-  const free = t === 0 && matchCtx.mode === 'free';
+  const free = t === 0 && !!state.sideSquad(matchCtx);
   const players = t === 0 && !free ? [state.player(state.lineup.gk), ...state.lineup.slots.map((id) => state.player(id))].map((p, i) => ({ ...p, slot: i ? i - 1 : -1 }))
-    : (free ? state.freeSquad() : state.opponentSquad(def.id)).slice(0, 7).map((p) => ({ ...p, slot: p.slot ?? -1 }));
-  const total = free ? state.freeClub().total : t === 0 ? state.teamTotal().total : state.opponentTotal(def.id);
+    : (free ? state.sideSquad(matchCtx) : state.opponentSquad(def.id)).slice(0, 7).map((p) => ({ ...p, slot: p.slot ?? -1 }));
+  const total = free ? state.sideClub(matchCtx).total : t === 0 ? state.teamTotal().total : state.opponentTotal(def.id);
   const html = `<div class="lu-banner" style="--tc:${hexCss(def.color)}">${crest(def, 64)}<div><b>${def.name}</b><span class="lu-ovr">${total}<small>OVR</small></span></div><i>${L(FORM_NAME[m.teams[t].formation] || 'form.arc')}</i></div>
     <div class="lu-pool"><div class="lu-goal"></div><div class="lu-l2"></div><div class="lu-l5"></div>
     ${players.map((p) => { const [x, y] = LINE_POS[p.slot] || [41, 36]; return cardHtml(p, { style: `left:${x}%;top:${y}%` }); }).join('')}</div>`;
@@ -1373,7 +1374,7 @@ const app = new App($('app'), {
   L, state,
   setHero: (v, name) => { heroVisible = v; if (name !== 'prematch') clearPrematch(); },
   refreshBall: () => setBall(state.data.club.ball || 'classic'),
-  prematch: (opp, pref, free = false) => { if (!pmView || pmView.key !== opp + '|' + pref + '|' + free) buildPrematch(opp, pref, free); },
+  prematch: (opp, pref, side = '') => { if (!pmView || pmView.key !== opp + '|' + pref + '|' + side) buildPrematch(opp, pref, side); },
   portrait: (p, capColor) => { try { return portraitFor(p, capColor); } catch (e) { console.warn('portrait', e); return null; } },
   refreshHero: () => buildHero(),
   // club editor: live 3D preview of a draft identity (null = back to the saved club)

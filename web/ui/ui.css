@@ -643,3 +643,14 @@ body.sheet-open .app { visibility: hidden; }
 .fr-done { display: flex; flex-direction: column; gap: .6rem; align-items: center; padding: 1rem; border: 2px solid #ffffff44; background: #0a1322cc; text-align: center; }
 .fr-done.win { border-color: #ffd21a; box-shadow: 0 0 1rem #ffd21a66; }
 @media (max-height: 380px) { .mk-side { width: 12.5rem; } .fr-left { width: 18rem; } .h3-tiles.modes .gt:not(.gt-club) > b { font-size: .78rem; } }
+/* ---------- Final Four, SÉLECTIONS, event reward path ---------- */
+.h3-tiles.modes { grid-template-rows: repeat(4, 1fr); } .h3-tiles.modes .gt-club { grid-row: 1 / 5; }
+.gt-nat { background: linear-gradient(135deg, #d8321e, #9a1c10 60%, #5e0d06); }
+.gt-match.f4 { background: linear-gradient(135deg, #e8b52a, #a87808 60%, #6b4a00); border-color: #ffe08a; box-shadow: 0 0 1rem #ffd21a66; }
+.nat-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(7.4rem, 1fr)); gap: .45rem; align-content: start; }
+.nat-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: .45rem .3rem; border-radius: .35rem; border: 2px solid #ffffff22; background: #0a1322cc; color: #fff; }
+.nat-card.on { border-color: #ffd21a; box-shadow: 0 0 .7rem #ffd21a66; } .nat-card b { font-size: .72rem; text-align: center; line-height: 1.1; } .nat-card .ovr-b { position: absolute; top: .2rem; right: .25rem; }
+.nations .tt-grid { flex: 1; min-height: 0; }
+.ev-path { display: flex; gap: .2rem; align-items: center; justify-content: center; flex-wrap: wrap; margin: .2rem 0; }
+.ev-path span { display: flex; align-items: center; gap: .1rem; font-size: .62rem; font-weight: 800; padding: .1rem .3rem; border-radius: .6rem; background: #0006; border: 1px solid #ffffff33; opacity: .7; }
+.ev-path span b { font-size: .62rem; margin-right: .1rem; } .ev-path span.on { background: #2fbf71; border-color: #b6ffd0; opacity: 1; } .ev-path span.fin.on { background: #e8b52a; }

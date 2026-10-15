@@ -277,6 +277,10 @@ export class Match {
     if (p.human) { const q = this.teams[p.team].field.filter((x) => x !== p && x.excluded <= 0).sort((a, b) => fdist(a.pos, this.ball.pos) - fdist(b.pos, this.ball.pos))[0]; if (q) this.setHuman(q, true); }
     this.emit(Ev.SUB_OUT, p.team, p.id, -1, p.pos); return true;
   }
+  /** Swim pace of a player leaving for a substitution, proportional to the compression of the clock: a period
+   *  is always shown as 8:00, so the same change takes the same share of it whatever the real duration
+   *  (8 real min = ×1, 4 = ×2, 2 = ×4, 1 = ×8). */
+  subPace() { return clamp(480 / this.cfg.periodDuration, 1, 8); }
   subReady(p) { return !!p.subOut && fdist(p.pos, this.reentrySpot(p)) < 1.2; }
   setFormation(team, f) { if (FORMATIONS[f]) this.teams[team].formation = f; }
 
@@ -563,10 +567,12 @@ export class Match {
     let max = this.maxSpeed(p, hasBall); if (p.stun > 0) max *= 0.35;
     if (p.dodgeT > 0) { p.dodgeT -= dt; max *= 1.6; }
     // Sprint = full speed in the stick direction, whatever the stick deflection.
+    if (p.subOut) max *= this.subPace();
     const desired = mul(p.sprinting && amt > 0.2 ? norm(move) : move, max);
     let acc = lerp(1.6, 3.6, N(p.stats.accel)) * (p.sprinting ? 1.6 : 1) * (p.dodgeT > 0 ? 2.5 : 1);
     if (dot(desired, p.vel) < 0) acc *= 0.75;
     if (amt < 0.05) acc = 2.2;
+    if (p.subOut) acc *= this.subPace();
     p.vel = moveTowards(flat(p.vel), desired, acc * dt);
     p.pos = add(p.pos, mul(p.vel, dt)); p.pos.y = 0;
     const turn = lerp(200, 420, N(p.stats.technique)) * DEG;

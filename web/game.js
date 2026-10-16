@@ -1129,6 +1129,8 @@ function frame(now) {
         const Q = new URLSearchParams(location.search), ly = Q.has('ly') ? +Q.get('ly') : 0.33 * fy, dd = Q.has('d') ? +Q.get('d') : 0.9, aa = Q.has('a') ? +Q.get('a') : fa;
         camera.position.set(fx + Math.sin(aa) * dd, ly + 0.17 * fy, -Math.cos(aa) * dd); camera.lookAt(fx, ly, 0); setFov(40, fdt, 10);
       }
+    } else if (new URLSearchParams(location.search).has('cam')) {   // ?showcase&cam=x,y,z,tx,ty,tz : free arena view (debug)
+      const c = new URLSearchParams(location.search).get('cam').split(',').map(Number); camera.position.set(c[0], c[1], c[2]); camera.lookAt(c[3], c[4], c[5]); setFov(55, fdt, 10);
     } else { camera.position.set(Math.sin(ang) * 1.2, 0.9, -3.6 + Math.cos(ang) * 0.4); camera.lookAt(0, 0.35, 0); setFov(40, fdt, 10); }
     ballMesh.position.set(0, -5, 0);
     selRing.visible = selArrow.visible = passRing.visible = false;

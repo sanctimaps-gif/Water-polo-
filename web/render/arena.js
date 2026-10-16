@@ -226,6 +226,43 @@ export class Arena {
     const halo = new THREE.InstancedMesh(new THREE.PlaneGeometry(4.2, 4.2).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(hc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), panels.length);
     panels.forEach(([x, z], i) => { m4.makeTranslation(x, 13.8, z); halo.setMatrixAt(i, m4); });
     halo.renderOrder = 3; g.add(halo);
+    // LED floodlight rows on long lighting trusses over both sides of the basin (reference: competition
+    // pools), the heads tilted toward the water; same glowing material as the lamps (ambience controlled).
+    const rows = [-9.5, 9.5], heads = [];
+    for (const z of rows) for (let x = -24; x <= 24; x += 2) heads.push([x, z]);
+    const beam = new THREE.InstancedMesh(new THREE.BoxGeometry(52, 0.28, 0.28), std(0x2c3646, 0.45, 0.7), rows.length * 2);
+    rows.forEach((z, i) => { for (const dy of [0, 0.55]) { m4.makeTranslation(0, 13.05 + dy, z); beam.setMatrixAt(i * 2 + (dy ? 1 : 0), m4); } });
+    g.add(beam);
+    const q4 = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), hp = new THREE.Vector3();
+    const housing = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.4, 0.5), std(0x1a212c, 0.5, 0.6), heads.length);
+    const lens = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.8, 0.36), this.panelMat, heads.length);
+    heads.forEach(([x, z], i) => {
+      q4.setFromEuler(new THREE.Euler(z > 0 ? -0.55 : 0.55, 0, 0));   // aimed at the water
+      m4.compose(hp.set(x, 12.75, z), q4, one); housing.setMatrixAt(i, m4);
+      const L = new THREE.Matrix4().compose(hp.set(0, -0.205, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)), one);
+      lens.setMatrixAt(i, m4.clone().multiply(L));
+    });
+    g.add(housing, lens);
+    const flare = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.4, 2.4).rotateX(Math.PI / 2), halo.material, heads.length);
+    heads.forEach(([x, z], i) => { m4.makeTranslation(x, 12.5, z); flare.setMatrixAt(i, m4); });
+    flare.renderOrder = 3; g.add(flare);
+    // Pennant lines across the pool behind each goal (triangular flags, alternating blue / white).
+    const pen = new THREE.BufferGeometry(), pp = [], pc = [], col = new THREE.Color();
+    for (const sx of [-1, 1]) for (let k = 0; k < 30; k++) {
+      const x = sx * (HL + 1.3), z0 = -HW - 0.8 + k * ((POOL.width + 1.6) / 30), z1 = z0 + 0.5, y = 2.25 - 0.1 * Math.sin((k / 29) * Math.PI);
+      pp.push(x, y, z0, x, y, z1, x, y - 0.42, (z0 + z1) / 2);
+      col.setHex(k % 2 ? 0xffffff : 0x1e6fe0); for (let v = 0; v < 3; v++) pc.push(col.r, col.g, col.b);
+    }
+    pen.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3)); pen.setAttribute('color', new THREE.Float32BufferAttribute(pc, 3));
+    pen.computeVertexNormals();
+    const flags = new THREE.Mesh(pen, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: 0x404850 }));
+    flags.userData.dynamic = true; g.add(flags);
+    const cord = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.008, 0.008, POOL.width + 3, 4).rotateX(Math.PI / 2), std(0xdddddd, 0.6), 2);
+    [-1, 1].forEach((sx, i) => { m4.makeTranslation(sx * (HL + 1.3), 2.25, 0); cord.setMatrixAt(i, m4); }); g.add(cord);
+    for (const sx of [-1, 1]) for (const z of [-HW - 1.5, HW + 1.5]) add(new THREE.CylinderGeometry(0.035, 0.035, 2.3, 8), std(0xd8dde4, 0.3, 0.6), sx * (HL + 1.3), 1.4, z);
+    // Navy boards behind the goals (deck level), like the blue walls of competition halls.
+    const endBoard = new THREE.MeshBasicMaterial({ map: bannerTexture() });
+    for (const sx of [-1, 1]) { const b = new THREE.Mesh(new THREE.PlaneGeometry(22, 1.0), endBoard); b.position.set(sx * (HL + 6.6), 0.95, 0); b.rotation.y = -sx * Math.PI / 2; g.add(b); }
     // Far-side stands (main), ends and a balcony with original banners.
     const seat = std(0x1d3a66, 0.7), seat2 = std(0x14294a, 0.7);
     for (let r = 0; r < 9; r++) add(new THREE.BoxGeometry(46, 0.55, 1.15), r % 2 ? seat : seat2, 0, 0.6 + r * 0.62, 13.6 + r * 1.05);

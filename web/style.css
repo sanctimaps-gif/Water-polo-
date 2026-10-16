@@ -125,7 +125,7 @@ body.intro-on #hud > *:not(#intro) { visibility: hidden; }
 
 /* ---------- boot splash (logo) ---------- */
 #splash { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: radial-gradient(circle at 50% 45%, #10325a, #050b16 70%); transition: opacity 0.5s; }
+  background: radial-gradient(circle at 50% 45%, #10325acc, #050b16f0 70%), url(assets/art/menu_bg.webp) center / cover no-repeat; transition: opacity 0.5s; }
 #splash img { width: min(calc(56 * var(--vh, 1vh)), 300px); height: auto; filter: drop-shadow(0 8px 30px rgba(40, 150, 255, 0.45)); animation: splashIn 0.8s ease-out both; }
 #splash i { width: 120px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, transparent, #4fc3ff, transparent); background-size: 200% 100%; animation: load 1.1s linear infinite; }
 #splash.done { opacity: 0; pointer-events: none; }

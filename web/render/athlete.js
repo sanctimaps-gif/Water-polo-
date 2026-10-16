@@ -1073,10 +1073,14 @@ export class Athlete {
     const roll = (Math.sin(qR) - Math.sin(qL)) * 0.5 * 0.42 * ROLL_SIGN;
     const swim = {
       chestX: -0.18, chestY: roll, chestZ: 0, pelvisY: roll * 0.6, pelvisZ: 0,
-      pitch: 1.0, roll: 0, twist: 0, neck: -0.6, headX: -0.6, headY: -roll * 0.95,
+      pitch: CRAWL.pitch, roll: 0, twist: 0, neck: -0.62, headX: -0.62, headY: -roll * 0.95,   // long body, head out looking ahead
       // recovery elbow-led and close to the water, long reach at the entry, S-shaped pull under the body
-      shRy: 0, shLy: 0, shRx: qR - 2 * Math.PI, shRz: 0.14 + 0.2 * Math.max(0, Math.sin(qR)) - 0.12 * Math.max(0, -Math.sin(qR - 0.35)), elR: crawlElbow(qR),
-      shLx: qL - 2 * Math.PI, shLz: -0.14 - 0.2 * Math.max(0, Math.sin(qL)) + 0.12 * Math.max(0, -Math.sin(qL - 0.35)), elL: crawlElbow(qL),
+      // Crawl polo (reference sheet): the recovery swings the arm out to the side, elbow high and bent, the
+      // hand travelling low just over the water (no straight-arm windmill), then the arm extends forward for
+      // the entry in front of the head; the hand exits near the hip, elbow still high.
+      shRy: -CRAWL.rotIn * Math.max(0, Math.sin(qR)), shLy: CRAWL.rotIn * Math.max(0, Math.sin(qL)),
+      shRx: qR - 2 * Math.PI, shRz: 0.14 + CRAWL.abd * Math.max(0, Math.sin(qR)) - 0.12 * Math.max(0, -Math.sin(qR - 0.35)), elR: crawlElbow(qR),
+      shLx: qL - 2 * Math.PI, shLz: -0.14 - CRAWL.abd * Math.max(0, Math.sin(qL)) + 0.12 * Math.max(0, -Math.sin(qL - 0.35)), elL: crawlElbow(qL),
       // six-beat flutter kick from the hips, the knee bends a little later (whip), small and fast
       hipRx: 0.05 + Math.sin(p * 3) * 0.24, hipRz: 0.05, knR: 0.12 + Math.max(0, Math.sin(p * 3 - 0.7)) * 0.42, knRy: 0,
       hipLx: 0.05 - Math.sin(p * 3) * 0.24, hipLz: -0.05, knL: 0.12 + Math.max(0, -Math.sin(p * 3 - 0.7)) * 0.42, knLy: 0,
@@ -1381,9 +1385,12 @@ function strokeAngle(p) {
 function crawlElbow(q) {
   q = wrapPos(q);
   if (q >= Math.PI) { const u = (q - Math.PI) / Math.PI; return -1.75 * Math.sin(Math.min(1, u * 1.6) * Math.PI) * (u < 0.62 ? 1 : 0.7) - 0.1; }   // catch -> pull -> push
-  return -1.55 * Math.sin(q) - 0.1;   // recovery: elbow high, hand close to the water (continuous with the push)
+  return -CRAWL.recEl * Math.sin(q) ** 0.6 - 0.1;   // recovery: elbow high, hand close to the water (continuous with the push)
 }
 const ROLL_SIGN = 1;
+/** Crawl polo shape: body pitch, recovery abduction, recovery elbow bend, humeral rotation dropping the hand. */
+const CRAWL = { pitch: 1.15, abd: 1.25, recEl: 1.9, rotIn: 0.6 };
+if (typeof location !== 'undefined') { const Q = new URLSearchParams(location.search); for (const k in CRAWL) if (Q.has('crawl_' + k)) CRAWL[k] = +Q.get('crawl_' + k); }   // tuning (?showcase)
 /**
  * Human range of motion (radians, this rig's conventions: elbow / hip flexion negative, knee flexion
  * positive, abduction outward = +z for the right side). The swim stroke is a shoulder circumduction, so

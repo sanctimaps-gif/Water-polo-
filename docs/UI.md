@@ -163,3 +163,9 @@ Le logo WATER POLO 26 MOBILE fourni par le porteur du projet (`web/assets/logo.w
 `icon-192.png` / `icon-512.png`) est l'icône de l'application (onglet, écran d'accueil du téléphone
 via le manifeste, raccourci iOS), l'écran de démarrage pendant le chargement, l'écran « Tournez votre
 appareil » et le bouton en haut à gauche de chaque menu (retour à l'accueil).
+
+## Illustrations des menus
+* `web/assets/art/` : illustrations fournies par le propriétaire du projet (logos de marques effacés).
+* Tuiles des modes : CARRIÈRE = tir, CHAMPIONNATS = passe, SÉLECTIONS = vue de dos (bonnet au drapeau),
+  COUPES = émergence, DÉFIS = défense ; la couleur du mode reste derrière le texte.
+* Écrans de menu (sans 3D derrière) et écran de démarrage : bandeau des 5 illustrations flouté et assombri.

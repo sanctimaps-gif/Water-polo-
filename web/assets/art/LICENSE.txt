@@ -1,0 +1,3 @@
+Menu artwork (shot, defense, pass, back, rise, menu_bg): illustrations made and supplied by the
+project owner for Water Polo 26 Mobile. Changes: cropped from the owner's reference sheet, brand logos
+(cap and ball makers) removed, converted to WebP; menu_bg is a blurred strip of the five pictures.

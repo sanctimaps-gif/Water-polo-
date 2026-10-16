@@ -675,3 +675,15 @@ body.sheet-open .app { visibility: hidden; }
 @media (max-height: 380px) { .ld-slot .logo { width: 60px; height: 60px; } .lg-side { width: 12.5rem; } }
 .clubs.locked { grid-template-columns: 1fr 18.5rem; }
 .clubs.locked .club-panel { grid-column: 2; } .clubs.locked .clubs-main { grid-column: 1; grid-row: 2; }
+
+/* ---- artwork (web/assets/art: the owner's own illustrations, brand logos removed) */
+/* mode tiles: photo on the left, the mode colour behind the label */
+.h3-tiles.modes .gt { background-size: cover; background-repeat: no-repeat; }
+.h3-tiles.modes .gt-club { background-image: linear-gradient(180deg, #0f8a3acc 0%, #0b6a2c40 38%, #06101f30 60%, #06101fe6 100%), url(../assets/art/shot.webp); background-position: center, center 20%; }
+.h3-tiles.modes .gt-free { background-image: linear-gradient(90deg, #1a44b830 0%, #1a44b8d0 52%, #0f2c80 100%), url(../assets/art/pass.webp); background-position: center, center 32%; }
+.h3-tiles.modes .gt-nat { background-image: linear-gradient(90deg, #9a1c1030 0%, #9a1c10d0 52%, #5e0d06 100%), url(../assets/art/back.webp); background-position: center, center 18%; }
+.h3-tiles.modes .gt-tour { background-image: linear-gradient(90deg, #0f4a5530 0%, #0f4a55d0 52%, #0b3640 100%), url(../assets/art/rise.webp); background-position: center, center 22%; }
+.h3-tiles.modes .gt-ch { background-image: linear-gradient(90deg, #d4500a30 0%, #d4500ad0 52%, #9a3606 100%), url(../assets/art/defense.webp); background-position: center, center 18%; }
+.h3-tiles.modes .gt:not(.gt-club) { background-size: 100% 100%, 55% auto; background-position: center, left center; }
+/* menu screens (no 3D behind): action photos, blurred and darkened */
+.app:not(.scr-home):not(.scr-clubhub):not(.scr-customize) { background: linear-gradient(180deg, rgba(4,12,26,.82), rgba(4,12,26,.9)), url(../assets/art/menu_bg.webp) center / cover no-repeat; }

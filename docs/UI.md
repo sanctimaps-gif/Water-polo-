@@ -168,4 +168,7 @@ appareil » et le bouton en haut à gauche de chaque menu (retour à l'accueil).
 * `web/assets/art/` : illustrations fournies par le propriétaire du projet (logos de marques effacés).
 * Tuiles des modes : CARRIÈRE = tir, CHAMPIONNATS = passe, SÉLECTIONS = vue de dos (bonnet au drapeau),
   COUPES = émergence, DÉFIS = défense ; la couleur du mode reste derrière le texte.
-* Écrans de menu (sans 3D derrière) et écran de démarrage : bandeau des 5 illustrations flouté et assombri.
+* Écrans de menu (sans 3D derrière) et écran de démarrage : photo de piscine du propriétaire (`pool_bg.webp`,
+  logos de sponsors effacés), assombrie.
+* Reflets 3D (peau mouillée, bonnets, ballon, métal) : panorama 360° de piscine du propriétaire
+  (`web/assets/env/pool_pano.webp`), teinté selon l'ambiance (plus sombre en soirée / nuit).

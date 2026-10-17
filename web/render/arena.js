@@ -10,10 +10,10 @@ const std = (color, roughness = 0.5, metalness = 0, extra = {}) => new THREE.Mes
 
 // ---------------------------------------------------------------- ambiences
 export const AMBIENCES = {
-  EVENT: { bg: 0x070c16, fog: 0x0b1626, fogNear: 38, fogFar: 95, hemiSky: 0xbfd9ff, hemiGround: 0x0b2a40, hemi: 0.55, key: 2.4, keyColor: 0xfff3e0, panels: 0xffffff, panelGlow: 2.6 },
-  DAY: { bg: 0x9ec4e6, fog: 0xa9c9e6, fogNear: 45, fogFar: 120, hemiSky: 0xe6f2ff, hemiGround: 0x2a5a70, hemi: 0.95, key: 2.0, keyColor: 0xffffff, panels: 0xe8f2ff, panelGlow: 1.2 },
-  EVENING: { bg: 0x1a1020, fog: 0x2a1c2a, fogNear: 40, fogFar: 100, hemiSky: 0xffd2b0, hemiGround: 0x1a2a40, hemi: 0.6, key: 2.1, keyColor: 0xffd9a8, panels: 0xffe0b8, panelGlow: 2.2 },
-  NIGHT: { bg: 0x03060c, fog: 0x050a14, fogNear: 34, fogFar: 85, hemiSky: 0x9fc2ff, hemiGround: 0x061826, hemi: 0.4, key: 2.6, keyColor: 0xe8f0ff, panels: 0xf0f6ff, panelGlow: 3 },
+  EVENT: { bg: 0x070c16, fog: 0x0b1626, fogNear: 38, fogFar: 95, hemiSky: 0xbfd9ff, hemiGround: 0x0b2a40, hemi: 0.55, key: 2.4, keyColor: 0xfff3e0, panels: 0xffffff, panelGlow: 2.6, envTint: 0x8fa6c8 },
+  DAY: { bg: 0x9ec4e6, fog: 0xa9c9e6, fogNear: 45, fogFar: 120, hemiSky: 0xe6f2ff, hemiGround: 0x2a5a70, hemi: 0.95, key: 2.0, keyColor: 0xffffff, panels: 0xe8f2ff, panelGlow: 1.2, envTint: 0xffffff },
+  EVENING: { bg: 0x1a1020, fog: 0x2a1c2a, fogNear: 40, fogFar: 100, hemiSky: 0xffd2b0, hemiGround: 0x1a2a40, hemi: 0.6, key: 2.1, keyColor: 0xffd9a8, panels: 0xffe0b8, panelGlow: 2.2, envTint: 0xb08a78 },
+  NIGHT: { bg: 0x03060c, fog: 0x050a14, fogNear: 34, fogFar: 85, hemiSky: 0x9fc2ff, hemiGround: 0x061826, hemi: 0.4, key: 2.6, keyColor: 0xe8f0ff, panels: 0xf0f6ff, panelGlow: 3, envTint: 0x5a6a88 },
 };
 
 // ---------------------------------------------------------------- dynamic goal net
@@ -121,6 +121,20 @@ export class Arena {
     this.envMap = pmrem.fromScene(env, 0.02).texture;
     pmrem.dispose();
     this.scene.environment = this.envMap;
+    // Real 360° photo of an indoor pool (owner's own panorama, web/assets/env): replaces the generated room
+    // once loaded, tinted per ambience (darker / cooler for evening and night matches).
+    this.renderer = renderer;
+    new THREE.TextureLoader().load('web/assets/env/pool_pano.webp', (t) => { t.colorSpace = THREE.SRGBColorSpace; this.pano = t; this.bakePano(); }, undefined, () => {});
+  }
+  bakePano() {
+    if (!this.pano) return;
+    const env = new THREE.Scene(), tint = new THREE.Color(this.envTint ?? 0xffffff);
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(30, 48, 24), new THREE.MeshBasicMaterial({ map: this.pano, color: tint, side: THREE.BackSide }));
+    sky.scale.x = -1; env.add(sky);   // seen from inside: un-mirror the panorama
+    const pmrem = new THREE.PMREMGenerator(this.renderer), old = this.panoEnv;
+    this.panoEnv = pmrem.fromScene(env, 0.01).texture; pmrem.dispose();
+    this.scene.environment = this.panoEnv; if (old) old.dispose();
+    sky.geometry.dispose(); sky.material.dispose();
   }
 
   buildLights() {
@@ -398,6 +412,7 @@ export class Arena {
     this.hemi.color.setHex(a.hemiSky); this.hemi.groundColor.setHex(a.hemiGround); this.hemi.intensity = a.hemi;
     this.key.intensity = a.key; this.key.color.setHex(a.keyColor);
     this.panelMat.color.setHex(a.panels).multiplyScalar(a.panelGlow);
+    if (this.envTint !== a.envTint) { this.envTint = a.envTint; this.bakePano(); }
   }
 
   /** section: 0 left, 1 centre, 2 right, or -1 all. amount 0..1.5 */

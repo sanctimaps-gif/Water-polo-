@@ -1,0 +1,2 @@
+pool_pano.webp: 360° panorama of an indoor pool made and supplied by the project owner for Water Polo 26
+Mobile (environment reflections). Resized to 1024 x 512, converted to WebP.

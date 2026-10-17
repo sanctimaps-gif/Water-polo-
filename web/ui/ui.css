@@ -686,4 +686,4 @@ body.sheet-open .app { visibility: hidden; }
 .h3-tiles.modes .gt-ch { background-image: linear-gradient(90deg, #d4500a30 0%, #d4500ad0 52%, #9a3606 100%), url(../assets/art/defense.webp); background-position: center, center 18%; }
 .h3-tiles.modes .gt:not(.gt-club) { background-size: 100% 100%, 55% auto; background-position: center, left center; }
 /* menu screens (no 3D behind): action photos, blurred and darkened */
-.app:not(.scr-home):not(.scr-clubhub):not(.scr-customize) { background: linear-gradient(180deg, rgba(4,12,26,.82), rgba(4,12,26,.9)), url(../assets/art/menu_bg.webp) center / cover no-repeat; }
+.app:not(.scr-home):not(.scr-clubhub):not(.scr-customize) { background: linear-gradient(180deg, rgba(4,12,26,.72), rgba(4,12,26,.88)), url(../assets/art/pool_bg.webp) center / cover no-repeat; }

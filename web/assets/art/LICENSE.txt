@@ -1,3 +1,4 @@
-Menu artwork (shot, defense, pass, back, rise, menu_bg): illustrations made and supplied by the
-project owner for Water Polo 26 Mobile. Changes: cropped from the owner's reference sheet, brand logos
-(cap and ball makers) removed, converted to WebP; menu_bg is a blurred strip of the five pictures.
+Menu artwork: illustrations and photos made and supplied by the project owner for Water Polo 26 Mobile.
+- shot, defense, pass, back, rise: cropped from the owner's reference sheet, brand logos (cap and ball makers) removed.
+- pool_bg: the owner's photo of a competition pool, sponsor / federation logos removed (boards and reflections).
+All converted to WebP.

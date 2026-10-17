@@ -2,6 +2,7 @@
 // fr + en complete; es / de / it / pt fall back to English for these menu strings (TODO translation).
 export const UI = {
   fr: {
+    'shop.cel_fist': 'Célébration Poing',
     "ld.title": "CARRIÈRES",
     "ld.how": "4 sauvegardes : choisis une carrière ou crée-en une",
     "ld.no_club": "SANS CLUB",
@@ -247,6 +248,7 @@ export const UI = {
     'tdesc.CENTER': 'Alimente le pivot dans la zone des 2 m.', 'tdesc.COUNTER': 'Contre-attaques éclair après chaque récupération.',
   },
   en: {
+    'shop.cel_fist': 'Fist Pump Celebration',
     "ld.title": "CAREERS",
     "ld.how": "4 saves: pick a career or create one",
     "ld.no_club": "NO CLUB",
@@ -492,6 +494,7 @@ export const UI = {
     'tdesc.CENTER': 'Feeds the centre-forward at 2 m.', 'tdesc.COUNTER': 'Lightning counters after every turnover.',
   },
   es: {
+    'shop.cel_fist': 'Celebración Puño',
     "ld.title": "CARRERAS",
     "ld.how": "4 partidas: elige una carrera o crea una",
     "ld.no_club": "SIN CLUB",
@@ -610,6 +613,7 @@ export const UI = {
     "pack.rule": "Derrota = Bronce · Empate = Plata · Victoria = Oro · Victoria por 3+ goles = Élite (partido de torneo / playoff ganado: +1 nivel)",
   },
   de: {
+    'shop.cel_fist': 'Jubel mit Faust',
     "ld.title": "KARRIEREN",
     "ld.how": "4 Spielstände: wähle eine Karriere oder erstelle eine",
     "ld.no_club": "KEIN VEREIN",
@@ -728,6 +732,7 @@ export const UI = {
     "pack.rule": "Niederlage = Bronze · Remis = Silber · Sieg = Gold · Sieg mit 3+ Toren = Elite (gewonnenes Turnier-/Playoff-Spiel: +1 Stufe)",
   },
   it: {
+    'shop.cel_fist': 'Esultanza Pugno',
     "ld.title": "CARRIERE",
     "ld.how": "4 salvataggi: scegli una carriera o creane una",
     "ld.no_club": "SENZA CLUB",
@@ -846,6 +851,7 @@ export const UI = {
     "pack.rule": "Sconfitta = Bronzo · Pareggio = Argento · Vittoria = Oro · Vittoria con 3+ gol = Élite (partita di torneo / playoff vinta: +1 livello)",
   },
   pt: {
+    'shop.cel_fist': 'Comemoração Punho',
     "ld.title": "CARREIRAS",
     "ld.how": "4 gravações: escolhe uma carreira ou cria uma",
     "ld.no_club": "SEM CLUBE",

@@ -1480,7 +1480,7 @@ function buildShowcase() {
       flagCode: i % 2 ? 'ITA' : 'FRA', backText: i % 2 ? 'ITALY' : 'FRANCE', number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });
     const x = (i - 2.5) * 0.85;
     a.showcaseState = (t) => {
-      if (st === 'celebrate' && a.celebrateT <= 0) a.playCelebrate('arms');
+      if (st === 'celebrate' && a.celebrateT <= 0) a.playCelebrate(new URLSearchParams(location.search).get('cel') || 'arms');
       // wind-up 1.5 s, then the shot is released (whole kinetic chain), every 2.4 s
       const cyc = (t % 2.4), charging = st === 'wind' && cyc < 1.5;
       if (st === 'wind' && !charging && a.throwT <= 0 && !a._thrown) { a.playThrow('shot'); a._thrown = true; }

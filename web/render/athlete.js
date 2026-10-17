@@ -1184,8 +1184,10 @@ export class Athlete {
     // ---- celebration
     if (w.celebrate > 0) {
       const ct = this.celebrateT;
-      const cv = CLIPS.victory && this.celebrateKind !== 'splash' ? CLIP_MARKS.victory : null;
+      const cv = CLIPS.victory && this.celebrateKind === 'arms' ? CLIP_MARKS.victory : null;
       const cel = cv ? { ...clipPose(CLIPS.victory, cv.a + (cv.b - cv.a) * clamp(1 - ct / 2.6, 0, 1), false, UPPER), rise: 0.28 + Math.abs(Math.sin(ct * 5)) * 0.18, pitch: -0.1 }
+        : this.celebrateKind === 'fist'   // fist pump (match reference): right fist punched up beside the head, shouting toward the stands
+        ? { shRx: -2.55, shRz: 0.3, elR: -1.5 + Math.max(0, Math.sin(ct * 8)) * 0.9, shLx: -0.6, shLz: -0.7, elL: -0.9, rise: 0.22 + Math.abs(Math.sin(ct * 4)) * 0.08, pitch: -0.05, headX: -0.25, headY: 0.35, chestY: 0.2 }
         : this.celebrateKind === 'splash'
         ? { shRx: -1.4 + Math.sin(ct * 14) * 0.9, shRz: 0.5, elR: -0.3, shLx: -1.4 - Math.sin(ct * 14) * 0.9, shLz: -0.5, elL: -0.3, rise: 0.15, pitch: 0.3 }
         : { shRx: -3.0 + Math.sin(ct * 9) * 0.25, shRz: 0.45, elR: -0.2, shLx: -3.0 - Math.sin(ct * 9) * 0.25, shLz: -0.45, elL: -0.2,
@@ -1295,6 +1297,16 @@ export class Athlete {
     sampleClip(CLIPS.treading, (this.tread / (2 * Math.PI)) * 0.67, P);
     P.chestX -= back * 0.12; P.chestZ += side * 0.08; P.pitch -= back * 0.3 * travel; P.roll -= side * 0.18 * travel;
     P.rise -= (1 - fatigue) * 0.06;
+    // Eggbeater legs (underwater reference videos): knees wide apart, thighs nearly horizontal and spread,
+    // each lower leg circling outward in turn (alternating, half a cycle apart). The captured treading clip
+    // keeps its trunk / arms; its legs (closer to a running tread) are mostly replaced.
+    const EGG = 0.85, t = this.tread;
+    for (const [s, ph, H, K] of [[1, 0, 'hipR', 'knR'], [-1, Math.PI, 'hipL', 'knL']]) {
+      const a = t + ph;
+      const egg = { x: -1.25 + 0.12 * Math.sin(a), z: s * (0.72 + 0.1 * Math.sin(a + 1)), k: 1.75 + 0.35 * Math.sin(a), ky: s * 0.55 * Math.cos(a) };
+      P[H + 'x'] += (egg.x - P[H + 'x']) * EGG; P[H + 'z'] += (egg.z - P[H + 'z']) * EGG;
+      P[K] += (egg.k - P[K]) * EGG; P[K + 'y'] += (egg.ky - P[K + 'y']) * EGG;
+    }
     return P;
   }
   overridePose(kind, u = 0) {

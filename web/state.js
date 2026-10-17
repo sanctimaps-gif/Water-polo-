@@ -52,6 +52,7 @@ export const SHOP_ITEMS = [
   { id: 'cap_gold', kind: 'cap', name: 'shop.cap_gold', color: 0xd9a91a, price: { gems: 25 } },
   { id: 'trim_gold', kind: 'trim', name: 'shop.trim_gold', color: 0xf2c81a, price: { coins: 900 } },
   { id: 'cel_splash', kind: 'celebration', name: 'shop.cel_splash', value: 'splash', price: { coins: 1200 } },
+  { id: 'cel_fist', kind: 'celebration', name: 'shop.cel_fist', value: 'fist', price: { coins: 900 } },
   { id: 'logo_crown', kind: 'symbol', name: 'shop.logo_crown', value: 'crown', price: { gems: 15 } },
 ];
 

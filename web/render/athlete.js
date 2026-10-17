@@ -1136,6 +1136,18 @@ export class Athlete {
         pelvisY: -0.22 * c * le, chestY: -0.5 * c * le, chestZ: 0.14 * c, chestX: -0.16 * c, twist: 0, pitch: -0.12 * c,
         rise: 0.08 + (0.1 + 0.14 * c) * le, shLx: -0.9, shLz: -0.95, elL: -0.35 + Math.sin(this.tread * 2) * 0.15, headY: 0.35 * c }, w.wind);
     }
+    // Legs of the shot (underwater shot footage): while cocking, scissor: the knee opposite the throwing
+    // arm drives up in front, the other leg reaches down and back; at the release a whip (breaststroke) kick
+    // snaps both legs down and together, which lifts the body highest out of the water.
+    if (w.wind > 0) {
+      const le = clamp(this.windT / 0.38, 0, 1);
+      mix(P, { hipLx: -1.55, hipLz: -0.45, knL: 1.95, knLy: 0, hipRx: -0.65, hipRz: 0.35, knR: 1.15, knRy: 0 }, w.wind * le * 0.8);
+    }
+    if (w.throw > 0) {
+      const kind = this.throwKind, dur = THROW_DUR[kind] || 0.38, u = 1 - this.throwT / dur;
+      const kick = Math.min(1, u * 4) * (1 - clamp((u - 0.45) * 2, 0, 1)) * (kind === 'pass' ? 0.5 : kind === 'lob' ? 0.6 : 1);
+      mix(P, { hipRx: -0.3, hipRz: 0.18, knR: 0.35, knRy: 0, hipLx: -0.3, hipLz: -0.18, knL: 0.35, knLy: 0 }, w.throw * kick);
+    }
     // ---- release (shot / pass): fast forward whip and follow-through
     if (w.throw > 0) {
       const kind = this.throwKind, dur = THROW_DUR[kind] || 0.38, u = 1 - this.throwT / dur;
@@ -1160,7 +1172,9 @@ export class Athlete {
         shLx: -1.35 + 0.9 * ec, shLz: -0.5, elL: -0.2, headX: kind === 'lob' ? -0.25 : 0 }, w.throw);
     }
     // ---- block: both arms straight up
-    if (w.block > 0) mix(P, { shRx: -3.0, shRz: 0.22, elR: -0.1, shLx: -3.0, shLz: -0.22, elL: -0.1, rise: 0.26, pitch: 0 }, w.block);
+    // (defence drill footage: the defender jumps on the shot, whip kick, legs together under the body)
+    if (w.block > 0) mix(P, { shRx: -3.0, shRz: 0.22, elR: -0.1, shLx: -3.0, shLz: -0.22, elL: -0.1, rise: 0.34, pitch: 0,
+      hipRx: -0.45, hipRz: 0.2, knR: 0.6, knRy: 0, hipLx: -0.45, hipLz: -0.2, knL: 0.6, knLy: 0 }, w.block);
     // ---- interception / steal: lunge, one arm reaching for the ball
     if (w.reach > 0) {
       const d = this.reachDir, u = 1 - this.reachT / 0.45, ext = Math.sin(Math.min(1, u * 1.4) * Math.PI);

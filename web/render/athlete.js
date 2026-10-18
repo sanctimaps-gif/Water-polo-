@@ -470,8 +470,11 @@ function buildCap(headGeo, o) {
   // Empty buckets (top of the cropped scan): never below the highest head radius of the rows around them,
   // or the crown pokes through the fabric.
   for (let it = 0; it <= NT; it++) {
-    let m = 0; for (let j = Math.max(0, it - 3); j <= Math.min(NT, it + 3); j++) for (let ia = 0; ia < NA; ia++) m = Math.max(m, raw[j * NA + ia]);
-    for (let ia = 0; ia < NA; ia++) { const k = it * NA + ia; if (!(raw[k] > 0)) R[k] = Math.max(R[k], m); }
+    for (let ia = 0; ia < NA; ia++) {
+      const k = it * NA + ia; if (raw[k] > 0) continue;
+      let m = 0; for (let j = Math.max(0, it - 3); j <= Math.min(NT, it + 3); j++) for (let d = -3; d <= 3; d++) m = Math.max(m, raw[j * NA + (ia + d + NA) % NA]);
+      R[k] = m > 0 ? m : R[k];   // local head radius, ellipsoid only where the head has no vertex at all
+    }
   }
   const minR = R.slice();
   for (let pass = 0; pass < 6; pass++) {   // fabric: smooth over the bumps (ears, hair line), never inside the head
@@ -482,7 +485,7 @@ function buildCap(headGeo, o) {
     }
   }
   // cap outline: straight across the forehead, down in front of the ears to the jaw, around the nape
-  const edgeY = (a) => { const A = Math.abs(a); return A < 0.5 ? 0.125 : A < 1.3 ? 0.125 - 0.107 * sstep(0.5, 1.3, A) : 0.018 + 0.012 * sstep(2.2, Math.PI, A); };   // front edge ~2 cm above the eyebrows
+  const edgeY = (a) => { const A = Math.abs(a); return A < 0.5 ? 0.12 : A < 1.3 ? 0.12 - 0.102 * sstep(0.5, 1.3, A) : 0.018 + 0.012 * sstep(2.2, Math.PI, A); };   // front edge ~2 cm above the eyebrows
   const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color();
   const pt = (it, ia, extra = 0) => {
     const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2, r = R[it * NA + ia] + o.thick + extra;
@@ -523,7 +526,7 @@ function buildCap(headGeo, o) {
   };
   // ear guards: oval domes over the ears, grid of holes (vertex colours), rim
   for (const sx of [-1, 1]) {
-    const { p, n } = surface(sx * Math.PI * 0.5 - sx * 0.08, 0.082, 0.006);
+    const { p, n } = surface(sx * Math.PI * 0.5 + sx * 0.06, 0.07, 0.008);   // centred on the ear (between eye and nose height, just behind the head centre)
     const g = new THREE.SphereGeometry(0.04, o.res + 8, Math.max(8, (o.res >> 1) + 4), 0, Math.PI * 2, 0, Math.PI * 0.42);
     const gp = g.attributes.position.array, gc = new Float32Array(gp.length);
     for (let i = 0; i < gp.length; i += 3) {

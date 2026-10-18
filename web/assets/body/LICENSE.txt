@@ -1,3 +1,7 @@
-Body mesh derived from the MakeHuman base mesh hm08 and its macro targets (male, muscle, weight),
-released under CC0 1.0 Universal by the MakeHuman project (http://www.makehumancommunity.org).
-Changes: morphed into 3 builds, head removed, rescaled, skin weights computed for this game's skeleton.
+Body mesh: "Male body" (https://sketchfab.com/3d-models/male-body-5c818a5be6c84f898826d989f02932b0)
+by Chin Eeyang (https://sketchfab.com/chinyang1607), licensed under CC BY 4.0
+(http://creativecommons.org/licenses/by/4.0/).
+Changes: decimated (1.37 M -> 34 k triangles), head removed, scaled and aligned to this game's skeleton,
+pelvis smoothed under the swimsuit, 4 builds (lean / athletic / power / massive), skin weights,
+suit mask and cavity occlusion computed (tools/assets/sculpt).
+Previous body (still used as a fallback by the tools): MakeHuman base mesh hm08, CC0 1.0.

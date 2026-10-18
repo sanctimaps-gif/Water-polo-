@@ -193,7 +193,7 @@ export const UI = {
     'ed.logo_note': 'Logo 100 % original créé dans le jeu. N’importe et ne reproduit aucun logo officiel.', 'ed.gk_note': 'Gardien : bonnet rouge (règlement).',
     'opt.plain': 'UNI', 'opt.halves': 'MOITIÉS', 'opt.stripe': 'BANDE', 'opt.sash': 'ÉCHARPE', 'opt.chevron': 'CHEVRON', 'opt.none': 'AUCUN', 'opt.ring': 'ANNEAU', 'opt.single': 'SIMPLE', 'opt.double': 'DOUBLE',
     'ball.classic': 'CLASSIQUE', 'ball.ocean': 'OCÉAN', 'ball.sunset': 'COUCHANT', 'ball.lime': 'LIME', 'ui.away_pool': 'Piscine adverse',
-    'ui.credits': 'Crédits 3D : visage scanné « Lee Perry-Smith » par Infinite-Realities (CC BY 3.0) ; corps dérivé du maillage MakeHuman (CC0).',
+    'ui.credits': 'Crédits 3D : visage scanné « Lee Perry-Smith » par Infinite-Realities (CC BY 3.0) ; corps « Male body » par Chin Eeyang (CC BY 4.0) ; maillage MakeHuman (CC0).',
     'set.match': 'MATCH', 'set.controls': 'CONTRÔLES', 'set.audio': 'AUDIO', 'set.graphics': 'GRAPHISMES', 'set.other': 'AUTRES',
     'ui.trade': 'ÉCHANGER', 'ui.trade_hint': 'Touchez des remplaçants pour les échanger contre des points d’entraînement. Les titulaires et un effectif de 9 joueurs sont conservés.',
     'ui.trade_none': 'Aucun joueur échangeable (titulaires ou effectif minimum).', 'ui.trade_value': 'VOUS RAPPORTERA', 'ui.trade_confirm': 'Échanger {0} joueur(s) ? Ils quittent définitivement le club.',
@@ -439,7 +439,7 @@ export const UI = {
     'ed.logo_note': '100% original logo made in the game. Never imports or copies an official logo.', 'ed.gk_note': 'Goalkeeper: red cap (rules).',
     'opt.plain': 'PLAIN', 'opt.halves': 'HALVES', 'opt.stripe': 'STRIPE', 'opt.sash': 'SASH', 'opt.chevron': 'CHEVRON', 'opt.none': 'NONE', 'opt.ring': 'RING', 'opt.single': 'SINGLE', 'opt.double': 'DOUBLE',
     'ball.classic': 'CLASSIC', 'ball.ocean': 'OCEAN', 'ball.sunset': 'SUNSET', 'ball.lime': 'LIME', 'ui.away_pool': 'Away pool',
-    'ui.credits': '3D credits: head scan "Lee Perry-Smith" by Infinite-Realities (CC BY 3.0); body derived from the MakeHuman mesh (CC0).',
+    'ui.credits': '3D credits: head scan \"Lee Perry-Smith\" by Infinite-Realities (CC BY 3.0); body \"Male body\" by Chin Eeyang (CC BY 4.0); MakeHuman mesh (CC0).',
     'set.match': 'MATCH', 'set.controls': 'CONTROLS', 'set.audio': 'AUDIO', 'set.graphics': 'GRAPHICS', 'set.other': 'OTHER',
     'ui.trade': 'TRADE', 'ui.trade_hint': 'Tap reserve players to trade them for training points. Starters and a squad of 9 are kept.',
     'ui.trade_none': 'No tradable player (starters or minimum squad).', 'ui.trade_value': 'YOU WILL GET', 'ui.trade_confirm': 'Trade {0} player(s)? They leave the club for good.',
@@ -494,6 +494,7 @@ export const UI = {
     'tdesc.CENTER': 'Feeds the centre-forward at 2 m.', 'tdesc.COUNTER': 'Lightning counters after every turnover.',
   },
   es: {
+    'ui.credits': 'Créditos 3D: rostro escaneado «Lee Perry-Smith» de Infinite-Realities (CC BY 3.0); cuerpo «Male body» de Chin Eeyang (CC BY 4.0); malla MakeHuman (CC0).',
     'shop.cel_fist': 'Celebración Puño',
     "ld.title": "CARRERAS",
     "ld.how": "4 partidas: elige una carrera o crea una",
@@ -613,6 +614,7 @@ export const UI = {
     "pack.rule": "Derrota = Bronce · Empate = Plata · Victoria = Oro · Victoria por 3+ goles = Élite (partido de torneo / playoff ganado: +1 nivel)",
   },
   de: {
+    'ui.credits': '3D-Credits: Kopfscan „Lee Perry-Smith“ von Infinite-Realities (CC BY 3.0); Körper „Male body“ von Chin Eeyang (CC BY 4.0); MakeHuman-Mesh (CC0).',
     'shop.cel_fist': 'Jubel mit Faust',
     "ld.title": "KARRIEREN",
     "ld.how": "4 Spielstände: wähle eine Karriere oder erstelle eine",
@@ -732,6 +734,7 @@ export const UI = {
     "pack.rule": "Niederlage = Bronze · Remis = Silber · Sieg = Gold · Sieg mit 3+ Toren = Elite (gewonnenes Turnier-/Playoff-Spiel: +1 Stufe)",
   },
   it: {
+    'ui.credits': 'Crediti 3D: volto scansionato «Lee Perry-Smith» di Infinite-Realities (CC BY 3.0); corpo «Male body» di Chin Eeyang (CC BY 4.0); mesh MakeHuman (CC0).',
     'shop.cel_fist': 'Esultanza Pugno',
     "ld.title": "CARRIERE",
     "ld.how": "4 salvataggi: scegli una carriera o creane una",
@@ -851,6 +854,7 @@ export const UI = {
     "pack.rule": "Sconfitta = Bronzo · Pareggio = Argento · Vittoria = Oro · Vittoria con 3+ gol = Élite (partita di torneo / playoff vinta: +1 livello)",
   },
   pt: {
+    'ui.credits': 'Créditos 3D: rosto digitalizado «Lee Perry-Smith» de Infinite-Realities (CC BY 3.0); corpo «Male body» de Chin Eeyang (CC BY 4.0); malha MakeHuman (CC0).',
     'shop.cel_fist': 'Comemoração Punho',
     "ld.title": "CARREIRAS",
     "ld.how": "4 gravações: escolhe uma carreira ou cria uma",

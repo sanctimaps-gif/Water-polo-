@@ -14,3 +14,11 @@ node tools/assets/prep_body.mjs   # -> web/assets/body/body.json + body.bin (3 b
 
 Textures (`web/assets/head/skin_*.jpg`) are the scan maps: colour (lip redness reduced), tangent normal map,
 roughness derived from the specular map (512 px).
+
+## Sculpted body (current)
+
+`tools/assets/sculpt/` builds `web/assets/body/body.{json,bin}` from the sculpted model "Male body" by Chin Eeyang
+(Sketchfab, CC BY 4.0; credit in the game's settings and in `web/assets/body/LICENSE.txt`), supplied by the
+project owner. Put `scene.gltf` + `scene.bin` in `tools/assets/src/male_body/` and the previous MakeHuman build
+(`body_mh.json` / `body_mh.bin`, output of `prep_body.mjs`) next to the scripts, then run in order:
+`python3 dec.py` (decimate) → `align.py` → `joints.py` → `brief.py` (smooth pelvis under the suit) → `build.py`.

@@ -221,8 +221,10 @@ export async function loadScanBody(base = 'web/assets/body/') {
   for (let v = 0; v < hdr.variants.length; v++) {
     const a = new Float32Array(buf.slice(o, o + nv * 12)); o += nv * 12;
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(a, 3)); g.setIndex(index); g.computeVertexNormals();
-    muscleVolume(a, g.attributes.normal.array, hdr.joints[hdr.variants[v]] || hdr.joints.athletic);   // water polo athlete: pecs, delts, lats, traps, arms, thighs
-    g.computeVertexNormals();
+    if (!hdr.sculpt) {   // smooth MakeHuman body: add the water polo musculature (the sculpted body already has it)
+      muscleVolume(a, g.attributes.normal.array, hdr.joints[hdr.variants[v]] || hdr.joints.athletic);   // pecs, delts, lats, traps, arms, thighs
+      g.computeVertexNormals();
+    }
     pos.push(g.attributes.position); nor.push(g.attributes.normal);
   }
   const b4 = new Uint8Array(buf, o, nv * 4); o += nv * 4;
@@ -265,6 +267,7 @@ function scanHeadGeometry(P, skin, hair) {
   // Skin tone: per-channel ratio to the scan's tone, partly replaced by a luminance ratio so the lips
   // and cheeks keep natural hues on every skin tone.
   const tint = scanTint(skin), hairT = new THREE.Color(hair.r / SCAN_REF.r, hair.g / SCAN_REF.g, hair.b / SCAN_REF.b).multiplyScalar(0.8), c = new THREE.Color();
+  const Yo = new Float32Array(n); for (let i = 0; i < n; i++) Yo[i] = (pos[i * 3 + 1] + 0.03) / s - 0.5;
   for (let i = 0; i < n; i++) {
     // scan units (y up, z forward): eyes ~ 1.6, nose tip (0, 1.1, 2.6), mouth ~ 0.35, chin ~ -0.45
     // Eye openings (the scan has closed lids): almond-shaped area of each eye, found in texture space,
@@ -301,7 +304,9 @@ function scanHeadGeometry(P, skin, hair) {
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.BufferAttribute(HEAD.uv, 2));
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.setIndex(new THREE.BufferAttribute(HEAD.idx, 1));
+  // the scan's ragged crop under the neck is dropped: the body's neck covers this height
+  const keep = []; for (let t = 0; t < HEAD.idx.length; t += 3) { const a = HEAD.idx[t], b = HEAD.idx[t + 1], c3 = HEAD.idx[t + 2]; if (Math.max(Yo[a], Yo[b], Yo[c3]) > -0.75) keep.push(a, b, c3); }
+  g.setIndex(new THREE.BufferAttribute(new Uint16Array(keep), 1));
   // eye centres (head space): middle of each opening, on the lid surface
   g.userData.eyes = eyeAcc.map((L) => { const m = [0, 0, 0]; for (const p of L) { m[0] += p[0] / L.length; m[1] += p[1] / L.length; m[2] = Math.max(m[2], p[2]); } return toHead(m[0], m[1], m[2]); });
   return weldNormals(g);
@@ -445,12 +450,28 @@ function buildCap(headGeo, o) {
     if (it < 0 || it > NT) continue;
     const k = it * NA + ia; if (r > raw[k]) raw[k] = r;
   }
+  // Sparse buckets (few scan vertices, crop edge on top): take the largest radius of the neighbouring buckets
+  // too, so the fabric never dips under the skin between grid points (no skin showing through the cap).
+  for (let pass = 0; pass < 1; pass++) {
+    const Q = raw.slice();
+    for (let it = 0; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
+      const k = it * NA + ia; let m = Q[k];
+      for (const [di, da] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { const j = it + di; if (j < 0 || j > NT) continue; m = Math.max(m, Q[j * NA + (ia + da + NA) % NA]); }
+      raw[k] = m;
+    }
+  }
   const E = o.ell, R = new Float32Array(raw.length);
   for (let it = 0; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
     const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2;
     const dx = Math.sin(t) * Math.sin(a), dy = Math.cos(t), dz = Math.sin(t) * Math.cos(a);
     const re = 1 / Math.sqrt((dx / E[0]) ** 2 + (dy / E[1]) ** 2 + (dz / E[2]) ** 2);
     const k = it * NA + ia; R[k] = raw[k] > 0 ? raw[k] : re;
+  }
+  // Empty buckets (top of the cropped scan): never below the highest head radius of the rows around them,
+  // or the crown pokes through the fabric.
+  for (let it = 0; it <= NT; it++) {
+    let m = 0; for (let j = Math.max(0, it - 3); j <= Math.min(NT, it + 3); j++) for (let ia = 0; ia < NA; ia++) m = Math.max(m, raw[j * NA + ia]);
+    for (let ia = 0; ia < NA; ia++) { const k = it * NA + ia; if (!(raw[k] > 0)) R[k] = Math.max(R[k], m); }
   }
   const minR = R.slice();
   for (let pass = 0; pass < 6; pass++) {   // fabric: smooth over the bumps (ears, hair line), never inside the head
@@ -461,7 +482,7 @@ function buildCap(headGeo, o) {
     }
   }
   // cap outline: straight across the forehead, down in front of the ears to the jaw, around the nape
-  const edgeY = (a) => { const A = Math.abs(a); return A < 0.5 ? 0.163 : A < 1.3 ? 0.163 - 0.145 * sstep(0.5, 1.3, A) : 0.018 + 0.012 * sstep(2.2, Math.PI, A); };
+  const edgeY = (a) => { const A = Math.abs(a); return A < 0.5 ? 0.125 : A < 1.3 ? 0.125 - 0.107 * sstep(0.5, 1.3, A) : 0.018 + 0.012 * sstep(2.2, Math.PI, A); };   // front edge ~2 cm above the eyebrows
   const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color();
   const pt = (it, ia, extra = 0) => {
     const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2, r = R[it * NA + ia] + o.thick + extra;
@@ -471,9 +492,11 @@ function buildCap(headGeo, o) {
     const a = (ia / NA) * Math.PI * 2, aa = a > Math.PI ? a - 2 * Math.PI : a, p0 = pt(it, ia), m = p0[1] - edgeY(aa);
     let v = p0;
     if (m < 0) {
-      // first row below the outline: snap it onto the outline (smooth edge instead of a staircase)
+      // rows below the outline collapse onto the outline point of their column: every quad of the grid exists
+      // (degenerate below the edge), so the edge follows the outline smoothly instead of a staircase
       if (it === 0) continue;
-      const pp = pt(it - 1, ia), mp = pp[1] - edgeY(aa); if (mp < 0) continue;
+      const pp = pt(it - 1, ia), mp = pp[1] - edgeY(aa);
+      if (mp < 0) { const g0 = grid[(it - 1) * NA + ia]; if (g0 >= 0) grid[it * NA + ia] = g0; continue; }
       const f = mp / (mp - m);
       v = [pp[0] + (p0[0] - pp[0]) * f, pp[1] + (p0[1] - pp[1]) * f, pp[2] + (p0[2] - pp[2]) * f];
     }
@@ -767,7 +790,10 @@ export class Athlete {
       this.head.add(num);
       if (rich) {   // HIGH / ULTRA: number on the suit (left hip), same texture
         const sn = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), num.material);
-        if (mhb) { sn.position.set(-0.1, -0.415, 0.098); sn.rotation.set(-0.15, -0.5, 0); } else { sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); }
+        const DC = mhb && BODY.decals;   // anchors measured on the body mesh (sculpted body)
+        const orient = (m, d) => { m.position.fromArray(d.p); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...d.n).normalize()); };
+        if (DC) orient(sn, DC.number);
+        else if (mhb) { sn.position.set(-0.1, -0.415, 0.098); sn.rotation.set(-0.15, -0.5, 0); } else { sn.position.set(-0.115 * sw * waist, -0.55, 0.13 * bulk * waist); sn.rotation.set(0, -0.55, 0); }
         this.torso.add(sn);   // suit number: on the pelvis
         // Team identity on the kit (reference sheet of a national team player): flag patch on both sides of the
         // cap, flag-coloured stripes on the sides of the swimsuit, team name + flag on the back of the suit.
@@ -782,11 +808,17 @@ export class Athlete {
         this.head.add(new THREE.Mesh(concatPlanes(fGeos), flagMat));
         if (mhb) {
           const stripeMat = new THREE.MeshBasicMaterial({ map: bandsTexture(bands, 24, 64, true), ...deco, side: THREE.DoubleSide });
-          for (const sx of [1, -1]) { const st = new THREE.Mesh(new THREE.PlaneGeometry(0.024, 0.075), stripeMat); st.position.set(sx * 0.186, -0.415, 0.11); st.rotation.set(0, sx * Math.PI / 2, sx * 0.08); this.torso.add(st); }
+          for (const sx of [1, -1]) {
+            const st = new THREE.Mesh(new THREE.PlaneGeometry(0.024, 0.075), stripeMat);
+            if (DC) { const d = DC.stripe; orient(st, { p: [sx * d.p[0], d.p[1], d.p[2]], n: [sx * d.n[0], d.n[1], d.n[2]] }); }
+            else { st.position.set(sx * 0.186, -0.415, 0.11); st.rotation.set(0, sx * Math.PI / 2, sx * 0.08); }
+            this.torso.add(st);
+          }
           if (o.backText) {   // curved badge following the back of the suit
-            const L = 1.25, bk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 12, 1, true, Math.PI - L / 2, L),
+            const br = DC ? DC.back.r : 0.1, L = 0.125 / br, bk = new THREE.Mesh(new THREE.CylinderGeometry(br, br, 0.05, 12, 1, true, Math.PI - L / 2, L),
               new THREE.MeshBasicMaterial({ map: backTexture(o.backText, bands, team.getHSL({}).l > 0.6 ? '#173a8c' : '#ffffff'), ...deco }));
-            bk.position.set(0, -0.392, 0.056); this.torso.add(bk);
+            if (DC) bk.position.set(0, DC.back.y, DC.back.z); else bk.position.set(0, -0.392, 0.056);
+            this.torso.add(bk);
           }
         }
       }

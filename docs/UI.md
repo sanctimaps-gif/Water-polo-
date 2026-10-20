@@ -172,3 +172,11 @@ appareil » et le bouton en haut à gauche de chaque menu (retour à l'accueil).
   logos de sponsors effacés), assombrie.
 * Reflets 3D (peau mouillée, bonnets, ballon, métal) : panorama 360° de piscine du propriétaire
   (`web/assets/env/pool_pano.webp`), teinté selon l'ambiance (plus sombre en soirée / nuit).
+
+## Rendu de la peau et des yeux (HAUT / ULTRA)
+* Peau : éclairage « translucide » (wrap lighting par canal, plus large dans le rouge), d'après
+  « Approximating Translucency for a Fast, Cheap and Convincing Subsurface Scattering Look » (référence citée
+  par le SSSLightingModel de three.js). Code original, aucun fichier externe.
+* Yeux : globe convexe texturé (iris peint par le jeu : fibres, collerette, anneau limbique, pupille) et
+  vernis « cornée » net, selon les recommandations courantes du rendu temps réel des yeux.
+* Cou : le cou du visage scanné rentre dans celui du corps, qui remonte sous la mâchoire (plus de dents de scie).

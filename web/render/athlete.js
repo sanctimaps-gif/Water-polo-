@@ -44,6 +44,16 @@ export function mergeParts(parts) {
 
 // ---------------------------------------------------------------- shared material
 const SHARED = new Map();
+// Skin translucency (wrap lighting, after "Approximating Translucency for a Fast, Cheap and Convincing Subsurface
+// Scattering Look", the basis of three.js' SSSLightingModel): direct light wraps past the terminator, more in red
+// than in green / blue, like light scattered under real skin. gSkin (0..1) masks it to skin pixels.
+const SKIN_PHYS = THREE.ShaderChunk.lights_physical_pars_fragment.replace(
+  'reflectedLight.directDiffuse += irradiance * BRDF_Lambert( material.diffuseColor );\n}',
+  `vec3 wrapW = vec3( 0.42, 0.16, 0.10 ) * gSkin;
+  vec3 wrapI = clamp( ( vec3( dot( geometryNormal, directLight.direction ) ) + wrapW ) / ( 1.0 + wrapW ), 0.0, 1.0 ) * directLight.color;
+  reflectedLight.directDiffuse += wrapI * BRDF_Lambert( material.diffuseColor );
+}`);
+const skinPatch = (fs) => fs.replace('#include <common>', '#include <common>\nfloat gSkin = 1.0;').replace('#include <lights_physical_pars_fragment>', SKIN_PHYS);
 function athleteMaterial(waterTint, rich) {
   const key = rich ? 'rich' : 'std';
   if (SHARED.has(key)) return SHARED.get(key);
@@ -89,7 +99,7 @@ function athleteMaterial(waterTint, rich) {
           vec3 vGrad = sign(fDet) * (dHdxy.x * R1 + dHdxy.y * R2); return normalize(abs(fDet) * surf_norm - vGrad); }`)
       // Skin detail on the bind pose (it does not swim with the animation): pores, fine relief and
       // water droplets (raised, glossy), only on skin (the cap and the suit have other roughness values).
-      .replace('#include <roughnessmap_fragment>', `float skinK = 1.0 - step(0.345, vRough);
+      .replace('#include <roughnessmap_fragment>', `float skinK = 1.0 - step(0.345, vRough); gSkin = skinK;
         // fade each detail layer out when it gets smaller than a pixel (no shimmer at match distance)
         float px = length(fwidth(vBind));
         float aP = 1.0 - smoothstep(0.15, 0.5, px * 300.0), aD = 1.0 - smoothstep(0.2, 0.6, px * 60.0);
@@ -105,6 +115,7 @@ function athleteMaterial(waterTint, rich) {
         gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);   // rim light: detaches the athlete from the background
         if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85) * uUwK; gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
   };
+  const obc = m.onBeforeCompile; m.onBeforeCompile = (sh) => { obc(sh); sh.fragmentShader = rich ? skinPatch(sh.fragmentShader) : sh.fragmentShader.replace('#include <common>', '#include <common>\nfloat gSkin = 1.0;'); };
   m.customProgramCacheKey = () => 'athlete-' + key;
   SHARED.set(key, m);
   return m;
@@ -256,6 +267,7 @@ function headMaterial(waterTint, rich) {
         gl_FragColor.rgb += uRim * fr * (vUwY > 0.0 ? 1.0 : 0.25);
         if (vUwY < 0.0) { float k = clamp(0.3 - vUwY * 0.5, 0.0, 0.85) * uUwK; gl_FragColor.rgb = mix(gl_FragColor.rgb, uUwTint, k); }`);
   };
+  const obh = m.onBeforeCompile; m.onBeforeCompile = (sh) => { obh(sh); if (rich) sh.fragmentShader = skinPatch(sh.fragmentShader); };
   m.customProgramCacheKey = () => 'scanhead-' + key;
   HEAD.mats.set(key, m);
   return m;
@@ -267,7 +279,8 @@ function scanHeadGeometry(P, skin, hair) {
   // Skin tone: per-channel ratio to the scan's tone, partly replaced by a luminance ratio so the lips
   // and cheeks keep natural hues on every skin tone.
   const tint = scanTint(skin), hairT = new THREE.Color(hair.r / SCAN_REF.r, hair.g / SCAN_REF.g, hair.b / SCAN_REF.b).multiplyScalar(0.8), c = new THREE.Color();
-  const Yo = new Float32Array(n); for (let i = 0; i < n; i++) Yo[i] = (pos[i * 3 + 1] + 0.03) / s - 0.5;
+  const Yo = new Float32Array(n); let nz = 0, nc = 0; for (let i = 0; i < n; i++) { Yo[i] = (pos[i * 3 + 1] + 0.03) / s - 0.5; if (Yo[i] < -0.6 && Yo[i] > -1.0) { nz += pos[i * 3 + 2] / s + 0.25; nc++; } }
+  nz /= Math.max(1, nc);   // neck axis (scan units)
   for (let i = 0; i < n; i++) {
     // scan units (y up, z forward): eyes ~ 1.6, nose tip (0, 1.1, 2.6), mouth ~ 0.35, chin ~ -0.45
     // Eye openings (the scan has closed lids): almond-shaped area of each eye, found in texture space,
@@ -286,6 +299,8 @@ function scanHeadGeometry(P, skin, hair) {
     // cheeks under them, firm jaw line
     Z += f * (0.07 * gs(Y - 1.98, 0.2) * gs(X, 1.15) + 0.05 * gs(Y - 1.3, 0.22) * gs(ax - 1.15, 0.3) - 0.07 * gs(Y - 0.5, 0.32) * gs(ax - 1.05, 0.28));
     X += Math.sign(X) * f * 0.05 * gs(Y + 0.15, 0.3) * sstep(0.6, 1.1, ax);
+    // the scan's neck below the jaw slips inside the body's neck: its ragged crop never shows
+    { const k = 1 - 0.2 * sstep(-0.5, -0.9, Y); X *= k; Z = nz + (Z - nz) * k; }
     if (aw > 0.5) eyeAcc[X < 0 ? 0 : 1].push([X, Y, Z]);
     Z -= aw * 0.22;
     // back to head space, pitched forward a little (the scan looks slightly up)
@@ -606,6 +621,34 @@ function backTexture(text, b, fg) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+// ---------------------------------------------------------------- eyes
+// Iris texture painted on a canvas (front view of the eye): fibres radiating from the pupil, darker collarette
+// and limbal ring, sclera with soft corners; shared per iris colour.
+const EYE_MATS = new Map();
+function eyeMaterial(hex) {
+  if (EYE_MATS.has(hex)) return EYE_MATS.get(hex);
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), m = S / 2, col = C(hex);
+  col.multiplyScalar(0.36 / Math.max(0.05, col.r, col.g, col.b));   // texture colour in sRGB: bright enough for the fibres to read
+  const rgb = (k, a = 1) => `rgba(${Math.round(Math.min(255, col.r * 255 * k))},${Math.round(Math.min(255, col.g * 255 * k))},${Math.round(Math.min(255, col.b * 255 * k))},${a})`;
+  const scl = g.createRadialGradient(m, m, S * 0.2, m, m, S * 0.5); scl.addColorStop(0, '#e9e3da'); scl.addColorStop(0.7, '#d8cdbf'); scl.addColorStop(1, '#b89c8c');
+  g.fillStyle = scl; g.fillRect(0, 0, S, S);
+  g.strokeStyle = 'rgba(170,60,50,0.18)'; g.lineWidth = 1;   // a few fine vessels toward the corners
+  for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + 0.3; g.beginPath(); g.moveTo(m + Math.cos(a) * S * 0.48, m + Math.sin(a) * S * 0.48); g.quadraticCurveTo(m + Math.cos(a + 0.2) * S * 0.38, m + Math.sin(a + 0.2) * S * 0.38, m + Math.cos(a) * S * 0.3, m + Math.sin(a) * S * 0.3); g.stroke(); }
+  const RI = S * 0.26, RP = S * 0.08;
+  const ig = g.createRadialGradient(m, m, RP, m, m, RI); ig.addColorStop(0, rgb(0.55)); ig.addColorStop(0.35, rgb(1.25)); ig.addColorStop(0.8, rgb(0.95)); ig.addColorStop(1, rgb(0.35));
+  g.fillStyle = ig; g.beginPath(); g.arc(m, m, RI, 0, Math.PI * 2); g.fill();
+  for (let k = 0; k < 140; k++) {   // radial fibres (crypts)
+    const a = (k / 140) * Math.PI * 2 + Math.sin(k * 12.9898) * 0.03, l = 0.55 + 0.45 * Math.abs(Math.sin(k * 78.233));
+    g.strokeStyle = k % 3 ? rgb(1.5, 0.22) : rgb(0.4, 0.3); g.lineWidth = k % 3 ? 1 : 1.5;
+    g.beginPath(); g.moveTo(m + Math.cos(a) * RP * 1.1, m + Math.sin(a) * RP * 1.1); g.lineTo(m + Math.cos(a) * (RP + (RI - RP) * l), m + Math.sin(a) * (RP + (RI - RP) * l)); g.stroke();
+  }
+  g.strokeStyle = rgb(0.25, 0.9); g.lineWidth = S * 0.018; g.beginPath(); g.arc(m, m, RI - S * 0.009, 0, Math.PI * 2); g.stroke();   // limbal ring
+  g.fillStyle = '#050403'; g.beginPath(); g.arc(m, m, RP, 0, Math.PI * 2); g.fill();   // pupil
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  const mat = new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.35, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.1 });
+  EYE_MATS.set(hex, mat); return mat;
+}
+
 // ---------------------------------------------------------------- athlete
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), IDQ = new THREE.Quaternion();
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
@@ -722,13 +765,16 @@ export class Athlete {
     const scanGeo = scan ? scanHeadGeometry(FP, skin, hair) : null;
     const headParts = scan ? [] : [{ geo: sculpt.geo, colors: sculpt.colors, color: skin, rough: S }];
     if (scanGeo) {
+      var eyeMeshes = [];
       const ir = r(), iris = C(ir < 0.2 ? 0x3d6b8f : ir < 0.35 ? 0x56603a : ir < 0.6 ? 0x4a3020 : 0x2e1c10);
       for (const [ex, ey, ez] of scanGeo.userData.eyes) {
-        const wc = ez - 0.0145, R = 0.0118;   // eyeball centre set back behind the lids (deep-set eyes), iris and pupil on its front
-        const ball = new THREE.SphereGeometry(R, 14, 10);   // sclera: off-white, shaded under the upper lid and toward the corners
-        headParts.push({ geo: ball, colors: paint(ball, (v, c) => c.set(0xcdc3b4).multiplyScalar(1 - 0.5 * sstep(0.0, R * 0.8, v.y) - 0.25 * sstep(R * 0.4, R, Math.abs(v.x)))), color: C(0xcdc3b4), rough: 0.08, pos: V3(ex, ey, wc) });
-        headParts.push({ geo: new THREE.SphereGeometry(0.0071, 12, 8), color: iris, rough: 0.05, pos: V3(ex, ey - 0.0008, wc + R * 0.9), scale: V3(1, 1, 0.45) });
-        headParts.push({ geo: new THREE.SphereGeometry(0.0031, 8, 6), color: C(0x030303), rough: 0.02, pos: V3(ex, ey - 0.0008, wc + R * 0.97), scale: V3(1, 1, 0.4) });
+        const wc = ez - 0.0158, R = 0.0118;   // eyeball centre set back behind the lids (deep-set eyes), iris and pupil on its front
+        // Eyeball (real-time eye references: convex ball, iris painted in the texture, a clean clear-coat cornea
+        // highlight on top): textured sphere, front-projected UVs, iris slightly below the centre (relaxed gaze).
+        const eg = new THREE.SphereGeometry(R, 24, 16), ep = eg.attributes.position, eu = eg.attributes.uv;
+        for (let i = 0; i < ep.count; i++) eu.setXY(i, 0.5 + ep.getX(i) / (2 * R), 0.5 + (ep.getY(i) + 0.0008) / (2 * R));
+        const eye = new THREE.Mesh(eg, eyeMaterial(iris.getHex()));
+        eye.position.set(ex, ey, wc); eyeMeshes.push(eye);
         // upper lid over the top of the iris (relaxed, focused look like the reference, not a wide stare)
         headParts.push({ geo: new THREE.SphereGeometry(R * 1.1, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.34), color: bodySkin.clone().multiplyScalar(0.7), rough: S, pos: V3(ex, ey, wc + 0.0015), quat: Q(0.55, 0, 0) });
       }
@@ -772,6 +818,7 @@ export class Athlete {
       if (face) for (const x of [-0.035, 0, 0.035]) headParts.push({ geo: new THREE.SphereGeometry(0.011, 6, 5), color: wetHair, rough: HR, pos: V3(x, 0.163, surfaceZ(sculpt.geo, x, 0.163) - 0.004) });
     }
     mesh(headParts, this.head);
+    if (typeof eyeMeshes !== 'undefined') for (const e of eyeMeshes) this.head.add(e);   // textured eyeballs ride on the head bone
     // Long hair: wet locks coming out under the cap, on their own bone with a spring (secondary motion).
     this.hair = null;
     if (hairStyle === 'long') {

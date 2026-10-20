@@ -18,7 +18,7 @@ def zc(X,y): m=(np.abs(X[:,1]-y)<0.01)&(np.abs(X[:,0])<0.07); return (X[m,2].min
 dz=zc(MH,0.19)-zc(V,0.19); V[:,2]+=dz; print('dz',dz)
 # cut the neck at MH's top (0.216): drop triangles fully above, clamp the rest
 top=MH[:,1].max()
-keep=~(V[F][:,:,1]>top+0.03).any(1); F=F[keep]
+keep=~(V[F][:,:,1]>top+0.015).any(1); F=F[keep]
 # neck tucked inside the scanned head's neck near the top (no shards under the chin)
 ss=lambda a,b,x: (lambda t: t*t*(3-2*t))(np.clip((x-a)/(b-a),0,1))
 zn=zc(V,0.19); k=1-0.0*ss(0.13,0.205,V[:,1])*(np.abs(V[:,0])<0.12)

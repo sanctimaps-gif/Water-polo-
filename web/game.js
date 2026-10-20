@@ -1123,7 +1123,7 @@ function frame(now) {
       if (new URLSearchParams(location.search).has('face')) {   // ?face: portrait close-up in front of the head (&a= yaw around it)
         const Q = new URLSearchParams(location.search), A = showcase[+focus], h = A.head.getWorldPosition(new THREE.Vector3()), q = A.head.getWorldQuaternion(new THREE.Quaternion());
         const fw = new THREE.Vector3(0, 0, 1).applyQuaternion(q).setY(0).normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), Q.has('a') ? +Q.get('a') : 0);
-        camera.position.copy(h).addScaledVector(fw, Q.has('d') ? +Q.get('d') : 0.55).add(new THREE.Vector3(0, 0.02, 0)); camera.lookAt(h.x, h.y + 0.02, h.z); setFov(30, fdt, 10);
+        camera.position.copy(h).addScaledVector(fw, Q.has('d') ? +Q.get('d') : 0.55).add(new THREE.Vector3(0, Q.has('h') ? +Q.get('h') : 0.02, 0)); camera.lookAt(h.x, h.y + 0.02, h.z); setFov(30, fdt, 10);
       } else if (new URLSearchParams(location.search).has('side')) { showcase.forEach((a, i) => { a.root.visible = i === +focus; }); camera.position.set(fx + 2.6, 0.55, 0.6); camera.lookAt(fx, 0.35, 0); setFov(40, fdt, 10); }   // ?side: profile view
       else {   // ?ly= look height, &d= distance, &a= fixed angle (debug close-ups: chest, back)
         const Q = new URLSearchParams(location.search), ly = Q.has('ly') ? +Q.get('ly') : 0.33 * fy, dd = Q.has('d') ? +Q.get('d') : 0.9, aa = Q.has('a') ? +Q.get('a') : fa;
@@ -1477,7 +1477,7 @@ function buildShowcase() {
   window.__showcase = () => showcase;
   showcase = states.map((st, i) => {
     const a = new Athlete({ teamColor: i % 2 ? 0xd8321e : 0x1e5bd8, capColor: st === 'gk' ? 0xd81a1f : i % 2 ? 0xf2f4f7 : 0x1e5bd8, trimColor: 0xffffff,
-      flagCode: i % 2 ? 'ITA' : 'FRA', backText: i % 2 ? 'ITALY' : 'FRANCE', number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });
+      flagCode: i % 2 ? 'ITA' : 'FRA', backText: i % 2 ? 'ITALY' : 'FRANCE', hairStyle: new URLSearchParams(location.search).get('hair') || undefined, number: i + 2, role: ['CENTER', 'WINGER', 'FINISHER', 'PLAYMAKER', 'GOALKEEPER', 'DEFENDER'][i], isGK: st === 'gk', seed: 11 + i * 17, preset });
     const x = (i - 2.5) * 0.85;
     a.showcaseState = (t) => {
       if (st === 'celebrate' && a.celebrateT <= 0) a.playCelebrate(new URLSearchParams(location.search).get('cel') || 'arms');

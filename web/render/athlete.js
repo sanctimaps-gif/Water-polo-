@@ -514,7 +514,7 @@ function buildCap(headGeo, o) {
   }
   // cap outline: straight across the forehead, down in front of the ears to the jaw, around the nape
   // rounded flap: the front edge curves down to the lowest point under the ear, then rises gently to the nape
-  const edgeY = (a) => { const A = Math.abs(a); return -0.004 + 0.124 * (1 - sstep(0.45, 1.5, A)) + 0.034 * sstep(1.85, 2.7, A) - 0.008 * Math.exp(-(((A - 1.6) / 0.3) ** 2)); };   // flaps down to the jaw angle   // front edge ~2 cm above the eyebrows
+  const edgeY = (a) => { const A = Math.abs(a); return -0.004 + 0.124 * (1 - sstep(0.45, 1.5, A)) + 0.05 * sstep(1.85, 2.7, A) - 0.008 * Math.exp(-(((A - 1.6) / 0.3) ** 2)); };   // flaps down to the jaw angle   // front edge ~2 cm above the eyebrows
   const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color(), edgePts = new Array(NA).fill(null);
   const pt = (it, ia, extra = 0) => {
     const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2, r = R[it * NA + ia] + o.thick + extra;
@@ -594,7 +594,50 @@ function buildCap(headGeo, o) {
       parts.push({ geo: new THREE.TorusGeometry(0.0065, 0.0018, 4, 10), color: o.trim, rough: 0.7, pos: knot.clone().add(new THREE.Vector3(sx * 0.008, 0.001, 0.002)), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, sx * 0.5, 0)) });
     }
   }
-  return { parts, surface };
+  // Wet hair showing under the cap (match photos): flattened on the skin below the binding at the nape and
+  // behind the ears, ending in uneven pointed strands; curly hair in small tight clumps. Built on the real head surface (+1.5 mm), in the head bone.
+  const hair = (style, color, rnd) => {
+    if (style === 'shaved') return [];
+    const BA = 0.06, BY = 0.004, map = new Map();   // head radius per (azimuth, height) cell
+    for (let i = 0; i < P.length; i += 3) {
+      const dx = P[i] - C0.x, dz = P[i + 2] - C0.z, k = Math.round(Math.atan2(dx, dz) / BA) + ':' + Math.round(P[i + 1] / BY), r = Math.hypot(dx, dz);
+      if (r > (map.get(k) || 0)) map.set(k, r);
+    }
+    const rAt = (a, y) => { for (let d = 0; d < 4; d++) for (const [da, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1]]) { const v = map.get((Math.round(a / BA) + da * d) + ':' + (Math.round(y / BY) + dy * d)); if (v) return v; } return 0.085; };
+    const at = (a, y, out) => { const r = rAt(a, y) + out; return [C0.x + Math.sin(a) * r, y, C0.z + Math.cos(a) * r]; };
+    const len = { short: 0.016, wavy: 0.026, long: 0.036, curly: 0.016 }[style] || 0.016;
+    const pos = [], col = [], idx = [], c = new THREE.Color(), dark = color.clone().multiplyScalar(0.6);
+    // strip along the outline: columns every ~0.05 rad over the back of the head and behind the ears
+    const strip = (a0, a1, L, tipVar) => {
+      const n = Math.max(3, Math.round(Math.abs(a1 - a0) / 0.05));
+      const base = pos.length / 3;
+      for (let j = 0; j <= n; j++) {
+        const a = a0 + (a1 - a0) * (j / n), y0 = edgeY(a) + 0.003, l = L * (0.55 + tipVar * rnd() + (j % 2 ? 0 : 0.25));
+        for (const [y, sh] of [[y0, 0], [y0 - l * 0.55, 0.2], [y0 - l, 1]]) {
+          const v = at(a, y, 0.0035 - 0.0015 * sh); pos.push(...v);
+          c.copy(color).lerp(dark, sh * 0.5 + 0.25 * rnd()); col.push(c.r, c.g, c.b);
+        }
+      }
+      for (let j = 0; j < n; j++) for (let q = 0; q < 2; q++) {
+        const A = base + j * 3 + q, B = A + 3, Cc = A + 1, D = B + 1;
+        idx.push(A, Cc, B, B, Cc, D);
+      }
+    };
+    if (style === 'curly') {   // tight clumps along the nape and behind the ears
+      const parts = [];
+      for (let k = 0; k < 22; k++) {
+        const s2 = k % 2 ? 1 : -1, a = s2 * (1.75 + (k >> 1) * 0.13), y = edgeY(a) - 0.003 - rnd() * 0.006;
+        if (Math.abs(a) > Math.PI) continue;
+        const v = at(a, y, 0.002);
+        parts.push({ geo: new THREE.IcosahedronGeometry(0.0065 + rnd() * 0.003, 1), color: color.clone().lerp(dark, rnd() * 0.5), rough: 0.6, pos: new THREE.Vector3(...v), scale: new THREE.Vector3(1, 0.8, 0.6) });
+      }
+      return parts;
+    }
+    strip(1.85, Math.PI, len, 0.6); strip(-Math.PI, -1.85, len, 0.6);   // nape, both halves
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+    return [{ geo: g, colors: new Float32Array(col), color, rough: 0.3 }];   // wet: glossy
+  };
+  return { parts, surface, hair };
 }
 
 /** z of the head surface (front) at (x, y), from the generated vertices: features sit ON the face. */
@@ -715,7 +758,7 @@ export class Athlete {
     const mat = athleteMaterial(o.waterTint || C(0x0b5d84), rich);
     const bulk = morph.bulk, sw = morph.shoulders, waist = morph.waist;
     // Appearance (all tied to the seed: a player always has the same face, hair and body).
-    const hairStyle = HAIR_STYLES[Math.floor(r() * HAIR_STYLES.length)];
+    const hairStyle = HAIR_STYLES[Math.floor(r() * HAIR_STYLES.length)], hairStyleQ = o.hairStyle;
     const facial = r(), wetHair = hair.clone().multiplyScalar(0.72);
     const bodyHair = r() < 0.35 ? 0.6 + r() * 0.4 : 0;   // like the reference team photo: some players have chest hair
     this.look = { hairStyle, body: morph.type, beard: facial < 0.3 ? 'beard' : facial < 0.42 ? 'moustache' : facial < 0.52 ? 'goatee' : facial < 0.75 ? 'stubble' : 'clean' };
@@ -840,10 +883,11 @@ export class Athlete {
     headParts.push(...CAPB.parts);
     // Hair (wet: darker, glossy). Shaved: nothing shows under the cap.
     const HR = 0.42;
-    if (hairStyle === 'short' || hairStyle === 'wavy') {
+    if (scan) headParts.push(...CAPB.hair(hairStyleQ || hairStyle, wetHair, r));   // hair laid on the scanned head under the cap
+    else if (hairStyle === 'short' || hairStyle === 'wavy') {
       headParts.push({ geo: new THREE.SphereGeometry(0.05, seg, seg), color: wetHair, rough: HR, pos: V3(0, 0.045, -0.072), scale: V3(1.4, hairStyle === 'wavy' ? 0.75 : 0.5, 0.6) });
       if (hairStyle === 'wavy') for (let k = 0; k < 5; k++) headParts.push({ geo: new THREE.SphereGeometry(0.016, 6, 5), color: wetHair, rough: HR, pos: V3((k - 2) * 0.025, 0.02 + Math.abs(k - 2) * 0.008, -0.08 + Math.abs(k - 2) * 0.006), scale: V3(1, 1.6, 0.7) });
-    } else if (hairStyle === 'curly') {
+    } else if (hairStyle === 'curly' && !scan) {
       for (let k = 0; k < 9; k++) { const a = (k / 8 - 0.5) * 2.2; headParts.push({ geo: new THREE.SphereGeometry(0.015, 6, 5), color: wetHair, rough: HR, pos: V3(Math.sin(a) * 0.085, 0.035 + (k % 2) * 0.012, -Math.cos(a) * 0.085) }); }
       if (face) for (const x of [-0.035, 0, 0.035]) headParts.push({ geo: new THREE.SphereGeometry(0.011, 6, 5), color: wetHair, rough: HR, pos: V3(x, 0.163, surfaceZ(sculpt.geo, x, 0.163) - 0.004) });
     }
@@ -851,9 +895,11 @@ export class Athlete {
     if (typeof eyeMeshes !== 'undefined') for (const e of eyeMeshes) this.head.add(e);   // textured eyeballs ride on the head bone
     // Long hair: wet locks coming out under the cap, on their own bone with a spring (secondary motion).
     this.hair = null;
-    if (hairStyle === 'long') {
+    if (hairStyle === 'long') {   // (scan: a shorter lock, starting just under the nape binding)
       this.hair = bone(this.head); this.hair.position.set(0, 0.035, -0.085);
+      if (scan) this.hair.position.copy(CAPB.surface(Math.PI, 0.04, -0.004).p);   // just under the binding at the nape
       const lock = sculptLathe([[0, -0.2], [0.02, -0.18], [0.035, -0.1], [0.045, -0.03], [0.04, 0.01], [0, 0.03]], 10, seg + 4, (v) => { v.x *= 1.6; v.z *= 0.45; v.z -= 0.03 * sstep(0, -0.2, v.y); });
+      if (scan) lock.scale(0.8, 0.6, 0.8);   // wet lock stuck to the neck, not a full ponytail
       mesh([{ geo: lock, color: wetHair, rough: HR }], this.hair);
     }
     this.hairA = 0; this.hairV = 0; this.hairZ = 0;

@@ -461,7 +461,7 @@ function paint(geo, fn) {
  */
 function buildCap(headGeo, o) {
   const C0 = new THREE.Vector3(0, 0.1, -0.005), NA = o.res * 2, NT = o.res;   // azimuth x polar grid
-  const T0 = 0.0, T1 = Math.PI * 0.74;
+  const T0 = 0.0, T1 = Math.PI * 0.86;   // deep enough for the flaps to reach the jaw
   // head radius per direction (bucketed vertices; the scanned head is cropped on top -> ellipsoid fallback)
   const P = headGeo.attributes.position.array, raw = new Float32Array((NA) * (NT + 1)).fill(0), d = new THREE.Vector3();
   for (let i = 0; i < P.length; i += 3) {
@@ -514,7 +514,7 @@ function buildCap(headGeo, o) {
   }
   // cap outline: straight across the forehead, down in front of the ears to the jaw, around the nape
   // rounded flap: the front edge curves down to the lowest point under the ear, then rises gently to the nape
-  const edgeY = (a) => { const A = Math.abs(a); return 0.022 + 0.098 * (1 - sstep(0.45, 1.55, A)) + 0.008 * sstep(1.75, 2.6, A) - 0.006 * Math.exp(-(((A - 1.65) / 0.25) ** 2)); };   // front edge ~2 cm above the eyebrows
+  const edgeY = (a) => { const A = Math.abs(a); return -0.004 + 0.124 * (1 - sstep(0.45, 1.5, A)) + 0.034 * sstep(1.85, 2.7, A) - 0.008 * Math.exp(-(((A - 1.6) / 0.3) ** 2)); };   // flaps down to the jaw angle   // front edge ~2 cm above the eyebrows
   const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color(), edgePts = new Array(NA).fill(null);
   const pt = (it, ia, extra = 0) => {
     const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2, r = R[it * NA + ia] + o.thick + extra;

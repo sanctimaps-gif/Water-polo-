@@ -628,14 +628,14 @@ const EYE_MATS = new Map();
 function eyeMaterial(hex) {
   if (EYE_MATS.has(hex)) return EYE_MATS.get(hex);
   const S = 256, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'), m = S / 2, col = C(hex);
-  col.multiplyScalar(0.36 / Math.max(0.05, col.r, col.g, col.b));   // texture colour in sRGB: bright enough for the fibres to read
+  col.multiplyScalar(0.48 / Math.max(0.05, col.r, col.g, col.b));   // texture colour in sRGB: bright enough for the fibres to read
   const rgb = (k, a = 1) => `rgba(${Math.round(Math.min(255, col.r * 255 * k))},${Math.round(Math.min(255, col.g * 255 * k))},${Math.round(Math.min(255, col.b * 255 * k))},${a})`;
-  const scl = g.createRadialGradient(m, m, S * 0.2, m, m, S * 0.5); scl.addColorStop(0, '#e9e3da'); scl.addColorStop(0.7, '#d8cdbf'); scl.addColorStop(1, '#b89c8c');
+  const scl = g.createRadialGradient(m, m, S * 0.2, m, m, S * 0.5); scl.addColorStop(0, '#f6f2ec'); scl.addColorStop(0.7, '#ebe3d8'); scl.addColorStop(1, '#cdb5a6');
   g.fillStyle = scl; g.fillRect(0, 0, S, S);
   g.strokeStyle = 'rgba(170,60,50,0.18)'; g.lineWidth = 1;   // a few fine vessels toward the corners
   for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2 + 0.3; g.beginPath(); g.moveTo(m + Math.cos(a) * S * 0.48, m + Math.sin(a) * S * 0.48); g.quadraticCurveTo(m + Math.cos(a + 0.2) * S * 0.38, m + Math.sin(a + 0.2) * S * 0.38, m + Math.cos(a) * S * 0.3, m + Math.sin(a) * S * 0.3); g.stroke(); }
   const RI = S * 0.26, RP = S * 0.08;
-  const ig = g.createRadialGradient(m, m, RP, m, m, RI); ig.addColorStop(0, rgb(0.55)); ig.addColorStop(0.35, rgb(1.25)); ig.addColorStop(0.8, rgb(0.95)); ig.addColorStop(1, rgb(0.35));
+  const ig = g.createRadialGradient(m, m, RP, m, m, RI); ig.addColorStop(0, rgb(0.8)); ig.addColorStop(0.35, rgb(1.45)); ig.addColorStop(0.8, rgb(1.1)); ig.addColorStop(1, rgb(0.5));
   g.fillStyle = ig; g.beginPath(); g.arc(m, m, RI, 0, Math.PI * 2); g.fill();
   for (let k = 0; k < 140; k++) {   // radial fibres (crypts)
     const a = (k / 140) * Math.PI * 2 + Math.sin(k * 12.9898) * 0.03, l = 0.55 + 0.45 * Math.abs(Math.sin(k * 78.233));
@@ -645,7 +645,7 @@ function eyeMaterial(hex) {
   g.strokeStyle = rgb(0.25, 0.9); g.lineWidth = S * 0.018; g.beginPath(); g.arc(m, m, RI - S * 0.009, 0, Math.PI * 2); g.stroke();   // limbal ring
   g.fillStyle = '#050403'; g.beginPath(); g.arc(m, m, RP, 0, Math.PI * 2); g.fill();   // pupil
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  const mat = new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.35, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.1 });
+  const mat = new THREE.MeshPhysicalMaterial({ map: t, roughness: 0.3, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.3, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0.12 });
   EYE_MATS.set(hex, mat); return mat;
 }
 
@@ -768,15 +768,15 @@ export class Athlete {
       var eyeMeshes = [];
       const ir = r(), iris = C(ir < 0.2 ? 0x3d6b8f : ir < 0.35 ? 0x56603a : ir < 0.6 ? 0x4a3020 : 0x2e1c10);
       for (const [ex, ey, ez] of scanGeo.userData.eyes) {
-        const wc = ez - 0.0158, R = 0.0118;   // eyeball centre set back behind the lids (deep-set eyes), iris and pupil on its front
+        const wc = ez - 0.0161, R = 0.0118;   // eyeball centre set back behind the lids (deep-set eyes), iris and pupil on its front
         // Eyeball (real-time eye references: convex ball, iris painted in the texture, a clean clear-coat cornea
         // highlight on top): textured sphere, front-projected UVs, iris slightly below the centre (relaxed gaze).
         const eg = new THREE.SphereGeometry(R, 24, 16), ep = eg.attributes.position, eu = eg.attributes.uv;
         for (let i = 0; i < ep.count; i++) eu.setXY(i, 0.5 + ep.getX(i) / (2 * R), 0.5 + (ep.getY(i) + 0.0008) / (2 * R));
         const eye = new THREE.Mesh(eg, eyeMaterial(iris.getHex()));
-        eye.position.set(ex, ey, wc); eyeMeshes.push(eye);
+        eye.position.set(ex, ey, wc); eye.scale.set(1, 1, 0.9); eyeMeshes.push(eye);   // slightly flattened front: sits in the socket instead of bulging
         // upper lid over the top of the iris (relaxed, focused look like the reference, not a wide stare)
-        headParts.push({ geo: new THREE.SphereGeometry(R * 1.1, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.34), color: bodySkin.clone().multiplyScalar(0.7), rough: S, pos: V3(ex, ey, wc + 0.0015), quat: Q(0.55, 0, 0) });
+        headParts.push({ geo: new THREE.SphereGeometry(R * 1.1, 14, 6, 0, Math.PI * 2, 0, Math.PI * 0.3), color: bodySkin.clone().multiplyScalar(0.7), rough: S, pos: V3(ex, ey, wc + 0.0015), quat: Q(0.55, 0, 0) });
       }
     }
     if (face && !scan) {

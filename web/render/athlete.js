@@ -108,7 +108,14 @@ function athleteMaterial(waterTint, rich) {
         float hSkin = (hPore * 0.5 + drop * 0.9) * skinK;
         float hMus = vMus > 0.5 ? muscleH(vBind, normalize(vBindN)) * skinK : 0.0;
         float roughnessFactor = clamp(vRough + hPore * 0.08 * skinK - drop * 0.22 * skinK, 0.04, 1.0);`)
+      .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
+        float fabK = step(0.5, vRough);   // cap fabric (roughness 0.55): soft sheen, not a varnish
+        #ifdef USE_CLEARCOAT
+        material.clearcoat *= 1.0 - 0.8 * fabK;
+        #endif`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        float weave = (sin(vBind.x * 4200.0) * sin(vBind.y * 4200.0) + sin(vBind.z * 4200.0) * 0.5) * step(0.5, vRough) * (1.0 - smoothstep(0.15, 0.4, length(fwidth(vBind)) * 1500.0));
+        hSkin += weave * 0.12;   // fine knit of the cap fabric, faded out before it can alias
         normal = bumpN(-vViewPosition, normal, vec2(dFdx(hSkin), dFdy(hSkin)) * 0.0011 + vec2(dFdx(hMus), dFdy(hMus)) * 1.6, faceDirection);`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         float fr = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.0);
@@ -470,7 +477,7 @@ function buildCap(headGeo, o) {
   for (let pass = 0; pass < 1; pass++) {
     const Q = raw.slice();
     for (let it = 0; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
-      const k = it * NA + ia; let m = Q[k];
+      const k = it * NA + ia; let m = Q[k]; if (T0 + (it / NT) * (T1 - T0) > 0.95) continue;   // top of the skull only
       for (const [di, da] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { const j = it + di; if (j < 0 || j > NT) continue; m = Math.max(m, Q[j * NA + (ia + da + NA) % NA]); }
       raw[k] = m;
     }
@@ -486,7 +493,7 @@ function buildCap(headGeo, o) {
   // or the crown pokes through the fabric.
   for (let it = 0; it <= NT; it++) {
     for (let ia = 0; ia < NA; ia++) {
-      const k = it * NA + ia; if (raw[k] > 0) continue;
+      const k = it * NA + ia; if (raw[k] > 0 || T0 + (it / NT) * (T1 - T0) > 0.95) continue;
       let m = 0; for (let j = Math.max(0, it - 3); j <= Math.min(NT, it + 3); j++) for (let d = -3; d <= 3; d++) m = Math.max(m, raw[j * NA + (ia + d + NA) % NA]);
       R[k] = m > 0 ? m : R[k];   // local head radius, ellipsoid only where the head has no vertex at all
     }
@@ -552,16 +559,28 @@ function buildCap(headGeo, o) {
     const q = new THREE.Quaternion().setFromUnitVectors(UP, n);
     parts.push({ geo: g, colors: gc, color: o.guard, rough: 0.35, pos: p.clone().addScaledVector(n, -0.03), quat: q, scale: new THREE.Vector3(0.95, 0.75, 1.2) });
   }
-  // strings: from the bottom of each flap, under the chin, bow and two loose ends
+  // strings: from the bottom of each flap along the jaw line to a bow under the chin, two short ends hanging
+  // down. Every point is taken on the real head surface (+2 mm), so the strings hug the face.
   if (o.strings) {
-    const knot = new THREE.Vector3(0, -0.035, 0.07);
+    const onHead = (a, y, out = 0.003) => {   // outermost head vertex at azimuth a (around C0), height y
+      let best = null, br = 0;
+      for (let i = 0; i < P.length; i += 3) {
+        if (Math.abs(P[i + 1] - y) > 0.007) continue;
+        const dx = P[i] - C0.x, dz = P[i + 2] - C0.z, aa = Math.atan2(dx, dz); let da = Math.abs(aa - a); if (da > Math.PI) da = 2 * Math.PI - da;
+        if (da > 0.18) continue; const r = Math.hypot(dx, dz); if (r > br) { br = r; best = [P[i], P[i + 1], P[i + 2]]; }
+      }
+      if (!best) best = [Math.sin(a) * 0.08, y, Math.cos(a) * 0.08 + C0.z];
+      const v = new THREE.Vector3(...best), n = new THREE.Vector3(v.x - C0.x, 0, v.z - C0.z).normalize(); return v.addScaledVector(n, out);
+    };
+    const knot = onHead(0, -0.046, 0.006);
     for (const sx of [-1, 1]) {
-      const { p } = surface(sx * 1.32, 0.03, 0.001);
-      const pts = [p, new THREE.Vector3(sx * 0.06, -0.01, 0.06), knot.clone().add(new THREE.Vector3(sx * 0.008, 0, 0))];
-      parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.0022, 4), color: o.trim, rough: 0.6 });
-      const end = [knot.clone(), new THREE.Vector3(sx * 0.012, -0.07, 0.075), new THREE.Vector3(sx * 0.02, -0.11, 0.07)];
-      parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(end), 8, 0.002, 4), color: o.trim, rough: 0.6 });
-      parts.push({ geo: new THREE.TorusGeometry(0.009, 0.0022, 4, 8), color: o.trim, rough: 0.6, pos: knot.clone().add(new THREE.Vector3(sx * 0.011, 0, 0.003)), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, sx * 0.4, 0)) });
+      const a0 = sx * (Math.PI * 0.5 + 0.06), y0 = edgeY(a0) + 0.004;
+      const { p } = surface(a0, y0, 0.001);
+      const pts = [p, onHead(sx * 1.25, -0.005), onHead(sx * 0.8, -0.03), onHead(sx * 0.35, -0.047, 0.005), knot.clone().add(new THREE.Vector3(sx * 0.006, 0, 0))];
+      parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.0019, 5), color: o.trim, rough: 0.7 });
+      const end = [knot.clone(), knot.clone().add(new THREE.Vector3(sx * 0.006, -0.025, 0.006)), knot.clone().add(new THREE.Vector3(sx * 0.009, -0.05, 0.002))];
+      parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(end), 8, 0.0017, 5), color: o.trim, rough: 0.7 });
+      parts.push({ geo: new THREE.TorusGeometry(0.0065, 0.0018, 4, 10), color: o.trim, rough: 0.7, pos: knot.clone().add(new THREE.Vector3(sx * 0.008, 0.001, 0.002)), quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, sx * 0.5, 0)) });
     }
   }
   return { parts, surface };

@@ -568,7 +568,7 @@ function buildCap(headGeo, o) {
       gc[i] = c.r; gc[i + 1] = c.g; gc[i + 2] = c.b;
     }
     const q = new THREE.Quaternion().setFromUnitVectors(UP, n);
-    parts.push({ geo: g, colors: gc, color: o.guard, rough: 0.35, pos: p.clone().addScaledVector(n, -0.03), quat: q, scale: new THREE.Vector3(0.95, 0.75, 1.2) });
+    parts.push({ geo: g, colors: gc, color: o.guard, rough: 0.35, pos: p.clone().addScaledVector(n, -0.026), quat: q, scale: new THREE.Vector3(0.8, 0.68, 1.0) });   // ~15 % smaller ear guard, still over the ear
   }
   // strings: from the bottom of each flap along the jaw line to a bow under the chin, two short ends hanging
   // down. Every point is taken on the real head surface (+2 mm), so the strings hug the face.

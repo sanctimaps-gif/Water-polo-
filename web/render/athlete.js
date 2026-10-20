@@ -498,6 +498,12 @@ function buildCap(headGeo, o) {
       R[k] = m > 0 ? m : R[k];   // local head radius, ellipsoid only where the head has no vertex at all
     }
   }
+  // Below the top of the skull an empty bucket (under the jaw, behind the ear lobe) takes the radius of the
+  // bucket just above it in its column: the flap never balloons out to the ellipsoid there.
+  for (let it = 1; it <= NT; it++) for (let ia = 0; ia < NA; ia++) {
+    const k = it * NA + ia; if (raw[k] > 0 || T0 + (it / NT) * (T1 - T0) <= 0.95) continue;
+    R[k] = Math.min(R[k], R[(it - 1) * NA + ia]);
+  }
   const minR = R.slice();
   for (let pass = 0; pass < 6; pass++) {   // fabric: smooth over the bumps (ears, hair line), never inside the head
     const Q = R.slice();
@@ -507,8 +513,9 @@ function buildCap(headGeo, o) {
     }
   }
   // cap outline: straight across the forehead, down in front of the ears to the jaw, around the nape
-  const edgeY = (a) => { const A = Math.abs(a); return A < 0.5 ? 0.12 : A < 1.3 ? 0.12 - 0.102 * sstep(0.5, 1.3, A) : 0.018 + 0.012 * sstep(2.2, Math.PI, A); };   // front edge ~2 cm above the eyebrows
-  const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color();
+  // rounded flap: the front edge curves down to the lowest point under the ear, then rises gently to the nape
+  const edgeY = (a) => { const A = Math.abs(a); return 0.022 + 0.098 * (1 - sstep(0.45, 1.55, A)) + 0.008 * sstep(1.75, 2.6, A) - 0.006 * Math.exp(-(((A - 1.65) / 0.25) ** 2)); };   // front edge ~2 cm above the eyebrows
+  const pos = [], col = [], idx = [], grid = new Int32Array((NT + 1) * NA).fill(-1), c = new THREE.Color(), edgePts = new Array(NA).fill(null);
   const pt = (it, ia, extra = 0) => {
     const t = T0 + (it / NT) * (T1 - T0), a = (ia / NA) * Math.PI * 2, r = R[it * NA + ia] + o.thick + extra;
     return [C0.x + r * Math.sin(t) * Math.sin(a), C0.y + r * Math.cos(t), C0.z + r * Math.sin(t) * Math.cos(a)];
@@ -524,11 +531,12 @@ function buildCap(headGeo, o) {
       if (mp < 0) { const g0 = grid[(it - 1) * NA + ia]; if (g0 >= 0) grid[it * NA + ia] = g0; continue; }
       const f = mp / (mp - m);
       v = [pp[0] + (p0[0] - pp[0]) * f, pp[1] + (p0[1] - pp[1]) * f, pp[2] + (p0[2] - pp[2]) * f];
+      edgePts[ia] = v;
     }
-    const band = m < 0.009;   // rolled binding along the edge
+    const band = m < 0.004;   // rolled binding along the edge
     if (band) { const n0 = new THREE.Vector3(...v).sub(C0).normalize().multiplyScalar(0.0018); v = [v[0] + n0.x, v[1] + n0.y, v[2] + n0.z]; }
     grid[it * NA + ia] = pos.length / 3; pos.push(...v);
-    c.copy(band ? o.trim : o.cap);
+    c.copy(o.cap);
     if (!band && Math.abs(Math.sin(aa)) * Math.sin(T0 + (it / NT) * (T1 - T0)) < 0.012 && Math.cos(aa) > -0.2 || (!band && Math.abs(aa) > Math.PI - 0.03)) c.copy(o.cap).lerp(o.trim, 0.55);   // top seam
     col.push(c.r, c.g, c.b);
   }
@@ -540,6 +548,9 @@ function buildCap(headGeo, o) {
   const cap = new THREE.BufferGeometry();
   cap.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); cap.setIndex(idx); cap.computeVertexNormals();
   const parts = [{ geo: cap, colors: new Float32Array(col), color: o.cap, rough: o.rough }];
+  // rolled binding: one smooth tube along the outline (closed loop around the head), in the trim colour
+  const ring = edgePts.filter(Boolean).map((v) => new THREE.Vector3(...v).sub(C0).multiplyScalar(1.012).add(C0));
+  if (ring.length > 8) parts.push({ geo: new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ring, true, 'centripetal'), ring.length * 3, 0.0032, 6, true), color: o.trim, rough: o.rough });
   // surface point + normal for an azimuth / height (numbers, ear guards, strings)
   const surface = (a, y, extra = 0) => {
     let best = null, bd = 9;

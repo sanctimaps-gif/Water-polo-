@@ -644,7 +644,7 @@ export class Match {
         if (pr.tackle && p.stealCd <= 0) this.doDefend(p);
       }
     }
-    this.motor(p, move, sprint, hasBall, dt, !hasBall && !p.human ? cmd.face : null);
+    this.motor(p, move, sprint, hasBall, dt, !hasBall && (!p.human || p.isGK) ? cmd.face : null);
     if (p.charging) this.faceTo(p, this.targetGoal(p.team), dt);
     this.clampField(p);
   }
@@ -1268,6 +1268,10 @@ export class Match {
       }
       cmd.move = this.steer(gk, add(goal, V(s, 0, 0)), 0.3); gk.cmd = cmd; return;
     }
+    // The goalkeeper always faces the play, back to his goal: he watches the ball (never turned sideways or
+    // toward his own net), and moves across the goal with the eggbeater, sideways, without turning.
+    const bf = flat(b.pos), fx = s * Math.max(1.5, (bf.x - gk.pos.x) * s);
+    cmd.face = V(gk.pos.x + fx, 0, gk.pos.z + clamp(bf.z - gk.pos.z, -2 * fx * s, 2 * fx * s));
     const loose = b.state === 'FREE' || b.state === 'DEFLECTED' || b.state === 'BLOCKED';
     if (loose && fdist(b.pos, goal) < 3.5 && this.amongClosest(gk, 1, true)) { cmd.move = this.steer(gk, b.pos, 0); cmd.sprint = true; gk.cmd = cmd; return; }
     if (b.state === 'SHOT' && b.shooter && b.shooter.team !== gk.team) {

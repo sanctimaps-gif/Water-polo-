@@ -75,7 +75,9 @@ EXCELLENT = dispersion ×0,5, BIEN = ×1, RATÉ (< 50 % ou charge pleine tenue >
 ## 6. Gardien (`GoalkeeperAI`)
 
 Placement sur la ligne ballon–but à 0,6 → 1,3 m de la ligne, anticipation par la vitesse du ballon
-(INTELLIGENCE), précision de placement (POSITIONING). Sur un tir : temps de réaction 0,34 → 0,10 s
+(INTELLIGENCE), précision de placement (POSITIONING).
+Toujours **face au jeu, dos à son but** : il regarde le ballon (jamais de côté ni tourné vers son filet) et se
+déplace latéralement en rétropédalage sans se retourner (`tools/web-tests/gk-facing.mjs`). Sur un tir : temps de réaction 0,34 → 0,10 s
 (REACTION + GOALKEEPING), puis plongeon 1,8 → 3,4 m/s, limité à 0,7 → 1,3 m, + 0,6 m de bras.
 Les balles hautes sont plus difficiles. Probabilité d'arrêt selon la marge, la vitesse du tir et le
 placement ; arrêt **capté** (balle lente, bien centrée) ou **repoussé** (ballon DEFLECTED). Les tirs

@@ -277,6 +277,9 @@ un gardien (changement manuel dans la pause).
   (on ne lui passe plus, le contrôle passe à un coéquipier), puis le remplaçant le plus frais (poste d'abord) entre
   de là avec une éclaboussure ; un seul changement à la fois par équipe. Après un but ou entre deux périodes, tous
   les joueurs sous 50 % sont changés d'un coup.
+* **Jamais pendant l'action** (`actionOver`) : le joueur n'est appelé qu'une fois l'action finie — il a lâché le
+  ballon, aucune passe ni aucun tir n'est en l'air, un coéquipier a le ballon calmement depuis au moins 1 s, et il
+  n'est ni en train d'armer, ni de contrer, ni sonné. S'il récupère le ballon en sortant, le changement est annulé.
 * La nage vers la zone de rentrée est **proportionnelle à la durée réelle de la période** (toujours affichée 8:00) :
   ×1 pour 8 min réelles, ×2 pour 4 min, ×4 pour 2 min, ×8 pour 1 min — un changement prend ~10 s du chronomètre affiché.
 * Le banc récupère (+3,5 % d'énergie par seconde) ; le joueur sorti y garde son énergie et peut revenir plus tard.

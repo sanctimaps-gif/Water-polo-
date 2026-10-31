@@ -273,10 +273,16 @@ export class Match {
    * playing and swims to the re-entry area (subReady), then the caller swaps him (substitute).
    */
   requestSub(p) {
-    if (p.isGK || p.excluded > 0 || p.subOut || this.ball.owner === p || this.teams[p.team].field.some((q) => q.subOut)) return false;
+    if (p.isGK || p.excluded > 0 || p.subOut || this.ball.owner === p || this.teams[p.team].field.some((q) => q.subOut) || !this.actionOver(p)) return false;
     p.subOut = true; this.resetAction(p);
     if (p.human) { const q = this.teams[p.team].field.filter((x) => x !== p && x.excluded <= 0).sort((a, b) => fdist(a.pos, this.ball.pos) - fdist(b.pos, this.ball.pos))[0]; if (q) this.setHuman(q, true); }
     this.emit(Ev.SUB_OUT, p.team, p.id, -1, p.pos); return true;
+  }
+  /** The tired player's action is over: the ball is no longer his (released, not in flight from his pass or
+   *  shot) and a team-mate has had it calmly for at least a second; he is not winding up, blocking or stunned. */
+  actionOver(p) {
+    const b = this.ball, o = b.owner;
+    return !!o && o !== p && o.team === p.team && b.state === 'POSSESSED' && o.possTime >= 1 && !p.charging && p.block <= 0 && p.stun <= 0;
   }
   /** Swim pace of a player leaving for a substitution, proportional to the compression of the clock: a period
    *  is always shown as 8:00, so the same change takes the same share of it whatever the real duration
